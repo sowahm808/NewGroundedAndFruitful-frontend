@@ -4,7 +4,16 @@ A mobile-first Angular 22 application for secure youth participation, reflection
 
 ## Exact commands
 
-Prerequisites: Node.js 22, npm 10+, Chrome/Chromium, and the Firebase CLI.
+Prerequisites: Node.js 26, npm, Chrome/Chromium, and the Firebase CLI. The repository's
+`.nvmrc` and `package.json` both declare the supported Node.js major version; when using
+`nvm`, select it with:
+
+```bash
+nvm install
+nvm use
+```
+
+Then install and start the application:
 
 ```bash
 npm install
