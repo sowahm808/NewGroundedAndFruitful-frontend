@@ -5,6 +5,7 @@
   "projects": {
     "grounded-fruitful": {
       "projectType": "application",
+      "root": "",
       "sourceRoot": "src",
       "prefix": "gf",
       "architect": {
