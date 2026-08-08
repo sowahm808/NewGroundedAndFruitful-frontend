@@ -1,0 +1,60 @@
+:root {
+  --brand: #315f44;
+  --brand-dark: #214431;
+  --leaf-soft: #dcebd5;
+  --sun: #d99319;
+  --ink: #1f2923;
+  --muted: #59665e;
+  --surface: #fff;
+  --background: #f6f4ed;
+  --border: #d7ddd5;
+  --radius-md: 0.7rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --shadow: 0 8px 24px #2b49300d;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  font-family: Inter, ui-rounded, 'Segoe UI', sans-serif;
+  color: var(--ink);
+  background: var(--background);
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 320px;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+a {
+  color: var(--brand-dark);
+}
+:focus-visible {
+  outline: 3px solid #146c94;
+  outline-offset: 3px;
+}
+.skip {
+  position: fixed;
+  z-index: 99;
+  top: -5rem;
+  left: 1rem;
+  background: white;
+  padding: 1rem;
+}
+.skip:focus {
+  top: 1rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

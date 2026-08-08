@@ -1,1 +1,38 @@
-# NewGroundedAndFruitful-frontend
+# Grounded & Fruitful frontend
+
+A mobile-first Angular 22 application for secure youth participation, reflection, learning, family connection, mentoring, and program administration.
+
+## Exact commands
+
+Prerequisites: Node.js 22, npm 10+, Chrome/Chromium, and the Firebase CLI.
+
+```bash
+npm install
+npm start
+```
+
+Open `http://localhost:4200`. To connect the Firebase Emulator Suite:
+
+```bash
+# Terminal 1
+npx firebase-tools emulators:start
+# Terminal 2
+npm start
+```
+
+Validate and build:
+
+```bash
+npm run lint
+npm run test
+npm run e2e
+npm run build
+```
+
+Firebase public web configuration belongs in `src/environments/environment*.ts` or a CI replacement step. Never commit service-account keys, PINs, ID tokens, or production secrets. Checked-in Firestore rules deny all access until collection-specific backend rules are reviewed.
+
+See [architecture](docs/architecture.md), [frontend architecture](docs/frontend-architecture.md), [authentication](docs/authentication.md), [roles](docs/roles-and-permissions.md), and [testing](docs/testing.md).
+
+## Product invariant
+
+Points are backend-owned and reward participation, effort, milestones, and consistency. Character rating values, grades, Bible accuracy, spiritual performance, and child-to-child comparison never determine awards.
