@@ -45,6 +45,10 @@ const adminNames = [
 export const routes: Routes = [
   { path: 'auth/login', loadComponent: () => import('./features/auth/login.component').then((m) => m.LoginComponent) },
   {
+    path: 'auth/create-account',
+    loadComponent: () => import('./features/auth/create-account.component').then((m) => m.CreateAccountComponent),
+  },
+  {
     path: 'auth/child',
     loadComponent: () => import('./features/auth/child-login.component').then((m) => m.ChildLoginComponent),
   },

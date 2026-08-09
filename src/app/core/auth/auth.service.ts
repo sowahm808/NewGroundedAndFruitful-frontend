@@ -1,5 +1,18 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Inject, Injectable, computed, signal } from '@angular/core';
+import {
+  GoogleAuthProvider,
+  User,
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  updateProfile,
+} from 'firebase/auth';
+import { FIREBASE_AUTH } from './firebase-auth.token';
 import { SessionUser, UserRole } from '../models/domain.models';
+
+const validRoles: readonly UserRole[] = ['child', 'parent', 'mentor', 'observer', 'admin', 'super_admin'];
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -7,14 +20,70 @@ export class AuthService {
   readonly user = this.current.asReadonly();
   readonly authenticated = computed(() => this.current() !== null && !this.current()?.disabled);
   readonly roles = computed(() => this.current()?.roles ?? []);
+
+  constructor(@Inject(FIREBASE_AUTH) private readonly firebaseAuth: import('firebase/auth').Auth) {}
+
+  /** Wait for Firebase to restore its persisted session before the router evaluates guards. */
+  initialize(): Promise<void> {
+    return new Promise((resolve) => {
+      const unsubscribe = onAuthStateChanged(this.firebaseAuth, async (user) => {
+        await this.restoreFirebaseUser(user);
+        unsubscribe();
+        resolve();
+      });
+    });
+  }
+
+  async signIn(email: string, password: string): Promise<SessionUser> {
+    const credential = await signInWithEmailAndPassword(this.firebaseAuth, email, password);
+    return (await this.restoreFirebaseUser(credential.user))!;
+  }
+
+  async createAccount(displayName: string, email: string, password: string): Promise<SessionUser> {
+    const credential = await createUserWithEmailAndPassword(this.firebaseAuth, email, password);
+    await updateProfile(credential.user, { displayName });
+    return (await this.restoreFirebaseUser(credential.user, displayName))!;
+  }
+
+  async signInWithGoogle(): Promise<SessionUser> {
+    const credential = await signInWithPopup(this.firebaseAuth, new GoogleAuthProvider());
+    return (await this.restoreFirebaseUser(credential.user))!;
+  }
+
+  /** Applies an already-verified session, primarily for backend adapters and isolated tests. */
   restore(user: SessionUser | null): void {
     this.current.set(user);
   }
+
   hasRole(allowed: readonly UserRole[]): boolean {
     return this.roles().some((role) => allowed.includes(role));
   }
-  logout(): void {
+
+  async logout(): Promise<void> {
+    await signOut(this.firebaseAuth);
     this.current.set(null);
   }
-  // Sign-in exchanges are intentionally performed by the protected backend/Firebase adapter.
+
+  private async restoreFirebaseUser(user: User | null, displayName?: string): Promise<SessionUser | null> {
+    if (!user) {
+      this.current.set(null);
+      return null;
+    }
+    const claims = (await user.getIdTokenResult()).claims;
+    const claimedRoles = Array.isArray(claims['roles'])
+      ? claims['roles']
+      : typeof claims['role'] === 'string'
+        ? [claims['role']]
+        : [];
+    const session: SessionUser = {
+      uid: user.uid,
+      displayName: displayName ?? user.displayName ?? user.email ?? 'Account',
+      roles: claimedRoles.filter(
+        (role): role is UserRole => typeof role === 'string' && validRoles.includes(role as UserRole),
+      ),
+      disabled: false,
+    };
+    this.current.set(session);
+    return session;
+  }
 }
