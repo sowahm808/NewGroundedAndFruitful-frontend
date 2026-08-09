@@ -76,9 +76,11 @@ export class LoginComponent {
           ? '/parent/children'
           : role === 'mentor'
             ? '/mentor/teams'
-            : role === 'admin' || role === 'super_admin'
-              ? '/admin/users'
-              : '/unauthorized';
+            : role === 'observer'
+              ? '/observer/observations'
+              : role === 'admin' || role === 'super_admin'
+                ? '/admin/users'
+                : '/unauthorized';
     return this.router.navigateByUrl(destination);
   }
 }
