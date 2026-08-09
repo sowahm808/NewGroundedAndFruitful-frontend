@@ -158,7 +158,7 @@ export const routes: Routes = [
       { path: '', pathMatch: 'full' as const, redirectTo: 'users' },
     ],
   },
-  // { path: 'unauthorized', ...feature('You do not have access', 'Authorization') },
+  { path: 'unauthorized', ...feature('You do not have access', 'Authorization') },
   { path: '', pathMatch: 'full', redirectTo: 'auth/login' },
   { path: '**', redirectTo: 'auth/login' },
 ];
