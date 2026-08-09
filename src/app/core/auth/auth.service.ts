@@ -70,20 +70,29 @@ export class AuthService {
       return null;
     }
     const claims = (await user.getIdTokenResult()).claims;
-    const claimedRoles = Array.isArray(claims['roles'])
-      ? claims['roles']
-      : typeof claims['role'] === 'string'
-        ? [claims['role']]
-        : [];
     const session: SessionUser = {
       uid: user.uid,
       displayName: displayName ?? user.displayName ?? user.email ?? 'Account',
-      roles: claimedRoles.filter(
-        (role): role is UserRole => typeof role === 'string' && validRoles.includes(role as UserRole),
-      ),
+      roles: extractRoles(claims),
       disabled: false,
     };
     this.current.set(session);
     return session;
   }
+}
+
+export function extractRoles(claims: Record<string, unknown>): readonly UserRole[] {
+  const roleClaim = claims['role'];
+  const rolesClaim = claims['roles'];
+  const candidates = [
+    ...(Array.isArray(rolesClaim) ? rolesClaim : typeof rolesClaim === 'string' ? rolesClaim.split(/[\s,]+/) : []),
+    ...(typeof roleClaim === 'string' ? [roleClaim] : []),
+    ...validRoles.filter((role) => claims[role] === true),
+    ...(isRoleMap(rolesClaim) ? validRoles.filter((role) => rolesClaim[role] === true) : []),
+  ];
+  return validRoles.filter((role) => candidates.includes(role));
+}
+
+function isRoleMap(value: unknown): value is Partial<Record<UserRole, unknown>> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

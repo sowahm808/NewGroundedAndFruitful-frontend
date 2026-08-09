@@ -28,6 +28,7 @@ const mentorLinks = [
   { label: 'Reading', path: '/mentor/reading' },
   { label: 'Encouragement', path: '/mentor/encouragement' },
 ];
+const observerLinks = [{ label: 'Observations', path: '/observer/observations' }];
 const adminNames = [
   'users',
   'teams',
@@ -122,6 +123,19 @@ export const routes: Routes = [
       { path: 'reading', ...feature('Reading status', 'Participation overview') },
       { path: 'encouragement', ...feature('May need encouragement', 'Kind, timely support') },
       { path: '', pathMatch: 'full', redirectTo: 'teams' },
+    ],
+  },
+  {
+    path: 'observer',
+    component: AppShellComponent,
+    canActivate: [authGuard, roleGuard(['observer'])],
+    data: { links: observerLinks },
+    children: [
+      {
+        path: 'observations',
+        ...feature('Positive observations', 'Notice growth', ['Submit an observation', 'Under review']),
+      },
+      { path: '', pathMatch: 'full', redirectTo: 'observations' },
     ],
   },
   {
