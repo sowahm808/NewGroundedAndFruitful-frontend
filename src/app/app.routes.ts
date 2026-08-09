@@ -1,9 +1,16 @@
-import { Routes } from '@angular/router';
+import { Routes,Route } from '@angular/router';
 import { authGuard, roleGuard } from './core/guards/auth.guards';
 import { AppShellComponent } from './core/layout/app-shell.component';
 
-const feature = (title: string, area: string, highlights: readonly string[] = []) => ({
-  loadComponent: () => import('./features/shared/feature-page.component').then((m) => m.FeaturePageComponent),
+const feature = (
+  title: string,
+  area: string,
+  highlights: readonly string[] = [],
+): Pick<Route, 'loadComponent' | 'data'> => ({
+  loadComponent: () =>
+    import('./features/shared/feature-page.component').then(
+      (m) => m.FeaturePageComponent
+    ),
   data: { title, area, highlights },
 });
 const childLinks = [
