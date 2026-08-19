@@ -6,8 +6,10 @@ import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithCustomToken,
   signInWithPopup,
   signOut,
+  sendPasswordResetEmail,
   updateProfile,
 } from 'firebase/auth';
 import { FIREBASE_AUTH } from './firebase-auth.token';
@@ -73,6 +75,15 @@ export class AuthService {
 
   async signIn(email: string, password: string): Promise<SessionUser> {
     const credential = await signInWithEmailAndPassword(this.firebaseAuth, email, password);
+    return this.loadBackendSession(credential.user);
+  }
+
+  async sendPasswordReset(email: string): Promise<void> {
+    await sendPasswordResetEmail(this.firebaseAuth, email);
+  }
+
+  async signInChild(customToken: string): Promise<SessionUser> {
+    const credential = await signInWithCustomToken(this.firebaseAuth, customToken);
     return this.loadBackendSession(credential.user);
   }
 

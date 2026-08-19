@@ -58,7 +58,10 @@ export const routes: Routes = [
     path: 'auth/child',
     loadComponent: () => import('./features/auth/child-login.component').then((m) => m.ChildLoginComponent),
   },
-  { path: 'auth/forgot-password', ...feature('Reset your password', 'Secure account recovery') },
+  {
+    path: 'auth/forgot-password',
+    loadComponent: () => import('./features/auth/password-reset.component').then((m) => m.PasswordResetComponent),
+  },
   {
     path: 'child',
     component: AppShellComponent,
