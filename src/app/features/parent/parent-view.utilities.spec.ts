@@ -21,4 +21,14 @@ describe('parentViewError', () => {
     expect(result.title).toBe('Network unavailable');
     expect(result.message).toBe('Offline');
   });
+
+  it('identifies an undeployed list contract without disguising other errors', () => {
+    const result = parentViewError(new ApiError(404, 'resource_not_found', 'Not found'), true);
+    expect(result.title).toBe('Contract unavailable');
+  });
+
+  it('distinguishes invalid sessions and backend failures', () => {
+    expect(parentViewError(new ApiError(401, 'authentication_required', 'Sign in')).title).toBe('Session invalid');
+    expect(parentViewError(new ApiError(500, 'server_error', 'Failed')).title).toBe('Backend failure');
+  });
 });

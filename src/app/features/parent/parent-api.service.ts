@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiClient } from '../../core/http/api-client.service';
+import { buildHttpParams } from '../../core/http/http-params';
 
 export type RecordStatus = 'active' | 'pending' | 'inactive' | 'completed' | 'closed' | 'submitted';
 export interface CursorPage<T> {
@@ -72,25 +73,25 @@ export class ParentApi {
     return this.api.getData('/parent/dashboard');
   }
   children(search = '', status = '', cursor = ''): Observable<CursorPage<ParentChild>> {
-    return this.api.getData('/parent/children', { params: { search, status, cursor } });
+    return this.api.getData('/parent/children', { params: buildHttpParams({ search, status, cursor }) });
   }
   child(id: string): Observable<ParentChild> {
     return this.api.getData(`/parent/children/${encodeURIComponent(id)}`);
   }
   character(childId = ''): Observable<CharacterCycle> {
-    return this.api.getData('/parent/character', { params: { childId } });
+    return this.api.getData('/parent/character', { params: buildHttpParams({ childId }) });
   }
   saveCharacter(childId: string, qualityIds: readonly string[]): Observable<CharacterCycle> {
     return this.api.patchData('/parent/character', { childId, qualityIds });
   }
   observations(childId = '', cursor = ''): Observable<CursorPage<Observation>> {
-    return this.api.getData('/parent/observations', { params: { childId, cursor } });
+    return this.api.getData('/parent/observations', { params: buildHttpParams({ childId, cursor }) });
   }
   submitObservation(body: { childId: string; summary: string }): Observable<Observation> {
     return this.api.postData('/parent/observations', body);
   }
   family(childId = ''): Observable<CursorPage<FamilyActivity>> {
-    return this.api.getData('/parent/family/activities', { params: { childId } });
+    return this.api.getData('/parent/family/activities', { params: buildHttpParams({ childId }) });
   }
   completeActivity(id: string, childId: string): Observable<FamilyActivity> {
     return this.api.postData(`/parent/family/activities/${encodeURIComponent(id)}/completions`, { childId });
@@ -99,12 +100,12 @@ export class ParentApi {
     return this.api.getData('/parent/academic-support/configuration');
   }
   supportRequests(cursor = ''): Observable<CursorPage<SupportRequest>> {
-    return this.api.getData('/parent/academic-support/requests', { params: { cursor } });
+    return this.api.getData('/parent/academic-support/requests', { params: buildHttpParams({ cursor }) });
   }
   createSupport(body: { childId: string; categoryId: string; summary: string }): Observable<SupportRequest> {
     return this.api.postData('/parent/academic-support/requests', body);
   }
   reports(childId = '', cursor = ''): Observable<CursorPage<ParentReport>> {
-    return this.api.getData('/parent/reports', { params: { childId, cursor } });
+    return this.api.getData('/parent/reports', { params: buildHttpParams({ childId, cursor }) });
   }
 }

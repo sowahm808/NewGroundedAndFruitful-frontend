@@ -6,6 +6,7 @@ export type ApiErrorCode =
   | 'validation_error'
   | 'rate_limit'
   | 'server_error'
+  | 'network_error'
   | 'unexpected_error';
 
 export class ApiError extends Error {
