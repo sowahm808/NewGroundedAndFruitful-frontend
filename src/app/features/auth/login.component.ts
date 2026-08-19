@@ -2,8 +2,9 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink, UrlTree } from '@angular/router';
 import { FirebaseError } from 'firebase/app';
-import { AuthService } from '../../core/auth/auth.service';
+import { AuthService, SessionBootstrapError } from '../../core/auth/auth.service';
 import { SessionUser } from '../../core/models/domain.models';
+import { roleCanAccessPath, roleDestination } from '../../core/auth/role.utilities';
 import { GfButton, GfCard } from '../../shared/components/design-system';
 
 @Component({
@@ -30,6 +31,9 @@ import { GfButton, GfCard } from '../../shared/components/design-system';
       </div>
       @if (message()) {
         <p class="message" role="alert">{{ message() }}</p>
+        @if (auth.status() === 'error') {
+          <gf-button (pressed)="retrySession()">Retry account session</gf-button>
+        }
       }
     </gf-card>
   </main>`,
@@ -37,7 +41,7 @@ import { GfButton, GfCard } from '../../shared/components/design-system';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LoginComponent {
-  private readonly auth = inject(AuthService);
+  readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   readonly message = signal('');
@@ -56,6 +60,14 @@ export class LoginComponent {
     if (!this.busy()) await this.authenticate(() => this.auth.signInWithGoogle());
   }
 
+  async retrySession(): Promise<void> {
+    await this.authenticate(async () => {
+      const user = await this.auth.retrySession();
+      if (!user) throw new SessionBootstrapError('unexpected');
+      return user;
+    });
+  }
+
   private async authenticate(operation: () => Promise<SessionUser>): Promise<void> {
     this.busy.set(true);
     this.message.set('');
@@ -69,30 +81,34 @@ export class LoginComponent {
   }
 
   private routeUser(user: SessionUser): Promise<boolean> {
-    const returnUrl = safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'), this.router);
+    if (this.auth.status() === 'pending-approval') return this.router.navigateByUrl('/account/pending');
+    if (this.auth.status() === 'disabled') return this.router.navigateByUrl('/account/disabled');
+    if (this.auth.status() === 'role-required') return this.router.navigateByUrl('/account/role-required');
+    const returnUrl = safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'), this.router, user.roles);
     if (returnUrl) return this.router.navigateByUrl(returnUrl);
-    const role = user.roles[0];
-    const destination =
-      role === 'child'
-        ? '/child/today'
-        : role === 'parent'
-          ? '/parent/children'
-          : role === 'mentor'
-            ? '/mentor/teams'
-            : role === 'observer'
-              ? '/observer/observations'
-              : role === 'admin' || role === 'super_admin'
-                ? '/admin/users'
-                : '/unauthorized';
-    return this.router.navigateByUrl(destination);
+    return this.router.navigateByUrl(roleDestination(user.roles) ?? '/account/role-required');
   }
 }
 
 /** Accept only same-application absolute paths; parsed external or protocol-relative URLs are rejected. */
-export function safeReturnUrl(candidate: string | null, router: Router): UrlTree | null {
+export function safeReturnUrl(
+  candidate: string | null,
+  router: Router,
+  roles: SessionUser['roles'] = [],
+): UrlTree | null {
   if (!candidate || !candidate.startsWith('/') || candidate.startsWith('//')) return null;
   try {
     const tree = router.parseUrl(candidate);
+    const path = '/' + (tree.root.children['primary']?.segments.map((segment) => segment.path).join('/') ?? '');
+    if (
+      path === '/unauthorized' ||
+      path.startsWith('/unauthorized/') ||
+      path === '/auth' ||
+      path.startsWith('/auth/') ||
+      path.startsWith('/account/') ||
+      !roleCanAccessPath(roles, path)
+    )
+      return null;
     return tree.root.children['primary'] ? tree : null;
   } catch {
     return null;
@@ -100,7 +116,13 @@ export function safeReturnUrl(candidate: string | null, router: Router): UrlTree
 }
 
 export function authErrorMessage(error: unknown): string {
-  if (!(error instanceof FirebaseError)) return 'We could not sign you in. Please try again.';
+  if (error instanceof SessionBootstrapError) {
+    if (error.kind === 'network')
+      return 'Your account was verified, but the session service is unreachable. Check your connection and retry.';
+    if (error.kind === 'forbidden') return 'Your account is not approved for this program. Contact an administrator.';
+    return 'Your account was verified, but its session could not be loaded. Retry in a moment.';
+  }
+  if (!(error instanceof FirebaseError)) return 'We could not complete sign-in. Please try again.';
   if (error.code === 'auth/popup-closed-by-user') return 'Google sign-in was cancelled.';
   if (error.code === 'auth/network-request-failed') return 'Check your internet connection and try again.';
   if (error.code === 'auth/too-many-requests') return 'Too many attempts. Please wait and try again.';

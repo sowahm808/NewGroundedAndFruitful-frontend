@@ -157,6 +157,37 @@ export const routes: Routes = [
     ],
   },
   { path: 'unauthorized', ...feature('You do not have access', 'Authorization') },
+  {
+    path: 'account/role-required',
+    ...feature(
+      'Your account needs a role',
+      'Account status',
+      [],
+      'Your identity is verified, but a program role has not been assigned. Contact an administrator.',
+    ),
+  },
+  {
+    path: 'account/pending',
+    ...feature('Approval pending', 'Account status', [], 'Your program membership is awaiting approval.'),
+  },
+  {
+    path: 'account/disabled',
+    ...feature(
+      'Account unavailable',
+      'Account status',
+      [],
+      'This account is disabled or suspended. Contact an administrator.',
+    ),
+  },
+  {
+    path: 'account/session-error',
+    ...feature(
+      'Session unavailable',
+      'Account status',
+      [],
+      'We could not load your program membership. Return to sign in and retry.',
+    ),
+  },
   { path: '', pathMatch: 'full', redirectTo: 'auth/login' },
   {
     path: '**',

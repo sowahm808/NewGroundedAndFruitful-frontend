@@ -1,9 +1,11 @@
 export type UserRole = 'child' | 'parent' | 'mentor' | 'observer' | 'admin' | 'super_admin';
+export type MembershipState = 'active' | 'pending' | 'suspended' | 'deleted';
 export interface SessionUser {
   readonly uid: string;
   readonly displayName: string;
   readonly roles: readonly UserRole[];
   readonly disabled: boolean;
+  readonly membershipState: MembershipState;
 }
 export type LoadState<T> =
   | { status: 'idle' | 'loading' }

@@ -38,7 +38,7 @@ Required contracts before production integration:
 4. Typed commands and validation/conflict schemas for every workflow listed above, including idempotency behavior for submissions.
 5. Pagination/search/filter conventions, correlation/request ID header, version/ETag behavior, and the canonical error envelope.
 
-The current `AuthService` derives authorization UX from Firebase custom claims, not the required backend bootstrap. The UI must migrate to the verified bootstrap as the canonical application role/resource source once its contract is supplied. Guards remain UX controls only.
+`AuthService` restores Firebase identity and then obtains the application session from `GET /api/v1/auth/session`. The backend response is canonical for roles and membership state; guards remain UX controls only and backend authorization is still required.
 
 ## Accessibility and responsive-design problems
 
