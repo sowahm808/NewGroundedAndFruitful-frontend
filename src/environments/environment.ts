@@ -1,7 +1,7 @@
 export const environment = {
   production: false,
   useEmulators: true,
-  apiUrl: 'http://localhost:3000/api/v1',
+  apiUrl: 'https://api.groundedandfruitful.org/api/v1',
   firebase: {
     apiKey: 'AIzaSyAKfBL4hMl2lWK5i-uDT0Q5aUVl5QzSl-I',
     authDomain: 'grounded-fruitful.firebaseapp.com',
