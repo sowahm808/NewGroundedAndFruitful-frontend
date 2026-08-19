@@ -35,7 +35,10 @@ export interface BackendSessionResponse {
 }
 
 export class SessionBootstrapError extends Error {
-  constructor(readonly kind: 'network' | 'forbidden' | 'server' | 'unexpected') {
+  constructor(
+    readonly kind: 'network' | 'authentication' | 'forbidden' | 'not-found' | 'rate-limit' | 'server' | 'unexpected',
+    readonly requestId?: string,
+  ) {
     super('The application session could not be loaded.');
     this.name = 'SessionBootstrapError';
   }
@@ -147,18 +150,6 @@ export class AuthService {
         return session;
       })
       .catch((error: unknown) => {
-        if (error instanceof ApiError && error.status === 404) {
-          const session: SessionUser = {
-            uid: firebaseUser.uid,
-            displayName: firebaseUser.displayName || firebaseUser.email || 'Account',
-            roles: [],
-            disabled: false,
-            membershipState: 'active',
-          };
-          this.current.set(session);
-          this.applySessionStatus(session);
-          return session;
-        }
         this.current.set(null);
         this.currentStatus.set('error');
         this.currentError.set('Your account was verified, but its application session could not be loaded. Try again.');
@@ -182,7 +173,10 @@ export class AuthService {
 
 function classifySessionError(error: unknown): SessionBootstrapError {
   if (!(error instanceof ApiError)) return new SessionBootstrapError('unexpected');
-  if (error.status === 0) return new SessionBootstrapError('network');
-  if (error.status === 401 || error.status === 403) return new SessionBootstrapError('forbidden');
-  return new SessionBootstrapError(error.status >= 500 ? 'server' : 'unexpected');
+  if (error.status === 0) return new SessionBootstrapError('network', error.requestId);
+  if (error.status === 401) return new SessionBootstrapError('authentication', error.requestId);
+  if (error.status === 403) return new SessionBootstrapError('forbidden', error.requestId);
+  if (error.status === 404) return new SessionBootstrapError('not-found', error.requestId);
+  if (error.status === 429) return new SessionBootstrapError('rate-limit', error.requestId);
+  return new SessionBootstrapError(error.status >= 500 ? 'server' : 'unexpected', error.requestId);
 }

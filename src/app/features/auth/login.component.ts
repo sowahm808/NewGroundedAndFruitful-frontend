@@ -119,8 +119,14 @@ export function authErrorMessage(error: unknown): string {
   if (error instanceof SessionBootstrapError) {
     if (error.kind === 'network')
       return 'Your account was verified, but the session service is unreachable. Check your connection and retry.';
-    if (error.kind === 'forbidden') return 'Your account is not approved for this program. Contact an administrator.';
-    return 'Your account was verified, but its session could not be loaded. Retry in a moment.';
+    const reference = error.requestId ? ` Support reference: ${error.requestId}.` : '';
+    if (error.kind === 'authentication')
+      return `Your sign-in token was not accepted. Sign out, sign in again, and retry.${reference}`;
+    if (error.kind === 'forbidden') return `Your account is disabled or not approved for this program.${reference}`;
+    if (error.kind === 'not-found') return `The account session endpoint is unavailable. Contact support.${reference}`;
+    if (error.kind === 'rate-limit') return `Too many session requests were made. Wait a moment and retry.${reference}`;
+    if (error.kind === 'server') return `The session service could not complete the request. Retry shortly.${reference}`;
+    return `Your account was verified, but its session could not be restored.${reference}`;
   }
   if (!(error instanceof FirebaseError)) return 'We could not complete sign-in. Please try again.';
   if (error.code === 'auth/popup-closed-by-user') return 'Google sign-in was cancelled.';
