@@ -1,5 +1,5 @@
 import { HttpClient, HttpContext, HttpErrorResponse, HttpParams } from '@angular/common/http';
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { ApiError, ApiErrorCode } from './api-error';
@@ -12,9 +12,8 @@ export interface ApiRequestOptions {
 
 @Injectable({ providedIn: 'root' })
 export class ApiClient {
+  private readonly http = inject(HttpClient);
   private readonly baseUrl = environment.apiUrl.replace(/\/$/, '');
-
-  constructor(private readonly http: HttpClient) {}
 
   get<T>(path: string, options: ApiRequestOptions = {}): Observable<T> {
     return this.request('GET', path, undefined, options);
