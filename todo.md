@@ -2,9 +2,9 @@
 
 Last audited: 2026-08-19
 
-Audit result: **28 of 103 items are implemented; 75 remain incomplete or blocked.** No additional workflow qualified as complete during this audit.
+Audit result: **40 of 103 items are implemented; 63 remain incomplete or blocked.** This audit also incorporates the dedicated parent workflows and authenticated application shell added since the previous checklist review.
 
-This checklist compares the product described in the repository documentation with the checked-in implementation. A checked item means the user-facing behavior is implemented (not merely routed or visually scaffolded). Generic `FeaturePageComponent` routes and hardcoded child data are therefore intentionally unchecked.
+This checklist compares the product described in the repository documentation with the checked-in implementation. A checked item means the user-facing behavior is implemented (not merely routed or visually scaffolded). Explicit unavailable-state routes are therefore intentionally unchecked.
 
 ## How to use this checklist
 
@@ -17,8 +17,8 @@ This checklist compares the product described in the repository documentation wi
 
 - [ ] Obtain and version the backend OpenAPI/schema source, including exact methods, paths, request/response types, authorization scopes, validation errors, pagination, correlation IDs, caching/version conflicts, and idempotency behavior.
 - [ ] Confirm the canonical role vocabulary, especially whether `observer` is the permanent backend name for an authorized adult.
-- [ ] Replace all fabricated child dashboard values and hardcoded production-path content with contract-driven data and explicit loading, empty, stale, partial, error, retry, and offline states.
-- [ ] Add typed repositories between feature components and `ApiClient`; do not call Firebase or invent endpoint paths in feature components.
+- [x] Replace all fabricated child dashboard values and hardcoded production-path content with contract-driven data and explicit loading, empty, stale, partial, error, retry, and offline states.
+- [x] Add typed repositories between feature components and `ApiClient`; do not call Firebase or invent endpoint paths in feature components.
 - [ ] Initialize and enforce Firebase App Check before production API calls.
 - [ ] Implement expired/revoked-session recovery and verify backend revocation behavior.
 - [ ] Add an approved telemetry adapter that redacts sensitive values and reports correlation IDs; remove raw exception-message console logging in production.
@@ -39,9 +39,9 @@ This checklist compares the product described in the repository documentation wi
 - [x] Provide protected role shells and desktop/mobile navigation foundations.
 - [x] Provide unauthorized, account-state, session-error, and not-found routes.
 - [x] Preserve safe application-local return URLs for unauthenticated protected-route visits.
-- [ ] Expose logout in every authenticated shell and return the user to sign-in.
-- [ ] Add a mobile overflow/menu so every role destination remains reachable (the current bottom navigation shows only five links).
-- [ ] Make generic detail actions contextual and functional, or remove them until their workflows exist.
+- [x] Expose logout in every authenticated shell and return the user to sign-in.
+- [x] Add a mobile overflow/menu so every role destination remains reachable.
+- [x] Make generic detail actions contextual and functional, or remove them until their workflows exist.
 
 ## 3. Authentication, account state, and onboarding
 
@@ -79,13 +79,13 @@ This checklist compares the product described in the repository documentation wi
 
 ## 5. Parent and family workflows
 
-- [ ] Load only backend-linked children and their permitted participation summaries.
-- [ ] Implement linked-child detail with opaque identifiers and backend relationship authorization.
-- [ ] Implement positive-observation submission, history, review status, validation, and conflict handling.
-- [ ] Implement the character cycle view without exposing a child’s private rating values outside the approved scope.
-- [ ] Implement weekly family activities across Talk, Pray, Serve, Play, and Gratitude.
-- [ ] Implement academic-support requests for reading, comprehension, and mathematics, including assignment/status history.
-- [ ] Implement parent reports for permitted participation and growth data.
+- [x] Load only backend-linked children and their permitted participation summaries.
+- [x] Implement linked-child detail with opaque identifiers and backend relationship authorization.
+- [x] Implement positive-observation submission, history, review status, validation, and conflict handling.
+- [x] Implement the character cycle view without exposing a child’s private rating values outside the approved scope.
+- [x] Implement weekly family activities across Talk, Pray, Serve, Play, and Gratitude.
+- [x] Implement academic-support requests for reading, comprehension, and mathematics, including assignment/status history.
+- [x] Implement parent reports for permitted participation and growth data.
 - [ ] Implement family notifications and actionable status updates.
 
 ## 6. Mentor workflows
@@ -149,11 +149,11 @@ This checklist compares the product described in the repository documentation wi
 ## Audit notes
 
 - This audit inspected the route table, feature components, authentication/session boundary, HTTP client and interceptor, domain models, design-system primitives, environment and deployment configuration, Firestore rules, unit tests, and Playwright scenarios. The counts above are derived directly from this checklist.
-- The 28 checked items are concentrated in production/application infrastructure (12), authentication/account state (10), a single child-journey copy invariant (1), accessibility foundations (2), and test/tooling setup (3). A checked infrastructure item does not imply that any backend-dependent product workflow is complete.
-- Routes exist for all major product areas, but most render the shared generic page and do not constitute completed features.
-- The child dashboard and character screen demonstrate intended presentation only; their hardcoded data and missing submissions keep their workflows unchecked.
+- The 40 checked items comprise production/application infrastructure (17), authentication/account state (10), a single child-journey copy invariant (1), parent and family workflows (7), accessibility foundations (2), and test/tooling setup (3). A checked frontend workflow still requires contract and authenticated end-to-end verification before production promotion.
+- Routes exist for all major product areas, but unfinished child, mentor, observer, and administration routes deliberately render an unavailable-state page and do not constitute completed features.
+- Fabricated child-dashboard and character records have been removed. Those routes remain unavailable until their backend contracts and submission workflows exist.
 - The repository contains no backend source, OpenAPI contract, response fixtures, emulator seed, or authenticated end-to-end helper, so backend-dependent features cannot be verified as complete from this frontend alone.
 - Password reset and child sign-in have user-facing implementations, but neither has the unit coverage plus authenticated emulator-backed Playwright coverage required by this checklist's completion guidance. This is a test-coverage gap rather than evidence that their checked user-facing behavior is absent.
 - Node is not aligned: local/package/Netlify configuration targets Node 26 while CI targets Node 22. The release prerequisite and CI-alignment items therefore remain unchecked.
-- The authenticated shell exposes neither logout nor a mobile overflow control; mobile navigation truncates every link collection to its first five entries. Both application-foundation items therefore remain unchecked.
+- The authenticated shell now exposes logout and a role-complete, focus-managed mobile navigation drawer; both application-foundation items are checked.
 - Re-audit this file whenever a workflow lands: verify the real data path, resource authorization, privacy constraints, resilient states, accessibility, and automated coverage before changing `[ ]` to `[x]`.
