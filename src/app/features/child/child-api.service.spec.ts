@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { environment } from '../../../environments/environment';
-import { ChildApi, MediaPolicy, validatePrivateMedia } from './child-api.service';
+import { CharacterCycle, CharacterResult, ChildApi, MediaPolicy, validatePrivateMedia } from './child-api.service';
 
 describe('ChildApi', () => {
   let api: ChildApi;
@@ -43,6 +43,27 @@ describe('ChildApi', () => {
     expect(request.request.headers.get('Idempotency-Key')).toBe('stable-key');
     expect(request.request.body).toEqual({ responses, version: 3 });
     request.flush({ data: { status: 'completed', calculatedAt: '2026-08-19T12:00:00Z' } });
+  });
+
+  it('unwraps draft and completion envelopes into their distinct typed payloads', () => {
+    const draft: CharacterCycle = {
+      id: 'cycle',
+      status: 'draft',
+      qualities: [],
+      responses: [],
+      version: 2,
+    };
+    const completion: CharacterResult = { status: 'completed', calculatedAt: '2026-08-19T12:00:00Z' };
+    let actualDraft: CharacterCycle | undefined;
+    let actualCompletion: CharacterResult | undefined;
+
+    api.saveCharacter([], 1).subscribe((value: CharacterCycle) => (actualDraft = value));
+    http.expectOne(`${environment.apiUrl}/child/character/draft`).flush({ data: draft });
+    api.completeCharacter([], 2, 'retry-key').subscribe((value: CharacterResult) => (actualCompletion = value));
+    http.expectOne(`${environment.apiUrl}/child/character/complete`).flush({ data: completion });
+
+    expect(actualDraft).toBe(draft);
+    expect(actualCompletion).toBe(completion);
   });
 
   it('keeps private gratitude text in the request body, never the URL', () => {
