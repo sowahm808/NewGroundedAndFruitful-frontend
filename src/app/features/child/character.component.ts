@@ -1,8 +1,17 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormArray, FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { finalize } from 'rxjs';
 import { ApiError } from '../../core/http/api-error';
 import { GfAlert, GfEmptyState, GfPageHeader } from '../../shared/components/design-system';
-import { CharacterCycle, CharacterQuality, ChildApi, newIdempotencyKey } from './child-api.service';
+import {
+  CharacterCycle,
+  CharacterQuality,
+  CharacterResponse,
+  CharacterResult,
+  ChildApi,
+  newIdempotencyKey,
+} from './child-api.service';
 type ResponseForm = FormGroup<{
   qualityId: FormControl<string>;
   rating: FormControl<number | null>;
@@ -75,6 +84,7 @@ export const CHARACTER_PARTICIPATION_COPY =
 })
 export class CharacterComponent implements OnInit {
   private api = inject(ChildApi);
+  private readonly destroyRef = inject(DestroyRef);
   readonly copy = CHARACTER_PARTICIPATION_COPY;
   readonly ratings = Array.from({ length: 11 }, (_, i) => i);
   readonly loading = signal(true);
@@ -146,26 +156,46 @@ export class CharacterComponent implements OnInit {
         reflection: g.controls.reflection.value || undefined,
       }));
     this.busy.set(true);
-    (final
-      ? this.api.completeCharacter(responses, c.version, this.key)
-      : this.api.saveCharacter(responses, c.version)
-    ).subscribe({
-      next: (r) => {
-        this.busy.set(false);
-        this.message.set(
-          final
-            ? `Reflection complete.${'participationAward' in r && r.participationAward ? ' ' + r.participationAward.label : ''}`
-            : 'Draft saved.',
-        );
-        if (final) {
-          this.cycle.update((x) => (x ? { ...x, status: 'completed' } : x));
+    if (final) {
+      this.submitCompletion(responses, c.version);
+      return;
+    }
+    this.saveDraft(responses, c.version);
+  }
+  private saveDraft(responses: readonly CharacterResponse[], version: number) {
+    this.api
+      .saveCharacter(responses, version)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.busy.set(false)),
+      )
+      .subscribe({
+        next: (cycle: CharacterCycle) => {
+          this.message.set('Draft saved.');
+          this.cycle.set(cycle);
+        },
+        error: (error: unknown) => this.showSaveError(error),
+      });
+  }
+  private submitCompletion(responses: readonly CharacterResponse[], version: number) {
+    this.api
+      .completeCharacter(responses, version, this.key)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.busy.set(false)),
+      )
+      .subscribe({
+        next: (result: CharacterResult) => {
+          this.message.set(
+            `Reflection complete.${result.participationAward ? ' ' + result.participationAward.label : ''}`,
+          );
+          this.cycle.update((cycle) => (cycle ? { ...cycle, status: 'completed' } : cycle));
           this.key = newIdempotencyKey();
-        } else this.cycle.set(r as CharacterCycle);
-      },
-      error: (e) => {
-        this.busy.set(false);
-        this.message.set(e instanceof ApiError ? e.message : 'The reflection could not be saved.');
-      },
-    });
+        },
+        error: (error: unknown) => this.showSaveError(error),
+      });
+  }
+  private showSaveError(error: unknown) {
+    this.message.set(error instanceof ApiError ? error.message : 'The reflection could not be saved.');
   }
 }
