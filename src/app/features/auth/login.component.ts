@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink, UrlTree } from '@angular/router';
 import { FirebaseError } from 'firebase/app';
 import { AuthService } from '../../core/auth/auth.service';
 import { SessionUser } from '../../core/models/domain.models';
@@ -39,6 +39,7 @@ import { GfButton, GfCard } from '../../shared/components/design-system';
 export class LoginComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   readonly message = signal('');
   readonly busy = signal(false);
   readonly form = new FormGroup({
@@ -68,6 +69,8 @@ export class LoginComponent {
   }
 
   private routeUser(user: SessionUser): Promise<boolean> {
+    const returnUrl = safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'), this.router);
+    if (returnUrl) return this.router.navigateByUrl(returnUrl);
     const role = user.roles[0];
     const destination =
       role === 'child'
@@ -82,6 +85,17 @@ export class LoginComponent {
                 ? '/admin/users'
                 : '/unauthorized';
     return this.router.navigateByUrl(destination);
+  }
+}
+
+/** Accept only same-application absolute paths; parsed external or protocol-relative URLs are rejected. */
+export function safeReturnUrl(candidate: string | null, router: Router): UrlTree | null {
+  if (!candidate || !candidate.startsWith('/') || candidate.startsWith('//')) return null;
+  try {
+    const tree = router.parseUrl(candidate);
+    return tree.root.children['primary'] ? tree : null;
+  } catch {
+    return null;
   }
 }
 

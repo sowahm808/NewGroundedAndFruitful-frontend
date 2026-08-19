@@ -1,4 +1,4 @@
-import { Inject, Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import {
   GoogleAuthProvider,
   User,
@@ -16,12 +16,11 @@ const validRoles: readonly UserRole[] = ['child', 'parent', 'mentor', 'observer'
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
+  private readonly firebaseAuth = inject(FIREBASE_AUTH);
   private readonly current = signal<SessionUser | null>(null);
   readonly user = this.current.asReadonly();
   readonly authenticated = computed(() => this.current() !== null && !this.current()?.disabled);
   readonly roles = computed(() => this.current()?.roles ?? []);
-
-  constructor(@Inject(FIREBASE_AUTH) private readonly firebaseAuth: import('firebase/auth').Auth) {}
 
   /** Wait for Firebase to restore its persisted session before the router evaluates guards. */
   initialize(): Promise<void> {

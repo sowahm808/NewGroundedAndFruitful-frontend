@@ -1,4 +1,4 @@
-import { Routes,Route } from '@angular/router';
+import { Route, Routes } from '@angular/router';
 import { authGuard, roleGuard } from './core/guards/auth.guards';
 import { AppShellComponent } from './core/layout/app-shell.component';
 
@@ -6,12 +6,10 @@ const feature = (
   title: string,
   area: string,
   highlights: readonly string[] = [],
+  description?: string,
 ): Pick<Route, 'loadComponent' | 'data'> => ({
-  loadComponent: () =>
-    import('./features/shared/feature-page.component').then(
-      (m) => m.FeaturePageComponent
-    ),
-  data: { title, area, highlights },
+  loadComponent: () => import('./features/shared/feature-page.component').then((m) => m.FeaturePageComponent),
+  data: { title, area, highlights, description },
 });
 const childLinks = [
   { label: 'Today', path: '/child/today' },
@@ -160,5 +158,8 @@ export const routes: Routes = [
   },
   { path: 'unauthorized', ...feature('You do not have access', 'Authorization') },
   { path: '', pathMatch: 'full', redirectTo: 'auth/login' },
-  { path: '**', redirectTo: 'auth/login' },
+  {
+    path: '**',
+    ...feature('Page not found', '404', [], 'Check the address or use your dashboard navigation to continue.'),
+  },
 ];
