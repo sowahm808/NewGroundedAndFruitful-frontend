@@ -1,11 +1,28 @@
 export type UserRole = 'child' | 'parent' | 'mentor' | 'observer' | 'admin' | 'super_admin';
 export type MembershipState = 'active' | 'pending' | 'suspended' | 'deleted';
+export interface SessionMembership {
+  readonly id?: string;
+  readonly role?: UserRole;
+  readonly status?: MembershipState;
+}
 export interface SessionUser {
   readonly uid: string;
+  readonly email?: string;
   readonly displayName: string;
   readonly roles: readonly UserRole[];
   readonly disabled: boolean;
-  readonly membershipState: MembershipState;
+  readonly onboardingStatus: 'complete' | 'profile_required' | 'role_required' | 'pending_approval';
+  readonly memberships: readonly SessionMembership[];
+}
+export interface ClaimSynchronization {
+  readonly status: 'synchronized' | 'refresh_required' | 'failed';
+  readonly tokenRefreshRequired: boolean;
+}
+export interface SessionData extends SessionUser {
+  readonly claimSynchronization: ClaimSynchronization;
+}
+export interface ApiResponse<T> {
+  readonly data: T;
 }
 export type LoadState<T> =
   | { status: 'idle' | 'loading' }

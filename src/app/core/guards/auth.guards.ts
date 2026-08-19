@@ -26,5 +26,8 @@ export const roleGuard =
   };
 
 function safeAttemptedUrl(url: string): string {
-  return url.startsWith('/') && !url.startsWith('//') && !url.startsWith('/unauthorized') ? url : '/';
+  const rejected = ['/account/role-required', '/unauthorized', '/login', '/auth/'];
+  return url.startsWith('/') && !url.startsWith('//') && !rejected.some((path) => url === path || url.startsWith(path))
+    ? url
+    : '/';
 }

@@ -15,6 +15,7 @@ describe('safeReturnUrl', () => {
   it('rejects stale, auth, protocol-relative, external, and cross-role destinations', () => {
     const router = TestBed.inject(Router);
     expect(safeReturnUrl('/unauthorized', router, ['parent'])).toBeNull();
+    expect(safeReturnUrl('/account/role-required', router, ['super_admin'])).toBeNull();
     expect(safeReturnUrl('/auth/login', router, ['parent'])).toBeNull();
     expect(safeReturnUrl('//example.invalid', router, ['parent'])).toBeNull();
     expect(safeReturnUrl('https://example.invalid', router, ['parent'])).toBeNull();
