@@ -26,15 +26,16 @@ type AnswerForm = FormGroup<{
         <form [formGroup]="form" (ngSubmit)="submit(true)">
           <div formArrayName="answers" class="stack">
             @for (group of answers.controls; track group.controls.questionId.value; let i = $index) {
-              <fieldset [formGroupName]="i"><legend>{{ current.questions[i].prompt }} {{ current.questions[i].required ? '(required)' : '(optional)' }}</legend>
-                @switch (current.questions[i].type) {
+              @let question = current.questions[i];
+              <fieldset [formGroupName]="i"><legend>{{ question.prompt }} {{ question.required ? '(required)' : '(optional)' }}</legend>
+                @switch (question.type) {
                   @case ('text') { <textarea formControlName="value"></textarea> }
                   @case ('boolean') {
                     <label><input type="radio" formControlName="value" [value]="true" /> Yes</label>
                     <label><input type="radio" formControlName="value" [value]="false" /> No</label>
                   }
                   @case ('single_choice') {
-                    @for (option of current.questions[i].options; track option.id) {
+                    @for (option of question.options; track option.id) {
                       <label><input type="radio" formControlName="value" [value]="option.id" /> {{ option.label }}</label>
                     }
                   }
