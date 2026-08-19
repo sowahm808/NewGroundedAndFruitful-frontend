@@ -15,6 +15,7 @@ export class ApiError extends Error {
     message: string,
     readonly details?: unknown,
     readonly retryAfterSeconds?: number,
+    readonly requestId?: string,
   ) {
     super(message);
     this.name = 'ApiError';

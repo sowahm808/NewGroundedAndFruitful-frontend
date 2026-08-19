@@ -46,7 +46,7 @@ export class ApiClient {
 
   private toApiError(error: unknown): ApiError {
     if (!(error instanceof HttpErrorResponse)) {
-      return new ApiError(0, 'unexpected_error', 'The request could not be completed.', error);
+      return new ApiError(-1, 'unexpected_error', 'The request could not be completed.', error);
     }
 
     const errors: Record<number, [ApiErrorCode, string]> = {
@@ -59,11 +59,23 @@ export class ApiClient {
       500: ['server_error', 'The server could not complete the request.'],
     };
     const [code, fallback] = errors[error.status] ?? ['unexpected_error', 'The request could not be completed.'];
-    const payload = error.error as { message?: unknown; details?: unknown } | null;
+    const payload = error.error as { code?: unknown; message?: unknown; details?: unknown; requestId?: unknown } | null;
     const message = typeof payload?.message === 'string' ? payload.message : fallback;
     const retryAfter = error.headers.get('Retry-After');
     const retryAfterSeconds = retryAfter !== null && /^\d+$/.test(retryAfter) ? Number(retryAfter) : undefined;
 
-    return new ApiError(error.status, code, message, payload?.details, retryAfterSeconds);
+    const backendCode = typeof payload?.code === 'string' ? payload.code : undefined;
+    const requestIdHeader = error.headers.get('X-Request-Id') ?? error.headers.get('X-Request-ID');
+    const requestId = requestIdHeader ?? (typeof payload?.requestId === 'string' ? payload.requestId : undefined);
+    return new ApiError(error.status, backendCodeToApiCode(backendCode, code), message, payload?.details, retryAfterSeconds, requestId);
   }
+}
+
+function backendCodeToApiCode(backendCode: string | undefined, fallback: ApiErrorCode): ApiErrorCode {
+  const known: readonly ApiErrorCode[] = [
+    'authentication_required', 'authorization_denied', 'resource_not_found', 'business_conflict',
+    'validation_error', 'rate_limit', 'server_error', 'unexpected_error',
+  ];
+  const normalized = backendCode?.toLowerCase();
+  return known.includes(normalized as ApiErrorCode) ? (normalized as ApiErrorCode) : fallback;
 }
