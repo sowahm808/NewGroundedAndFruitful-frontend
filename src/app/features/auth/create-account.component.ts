@@ -3,6 +3,8 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { Router, RouterLink } from '@angular/router';
 import { FirebaseError } from 'firebase/app';
 import { AuthService } from '../../core/auth/auth.service';
+import { roleDestination } from '../../core/auth/role.utilities';
+import { SessionUser } from '../../core/models/domain.models';
 import { GfButton, GfCard } from '../../shared/components/design-system';
 
 @Component({
@@ -57,12 +59,12 @@ export class CreateAccountComponent {
   async google(): Promise<void> {
     if (!this.busy()) await this.run(() => this.auth.signInWithGoogle());
   }
-  private async run(operation: () => Promise<unknown>): Promise<void> {
+  private async run(operation: () => Promise<SessionUser>): Promise<void> {
     this.busy.set(true);
     this.message.set('');
     try {
-      await operation();
-      await this.router.navigateByUrl('/unauthorized');
+      const user = await operation();
+      await this.router.navigateByUrl(roleDestination(user.roles) ?? '/account/role-required');
     } catch (error) {
       this.message.set(
         error instanceof FirebaseError && error.code === 'auth/email-already-in-use'
