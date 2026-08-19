@@ -1,3 +1,9 @@
+import { TestBed } from '@angular/core/testing';
+import { of } from 'rxjs';
+import { ApiClient } from '../http/api-client.service';
+import { ApiResponse, SessionData } from '../models/domain.models';
+import { AuthService } from './auth.service';
+import { FIREBASE_AUTH } from './firebase-auth.token';
 import { normalizeRoles, roleDestination } from './role.utilities';
 
 describe('backend role boundary', () => {
@@ -27,5 +33,92 @@ describe('backend role boundary', () => {
     expect(roleDestination(['super_admin'])).toBe('/admin/users');
     expect(roleDestination(['child', 'parent', 'mentor'])).toBe('/mentor/teams');
     expect(roleDestination([])).toBeNull();
+  });
+});
+
+describe('AuthService backend session bootstrap', () => {
+  const backendSession = (
+    tokenRefreshRequired: boolean,
+    roles: SessionData['roles'] = ['super_admin'],
+  ): ApiResponse<SessionData> => ({
+    data: {
+      uid: 'firebase-uid',
+      email: 'admin@example.com',
+      displayName: 'Admin User',
+      roles,
+      disabled: false,
+      onboardingStatus: 'complete',
+      memberships: [],
+      claimSynchronization: {
+        status: tokenRefreshRequired ? 'refresh_required' : 'synchronized',
+        tokenRefreshRequired,
+      },
+    },
+  });
+
+  let getSession: jasmine.Spy;
+  let getIdToken: jasmine.Spy;
+  let auth: AuthService;
+
+  beforeEach(() => {
+    getSession = jasmine.createSpy('get').and.returnValue(of(backendSession(false)));
+    getIdToken = jasmine.createSpy('getIdToken').and.resolveTo('refreshed-token');
+    TestBed.configureTestingModule({
+      providers: [
+        AuthService,
+        { provide: ApiClient, useValue: { get: getSession } },
+        {
+          provide: FIREBASE_AUTH,
+          useValue: { currentUser: { uid: 'firebase-uid', getIdToken } },
+        },
+      ],
+    });
+    auth = TestBed.inject(AuthService);
+  });
+
+  it('unwraps response.data and preserves the authoritative complete super-admin session', async () => {
+    const session = await auth.retrySession();
+
+    expect(session).toEqual({
+      uid: 'firebase-uid',
+      email: 'admin@example.com',
+      displayName: 'Admin User',
+      roles: ['super_admin'],
+      disabled: false,
+      onboardingStatus: 'complete',
+      memberships: [],
+    });
+    expect(auth.status()).toBe('authenticated');
+    expect(roleDestination(session?.roles ?? [])).toBe('/admin/users');
+  });
+
+  it('forces one token refresh and makes exactly one follow-up request', async () => {
+    getSession.and.returnValues(of(backendSession(true)), of(backendSession(false)));
+
+    await auth.retrySession();
+
+    expect(getIdToken).toHaveBeenCalledOnceWith(true);
+    expect(getSession).toHaveBeenCalledTimes(2);
+    expect(auth.user()?.roles).toEqual(['super_admin']);
+  });
+
+  it('does not loop or discard backend roles when synchronization is still pending', async () => {
+    getSession.and.returnValues(of(backendSession(true)), of(backendSession(true)));
+
+    await auth.retrySession();
+
+    expect(getIdToken).toHaveBeenCalledTimes(1);
+    expect(getSession).toHaveBeenCalledTimes(2);
+    expect(auth.user()?.roles).toEqual(['super_admin']);
+    expect(auth.status()).toBe('authenticated');
+    expect(auth.sessionSynchronizationWarning()).toContain('backend session roles');
+  });
+
+  it('routes an empty-role backend session to role-required', async () => {
+    getSession.and.returnValue(of(backendSession(false, [])));
+
+    await auth.retrySession();
+
+    expect(auth.status()).toBe('role-required');
   });
 });

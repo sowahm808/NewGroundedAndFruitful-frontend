@@ -11,10 +11,9 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { FIREBASE_AUTH } from './firebase-auth.token';
-import { MembershipState, SessionUser, UserRole } from '../models/domain.models';
+import { ApiResponse, SessionData, SessionUser, UserRole } from '../models/domain.models';
 import { ApiClient } from '../http/api-client.service';
 import { ApiError } from '../http/api-error';
-import { normalizeRoles } from './role.utilities';
 
 export type AuthStatus =
   | 'initializing'
@@ -25,14 +24,6 @@ export type AuthStatus =
   | 'pending-approval'
   | 'disabled'
   | 'error';
-
-export interface BackendSessionResponse {
-  readonly uid: string;
-  readonly displayName: string | null;
-  readonly roles: unknown;
-  readonly disabled: boolean;
-  readonly membershipState: MembershipState;
-}
 
 export class SessionBootstrapError extends Error {
   constructor(
@@ -51,8 +42,10 @@ export class AuthService {
   private readonly current = signal<SessionUser | null>(null);
   private readonly currentStatus = signal<AuthStatus>('initializing');
   private readonly currentError = signal<string | null>(null);
+  private readonly synchronizationWarning = signal<string | null>(null);
   private initialization?: Promise<void>;
   private bootstrap?: { uid: string; promise: Promise<SessionUser> };
+  private bootstrapAttempt = 0;
 
   readonly status = this.currentStatus.asReadonly();
   readonly user = this.current.asReadonly();
@@ -60,6 +53,7 @@ export class AuthService {
   readonly roles = computed(() => this.current()?.roles ?? []);
   readonly sessionReady = computed(() => !['initializing', 'loading-session'].includes(this.currentStatus()));
   readonly sessionError = this.currentError.asReadonly();
+  readonly sessionSynchronizationWarning = this.synchronizationWarning.asReadonly();
 
   initialize(): Promise<void> {
     if (this.initialization) return this.initialization;
@@ -112,16 +106,21 @@ export class AuthService {
 
   async logout(): Promise<void> {
     await signOut(this.firebaseAuth);
+    this.bootstrapAttempt++;
     this.bootstrap = undefined;
     this.current.set(null);
     this.currentError.set(null);
+    this.synchronizationWarning.set(null);
     this.currentStatus.set('anonymous');
   }
 
   private async handleAuthChange(user: User | null): Promise<void> {
     if (!user) {
+      this.bootstrapAttempt++;
+      this.bootstrap = undefined;
       this.current.set(null);
       this.currentError.set(null);
+      this.synchronizationWarning.set(null);
       this.currentStatus.set('anonymous');
       return;
     }
@@ -134,39 +133,62 @@ export class AuthService {
 
   private loadBackendSession(firebaseUser: User): Promise<SessionUser> {
     if (this.bootstrap?.uid === firebaseUser.uid) return this.bootstrap.promise;
+    const attempt = ++this.bootstrapAttempt;
     this.currentStatus.set('loading-session');
     this.currentError.set(null);
-    const promise = firstValueFrom(this.api.get<BackendSessionResponse>('/auth/session'))
-      .then((response) => {
-        const session: SessionUser = {
-          uid: response.uid,
-          displayName: response.displayName?.trim() || firebaseUser.displayName || firebaseUser.email || 'Account',
-          roles: normalizeRoles(response.roles),
-          disabled: response.disabled,
-          membershipState: response.membershipState,
-        };
-        this.current.set(session);
-        this.applySessionStatus(session);
+    this.synchronizationWarning.set(null);
+    const promise = this.loadSession()
+      .then((session) => {
+        if (attempt === this.bootstrapAttempt) {
+          this.current.set(session);
+          this.applySessionStatus(session);
+        }
         return session;
       })
       .catch((error: unknown) => {
-        this.current.set(null);
-        this.currentStatus.set('error');
-        this.currentError.set('Your account was verified, but its application session could not be loaded. Try again.');
-        this.bootstrap = undefined;
+        if (attempt === this.bootstrapAttempt) {
+          this.current.set(null);
+          this.currentStatus.set('error');
+          this.currentError.set('Your account was verified, but its application session could not be loaded. Try again.');
+          this.bootstrap = undefined;
+        }
         throw classifySessionError(error);
       });
     this.bootstrap = { uid: firebaseUser.uid, promise };
     return promise;
   }
 
+  private async loadSession(): Promise<SessionUser> {
+    const response = await firstValueFrom(this.api.get<ApiResponse<SessionData>>('/auth/session'));
+    let session = response.data;
+
+    if (session.claimSynchronization.tokenRefreshRequired) {
+      await this.firebaseAuth.currentUser?.getIdToken(true);
+      const refreshedResponse = await firstValueFrom(this.api.get<ApiResponse<SessionData>>('/auth/session'));
+      session = refreshedResponse.data;
+      if (session.claimSynchronization.tokenRefreshRequired) {
+        this.synchronizationWarning.set('Firebase claims remain pending synchronization; backend session roles are in use.');
+      }
+    }
+
+    return {
+      uid: session.uid,
+      email: session.email,
+      displayName: session.displayName,
+      roles: session.roles,
+      disabled: session.disabled,
+      onboardingStatus: session.onboardingStatus,
+      memberships: session.memberships,
+    };
+  }
+
   private applySessionStatus(user: SessionUser | null): void {
     this.currentError.set(null);
     if (!user) this.currentStatus.set('anonymous');
-    else if (user.disabled || user.membershipState === 'suspended' || user.membershipState === 'deleted')
-      this.currentStatus.set('disabled');
-    else if (user.membershipState === 'pending') this.currentStatus.set('pending-approval');
-    else if (user.roles.length === 0) this.currentStatus.set('role-required');
+    else if (user.disabled) this.currentStatus.set('disabled');
+    else if (user.onboardingStatus === 'pending_approval') this.currentStatus.set('pending-approval');
+    else if (user.onboardingStatus === 'role_required' || user.roles.length === 0)
+      this.currentStatus.set('role-required');
     else this.currentStatus.set('authenticated');
   }
 }

@@ -32,6 +32,28 @@ describe('authentication guards', () => {
     );
   });
 
+  it('does not evaluate roles while backend session initialization is pending', async () => {
+    auth.state = 'loading-session';
+    let finishInitialization: (() => void) | undefined;
+    auth.initialize = () => new Promise<void>((resolve) => (finishInitialization = resolve));
+
+    let settled = false;
+    const result = Promise.resolve(
+      TestBed.runInInjectionContext(() => roleGuard(['super_admin'])({} as never, {} as never)),
+    );
+    void result.then(() => (settled = true));
+    await Promise.resolve();
+    expect(settled).toBeFalse();
+
+    auth.state = 'authenticated';
+    auth.session = {
+      uid: '1', displayName: 'Admin', roles: ['super_admin'], disabled: false,
+      onboardingStatus: 'complete', memberships: [],
+    };
+    finishInitialization?.();
+    expect(await result).toBeTrue();
+  });
+
   it('redirects a role-less account separately and a wrong role to unauthorized', async () => {
     auth.state = 'role-required';
     let result = await TestBed.runInInjectionContext(() => roleGuard(['parent'])({} as never, {} as never));
@@ -39,7 +61,10 @@ describe('authentication guards', () => {
       '/account/role-required',
     );
     auth.state = 'authenticated';
-    auth.session = { uid: '1', displayName: 'Mentor', roles: ['mentor'], disabled: false, membershipState: 'active' };
+    auth.session = {
+      uid: '1', displayName: 'Mentor', roles: ['mentor'], disabled: false,
+      onboardingStatus: 'complete', memberships: [],
+    };
     result = await TestBed.runInInjectionContext(() => roleGuard(['parent'])({} as never, {} as never));
     expect(TestBed.inject(Router).serializeUrl(result as ReturnType<Router['createUrlTree']>)).toBe('/unauthorized');
   });
