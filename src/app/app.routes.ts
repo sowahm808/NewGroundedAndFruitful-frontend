@@ -14,6 +14,7 @@ const childLinks: readonly NavigationItem[] = [
   { label: 'Reading', path: '/child/reading' },
   { label: 'Project', path: '/child/project' },
   { label: 'Team', path: '/child/team' },
+  { label: 'More', path: '/child/more' },
 ];
 const parentLinks: readonly NavigationItem[] = [
   { label: 'Children', path: '/parent/children' },
@@ -66,11 +67,34 @@ export const routes: Routes = [
     canActivate: [authGuard, roleGuard(['child'])],
     data: { links: childLinks },
     children: [
-      ...['today', 'character', 'bible', 'reading', 'project', 'team'].map((path) => ({
-        path,
-        loadComponent: unavailable,
-        data: { title: path[0].toUpperCase() + path.slice(1), eyebrow: 'Child feature' },
-      })),
+      {
+        path: 'today',
+        loadComponent: () =>
+          import('./features/child/child-dashboard.component').then((m) => m.ChildDashboardComponent),
+      },
+      {
+        path: 'check-in',
+        loadComponent: () => import('./features/child/check-in.component').then((m) => m.CheckInComponent),
+      },
+      {
+        path: 'gratitude',
+        loadComponent: () => import('./features/child/gratitude.component').then((m) => m.GratitudeComponent),
+      },
+      {
+        path: 'character',
+        loadComponent: () => import('./features/child/character.component').then((m) => m.CharacterComponent),
+      },
+      { path: 'bible', loadComponent: () => import('./features/child/bible.component').then((m) => m.BibleComponent) },
+      {
+        path: 'reading',
+        loadComponent: () => import('./features/child/reading.component').then((m) => m.ReadingComponent),
+      },
+      {
+        path: 'project',
+        loadComponent: () => import('./features/child/project.component').then((m) => m.ProjectComponent),
+      },
+      { path: 'team', loadComponent: () => import('./features/child/team.component').then((m) => m.TeamComponent) },
+      { path: 'more', loadComponent: () => import('./features/child/more.component').then((m) => m.MoreComponent) },
       { path: '', pathMatch: 'full', redirectTo: 'today' },
     ],
   },
@@ -157,11 +181,13 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/quarters/admin-quarters.component').then((m) => m.AdminQuartersComponent),
       },
-      ...adminNames.filter((name) => name !== 'quarters').map((name) => ({
-        path: name,
-        loadComponent: unavailable,
-        data: { title: name[0].toUpperCase() + name.slice(1), eyebrow: 'Administration' },
-      })),
+      ...adminNames
+        .filter((name) => name !== 'quarters')
+        .map((name) => ({
+          path: name,
+          loadComponent: unavailable,
+          data: { title: name[0].toUpperCase() + name.slice(1), eyebrow: 'Administration' },
+        })),
       { path: '', pathMatch: 'full', redirectTo: 'users' },
     ],
   },
