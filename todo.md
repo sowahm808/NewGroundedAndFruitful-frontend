@@ -2,6 +2,8 @@
 
 Last audited: 2026-08-19
 
+Audit result: **28 of 103 items are implemented; 75 remain incomplete or blocked.** No additional workflow qualified as complete during this audit.
+
 This checklist compares the product described in the repository documentation with the checked-in implementation. A checked item means the user-facing behavior is implemented (not merely routed or visually scaffolded). Generic `FeaturePageComponent` routes and hardcoded child data are therefore intentionally unchecked.
 
 ## How to use this checklist
@@ -146,7 +148,12 @@ This checklist compares the product described in the repository documentation wi
 
 ## Audit notes
 
+- This audit inspected the route table, feature components, authentication/session boundary, HTTP client and interceptor, domain models, design-system primitives, environment and deployment configuration, Firestore rules, unit tests, and Playwright scenarios. The counts above are derived directly from this checklist.
+- The 28 checked items are concentrated in production/application infrastructure (12), authentication/account state (10), a single child-journey copy invariant (1), accessibility foundations (2), and test/tooling setup (3). A checked infrastructure item does not imply that any backend-dependent product workflow is complete.
 - Routes exist for all major product areas, but most render the shared generic page and do not constitute completed features.
 - The child dashboard and character screen demonstrate intended presentation only; their hardcoded data and missing submissions keep their workflows unchecked.
 - The repository contains no backend source, OpenAPI contract, response fixtures, emulator seed, or authenticated end-to-end helper, so backend-dependent features cannot be verified as complete from this frontend alone.
+- Password reset and child sign-in have user-facing implementations, but neither has the unit coverage plus authenticated emulator-backed Playwright coverage required by this checklist's completion guidance. This is a test-coverage gap rather than evidence that their checked user-facing behavior is absent.
+- Node is not aligned: local/package/Netlify configuration targets Node 26 while CI targets Node 22. The release prerequisite and CI-alignment items therefore remain unchecked.
+- The authenticated shell exposes neither logout nor a mobile overflow control; mobile navigation truncates every link collection to its first five entries. Both application-foundation items therefore remain unchecked.
 - Re-audit this file whenever a workflow lands: verify the real data path, resource authorization, privacy constraints, resilient states, accessibility, and automated coverage before changing `[ ]` to `[x]`.
