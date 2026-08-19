@@ -63,6 +63,7 @@ export class ApiClient {
     }
 
     const errors: Record<number, [ApiErrorCode, string]> = {
+      0: ['network_error', 'The backend could not be reached. Check your network connection and try again.'],
       401: ['authentication_required', 'Authentication is required. Please sign in again.'],
       403: ['authorization_denied', 'You are not authorized to perform this operation.'],
       404: ['resource_not_found', 'The requested resource was not found.'],
@@ -100,6 +101,7 @@ function backendCodeToApiCode(backendCode: string | undefined, fallback: ApiErro
     'validation_error',
     'rate_limit',
     'server_error',
+    'network_error',
     'unexpected_error',
   ];
   const normalized = backendCode?.toLowerCase();

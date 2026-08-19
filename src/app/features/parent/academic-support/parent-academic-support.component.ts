@@ -83,7 +83,7 @@ export class ParentAcademicSupportComponent {
           this.loading.set(false);
         },
         error: (e) => {
-          this.error.set(parentViewError(e));
+          this.error.set(parentViewError(e, true));
           this.loading.set(false);
         },
       });
