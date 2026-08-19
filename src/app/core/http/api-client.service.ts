@@ -1,6 +1,6 @@
 import { HttpClient, HttpContext, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, catchError, throwError } from 'rxjs';
+import { Observable, catchError, map, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { ApiError, ApiErrorCode } from './api-error';
 import { ANONYMOUS_API_REQUEST } from './authentication.interceptor';
@@ -17,6 +17,19 @@ export class ApiClient {
 
   get<T>(path: string, options: ApiRequestOptions = {}): Observable<T> {
     return this.request('GET', path, undefined, options);
+  }
+
+  /** Reads the API's standard envelope in one place. */
+  getData<T>(path: string, options: ApiRequestOptions = {}): Observable<T> {
+    return this.get<{ readonly data: T }>(path, options).pipe(map((response) => response.data));
+  }
+
+  postData<T>(path: string, body: unknown, options: ApiRequestOptions = {}): Observable<T> {
+    return this.post<{ readonly data: T }>(path, body, options).pipe(map((response) => response.data));
+  }
+
+  patchData<T>(path: string, body: unknown, options: ApiRequestOptions = {}): Observable<T> {
+    return this.patch<{ readonly data: T }>(path, body, options).pipe(map((response) => response.data));
   }
 
   post<T>(path: string, body: unknown, options: ApiRequestOptions = {}): Observable<T> {
@@ -67,14 +80,27 @@ export class ApiClient {
     const backendCode = typeof payload?.code === 'string' ? payload.code : undefined;
     const requestIdHeader = error.headers.get('X-Request-Id') ?? error.headers.get('X-Request-ID');
     const requestId = requestIdHeader ?? (typeof payload?.requestId === 'string' ? payload.requestId : undefined);
-    return new ApiError(error.status, backendCodeToApiCode(backendCode, code), message, payload?.details, retryAfterSeconds, requestId);
+    return new ApiError(
+      error.status,
+      backendCodeToApiCode(backendCode, code),
+      message,
+      payload?.details,
+      retryAfterSeconds,
+      requestId,
+    );
   }
 }
 
 function backendCodeToApiCode(backendCode: string | undefined, fallback: ApiErrorCode): ApiErrorCode {
   const known: readonly ApiErrorCode[] = [
-    'authentication_required', 'authorization_denied', 'resource_not_found', 'business_conflict',
-    'validation_error', 'rate_limit', 'server_error', 'unexpected_error',
+    'authentication_required',
+    'authorization_denied',
+    'resource_not_found',
+    'business_conflict',
+    'validation_error',
+    'rate_limit',
+    'server_error',
+    'unexpected_error',
   ];
   const normalized = backendCode?.toLowerCase();
   return known.includes(normalized as ApiErrorCode) ? (normalized as ApiErrorCode) : fallback;

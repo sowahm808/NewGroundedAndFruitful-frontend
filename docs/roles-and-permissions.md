@@ -13,12 +13,12 @@ Guards improve UX only. Rules and backend claim checks repeat every scope decisi
 
 ## Current route matrix
 
-| Route prefix | Allowed role(s)    | Current landing route    | Status                                                   |
-| ------------ | ------------------ | ------------------------ | -------------------------------------------------------- |
-| `/child`     | child              | `/child/today`           | Dashboard/character scaffold; remaining pages generic    |
-| `/parent`    | parent             | `/parent/children`       | Generic placeholders                                     |
-| `/mentor`    | mentor             | `/mentor/teams`          | Generic placeholders                                     |
-| `/observer`  | observer           | `/observer/observations` | Generic placeholder; product calls this authorized adult |
-| `/admin`     | admin, super_admin | `/admin/users`           | Generic placeholders                                     |
+| Route prefix | Allowed role(s)    | Current landing route    | Status                                                 |
+| ------------ | ------------------ | ------------------------ | ------------------------------------------------------ |
+| `/child`     | child              | `/child/today`           | Dashboard/character scaffold; remaining pages generic  |
+| `/parent`    | parent             | `/parent/children`       | Dedicated API components / explicit unavailable states |
+| `/mentor`    | mentor             | `/mentor/teams`          | Dedicated API components / explicit unavailable states |
+| `/observer`  | observer           | `/observer/observations` | Explicit unavailable state pending an API contract     |
+| `/admin`     | admin, super_admin | `/admin/users`           | Dedicated API components / explicit unavailable states |
 
 Unauthenticated access to these prefixes returns to `/auth/login` with an application-local `returnUrl`. An authenticated role mismatch goes to `/unauthorized`; unknown URLs display a 404 experience. Backend authorization and resource relationship checks are still mandatory for every request.
