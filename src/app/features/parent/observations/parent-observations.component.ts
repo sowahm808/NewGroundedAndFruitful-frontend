@@ -1,0 +1,108 @@
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  GfAlert,
+  GfButton,
+  GfCard,
+  GfEmptyState,
+  GfLoading,
+  GfPageHeader,
+} from '../../../shared/components/design-system';
+import { Observation, ParentApi } from '../parent-api.service';
+import { parentViewError, ViewError } from '../parent-view.utilities';
+@Component({
+  standalone: true,
+  imports: [ReactiveFormsModule, GfAlert, GfButton, GfCard, GfEmptyState, GfLoading, GfPageHeader],
+  template: `<gf-page-header title="Positive observations" eyebrow="Notice growth"
+      ><p>
+        Submit an observation for an authorized linked child. For an immediate safeguarding concern, contact your
+        program safeguarding lead or emergency services.
+      </p></gf-page-header
+    >
+    <form [formGroup]="form" (ngSubmit)="submit()">
+      <label>Linked child ID<input formControlName="childId" required /></label
+      ><label>Observation<textarea formControlName="summary" maxlength="1000" required></textarea></label
+      ><gf-button type="submit" [disabled]="form.invalid || submitting()">{{
+        submitting() ? 'Submitting…' : 'Submit observation'
+      }}</gf-button>
+    </form>
+    @if (confirmation()) {
+      <p role="status">Observation submitted for review.</p>
+    }
+    @if (error(); as e) {
+      <gf-alert [title]="e.title"
+        ><p>{{ e.message }}</p>
+        @if (e.requestId) {
+          <p>Support reference: {{ e.requestId }}</p>
+        }
+      </gf-alert>
+    }
+    @if (loading()) {
+      <gf-loading />
+    } @else if (!items().length) {
+      <gf-empty-state title="No observations yet" message="Submitted observations will appear here." />
+    }
+    <div class="cards">
+      @for (item of items(); track item.id) {
+        <gf-card
+          ><h2>{{ item.summary }}</h2>
+          <p>Status: {{ item.status }}</p>
+          <p>{{ item.submittedAt }}</p></gf-card
+        >
+      }
+    </div>`,
+  styleUrl: '../parent-feature.styles.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class ParentObservationsComponent {
+  private api = inject(ParentApi);
+  private destroy = inject(DestroyRef);
+  readonly form = new FormGroup({
+    childId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    summary: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.maxLength(1000)] }),
+  });
+  readonly items = signal<readonly Observation[]>([]);
+  readonly loading = signal(true);
+  readonly submitting = signal(false);
+  readonly confirmation = signal(false);
+  readonly error = signal<ViewError | null>(null);
+  constructor() {
+    this.reload();
+  }
+  reload() {
+    this.api
+      .observations()
+      .pipe(takeUntilDestroyed(this.destroy))
+      .subscribe({
+        next: (p) => {
+          this.items.set(p.items);
+          this.loading.set(false);
+        },
+        error: (e) => {
+          this.error.set(parentViewError(e));
+          this.loading.set(false);
+        },
+      });
+  }
+  submit() {
+    if (this.form.invalid || this.submitting()) return;
+    this.submitting.set(true);
+    this.confirmation.set(false);
+    this.api
+      .submitObservation(this.form.getRawValue())
+      .pipe(takeUntilDestroyed(this.destroy))
+      .subscribe({
+        next: (o) => {
+          this.items.update((v) => [o, ...v]);
+          this.form.controls.summary.reset();
+          this.submitting.set(false);
+          this.confirmation.set(true);
+        },
+        error: (e) => {
+          this.error.set(parentViewError(e));
+          this.submitting.set(false);
+        },
+      });
+  }
+}

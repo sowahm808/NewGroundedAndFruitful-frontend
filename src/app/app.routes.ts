@@ -1,17 +1,13 @@
-import { Route, Routes } from '@angular/router';
+import { Routes } from '@angular/router';
 import { authGuard, roleGuard } from './core/guards/auth.guards';
 import { AppShellComponent } from './core/layout/app-shell.component';
-
-const feature = (
-  title: string,
-  area: string,
-  highlights: readonly string[] = [],
-  description?: string,
-): Pick<Route, 'loadComponent' | 'data'> => ({
-  loadComponent: () => import('./features/shared/feature-page.component').then((m) => m.FeaturePageComponent),
-  data: { title, area, highlights, description },
-});
-const childLinks = [
+interface NavigationItem {
+  readonly label: string;
+  readonly path: string;
+  readonly icon?: string;
+  readonly exact?: boolean;
+}
+const childLinks: readonly NavigationItem[] = [
   { label: 'Today', path: '/child/today' },
   { label: 'Character', path: '/child/character' },
   { label: 'Bible', path: '/child/bible' },
@@ -19,7 +15,7 @@ const childLinks = [
   { label: 'Project', path: '/child/project' },
   { label: 'Team', path: '/child/team' },
 ];
-const parentLinks = [
+const parentLinks: readonly NavigationItem[] = [
   { label: 'Children', path: '/parent/children' },
   { label: 'Character', path: '/parent/character' },
   { label: 'Observations', path: '/parent/observations' },
@@ -27,13 +23,13 @@ const parentLinks = [
   { label: 'Support', path: '/parent/academic-support' },
   { label: 'Reports', path: '/parent/reports' },
 ];
-const mentorLinks = [
+const mentorLinks: readonly NavigationItem[] = [
   { label: 'Teams', path: '/mentor/teams' },
   { label: 'Projects', path: '/mentor/projects' },
   { label: 'Reading', path: '/mentor/reading' },
   { label: 'Encouragement', path: '/mentor/encouragement' },
 ];
-const observerLinks = [{ label: 'Observations', path: '/observer/observations' }];
+const observerLinks: readonly NavigationItem[] = [{ label: 'Observations', path: '/observer/observations' }];
 const adminNames = [
   'users',
   'teams',
@@ -48,6 +44,8 @@ const adminNames = [
   'reports',
   'audit',
 ] as const;
+const unavailable = () =>
+  import('./features/shared/unavailable-page.component').then((m) => m.UnavailablePageComponent);
 export const routes: Routes = [
   { path: 'auth/login', loadComponent: () => import('./features/auth/login.component').then((m) => m.LoginComponent) },
   {
@@ -68,26 +66,11 @@ export const routes: Routes = [
     canActivate: [authGuard, roleGuard(['child'])],
     data: { links: childLinks },
     children: [
-      {
-        path: 'today',
-        loadComponent: () =>
-          import('./features/child/child-dashboard.component').then((m) => m.ChildDashboardComponent),
-      },
-      {
-        path: 'character',
-        loadComponent: () =>
-          import('./features/character/character-assessment.component').then((m) => m.CharacterAssessmentComponent),
-      },
-      { path: 'bible', ...feature('Bible Time', 'Read · Reflect · Remember', ['Today’s reading', 'Reflection']) },
-      { path: 'reading', ...feature('Reading Journey', 'Weekly participation', ['Quarter book', 'Weekly reflection']) },
-      {
-        path: 'project',
-        ...feature('My Project', 'Idea · Goal · Guidance · Plan · Action · Progress · Reflection · Completion', [
-          'Current milestone',
-          'Mentor guidance',
-        ]),
-      },
-      { path: 'team', ...feature('Our Team', 'Composite team progress', ['Quarter target', 'My contribution']) },
+      ...['today', 'character', 'bible', 'reading', 'project', 'team'].map((path) => ({
+        path,
+        loadComponent: unavailable,
+        data: { title: path[0].toUpperCase() + path.slice(1), eyebrow: 'Child feature' },
+      })),
       { path: '', pathMatch: 'full', redirectTo: 'today' },
     ],
   },
@@ -97,25 +80,45 @@ export const routes: Routes = [
     canActivate: [authGuard, roleGuard(['parent'])],
     data: { links: parentLinks },
     children: [
-      { path: 'children/:childId', ...feature('Child overview', 'Linked child') },
+      {
+        path: 'children/:childId',
+        loadComponent: () =>
+          import('./features/parent/children/parent-child-detail.component').then((m) => m.ParentChildDetailComponent),
+      },
       {
         path: 'children',
-        ...feature('Your children', 'Parent dashboard', ['Participation this week', 'Team progress']),
+        loadComponent: () =>
+          import('./features/parent/children/parent-children.component').then((m) => m.ParentChildrenComponent),
       },
-      { path: 'character', ...feature('Character cycle', 'Five active qualities') },
+      {
+        path: 'character',
+        loadComponent: () =>
+          import('./features/parent/character/parent-character.component').then((m) => m.ParentCharacterComponent),
+      },
       {
         path: 'observations',
-        ...feature('Positive observations', 'Notice growth', ['Submit an observation', 'Under review']),
+        loadComponent: () =>
+          import('./features/parent/observations/parent-observations.component').then(
+            (m) => m.ParentObservationsComponent,
+          ),
       },
       {
         path: 'family',
-        ...feature('Family Connection', 'Talk · Pray · Serve · Play · Gratitude', ['This week’s activity']),
+        loadComponent: () =>
+          import('./features/parent/family/parent-family.component').then((m) => m.ParentFamilyComponent),
       },
       {
         path: 'academic-support',
-        ...feature('Academic support', 'Help with dignity', ['Reading', 'Reading comprehension', 'Mathematics']),
+        loadComponent: () =>
+          import('./features/parent/academic-support/parent-academic-support.component').then(
+            (m) => m.ParentAcademicSupportComponent,
+          ),
       },
-      { path: 'reports', ...feature('Reports', 'Participation and growth') },
+      {
+        path: 'reports',
+        loadComponent: () =>
+          import('./features/parent/reports/parent-reports.component').then((m) => m.ParentReportsComponent),
+      },
       { path: '', pathMatch: 'full', redirectTo: 'children' },
     ],
   },
@@ -125,11 +128,11 @@ export const routes: Routes = [
     canActivate: [authGuard, roleGuard(['mentor'])],
     data: { links: mentorLinks },
     children: [
-      { path: 'teams/:teamId', ...feature('Team detail', 'Assigned team') },
-      { path: 'teams', ...feature('Assigned teams', 'Mentor dashboard', ['Quarter progress', 'Weekly participation']) },
-      { path: 'projects', ...feature('Project guidance', 'Support each next step') },
-      { path: 'reading', ...feature('Reading status', 'Participation overview') },
-      { path: 'encouragement', ...feature('May need encouragement', 'Kind, timely support') },
+      ...['teams', 'teams/:teamId', 'projects', 'reading', 'encouragement'].map((path) => ({
+        path,
+        loadComponent: unavailable,
+        data: { title: 'Mentor feature', eyebrow: 'Unavailable' },
+      })),
       { path: '', pathMatch: 'full', redirectTo: 'teams' },
     ],
   },
@@ -139,10 +142,7 @@ export const routes: Routes = [
     canActivate: [authGuard, roleGuard(['observer'])],
     data: { links: observerLinks },
     children: [
-      {
-        path: 'observations',
-        ...feature('Positive observations', 'Notice growth', ['Submit an observation', 'Under review']),
-      },
+      { path: 'observations', loadComponent: unavailable, data: { title: 'Observations', eyebrow: 'Observer' } },
       { path: '', pathMatch: 'full', redirectTo: 'observations' },
     ],
   },
@@ -154,46 +154,53 @@ export const routes: Routes = [
     children: [
       ...adminNames.map((name) => ({
         path: name,
-        ...feature(name[0].toUpperCase() + name.slice(1), 'Administration', ['Search and filter', 'Paginated records']),
+        loadComponent: unavailable,
+        data: { title: name[0].toUpperCase() + name.slice(1), eyebrow: 'Administration' },
       })),
-      { path: '', pathMatch: 'full' as const, redirectTo: 'users' },
+      { path: '', pathMatch: 'full', redirectTo: 'users' },
     ],
   },
-  { path: 'unauthorized', ...feature('You do not have access', 'Authorization') },
+  {
+    path: 'unauthorized',
+    loadComponent: unavailable,
+    data: { title: 'You do not have access', eyebrow: 'Authorization' },
+  },
   {
     path: 'account/role-required',
-    ...feature(
-      'Your account needs a role',
-      'Account status',
-      [],
-      'Your identity is verified, but a program role has not been assigned. Contact an administrator.',
-    ),
+    loadComponent: unavailable,
+    data: {
+      title: 'Your account needs a role',
+      eyebrow: 'Account status',
+      message: 'Contact an administrator to request a program role.',
+    },
   },
   {
     path: 'account/pending',
-    ...feature('Approval pending', 'Account status', [], 'Your program membership is awaiting approval.'),
+    loadComponent: unavailable,
+    data: {
+      title: 'Approval pending',
+      eyebrow: 'Account status',
+      message: 'Your program membership is awaiting approval.',
+    },
   },
   {
     path: 'account/disabled',
-    ...feature(
-      'Account unavailable',
-      'Account status',
-      [],
-      'This account is disabled or suspended. Contact an administrator.',
-    ),
+    loadComponent: unavailable,
+    data: {
+      title: 'Account unavailable',
+      eyebrow: 'Account status',
+      message: 'This account is disabled or suspended. Contact an administrator.',
+    },
   },
   {
     path: 'account/session-error',
-    ...feature(
-      'Session unavailable',
-      'Account status',
-      [],
-      'We could not load your program membership. Return to sign in and retry.',
-    ),
+    loadComponent: unavailable,
+    data: { title: 'Session unavailable', eyebrow: 'Account status', message: 'Return to sign in and retry.' },
   },
   { path: '', pathMatch: 'full', redirectTo: 'auth/login' },
   {
     path: '**',
-    ...feature('Page not found', '404', [], 'Check the address or use your dashboard navigation to continue.'),
+    loadComponent: unavailable,
+    data: { title: 'Page not found', eyebrow: '404', message: 'Check the address or use your dashboard navigation.' },
   },
 ];

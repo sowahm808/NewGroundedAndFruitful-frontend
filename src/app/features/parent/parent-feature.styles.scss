@@ -1,0 +1,78 @@
+.toolbar,
+.actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: end;
+  margin-bottom: var(--space-5);
+}
+label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 700;
+}
+input,
+select,
+textarea {
+  min-height: 44px;
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font: inherit;
+  background: white;
+}
+textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: 1rem;
+}
+.meta {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+.muted {
+  color: var(--muted);
+}
+.error {
+  margin: 1rem 0;
+}
+.skeleton {
+  min-height: 13rem;
+  background: linear-gradient(90deg, #f3f3ef 25%, #fafaf7 50%, #f3f3ef 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s infinite;
+  border-radius: var(--radius-lg);
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+a {
+  color: var(--brand);
+  font-weight: 800;
+}
+button {
+  min-height: 44px;
+  padding: 0.65rem 1rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--brand);
+  color: white;
+  font: inherit;
+  font-weight: 700;
+}
+button:disabled {
+  opacity: 0.55;
+}
+button.secondary {
+  background: white;
+  color: var(--brand);
+  border: 1px solid var(--brand);
+}
