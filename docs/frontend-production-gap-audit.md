@@ -2,6 +2,8 @@
 
 Updated: 2026-08-19
 
+> **Historical remediation record:** this file describes an earlier audit pass and is retained for change context. It is not the current route or contract inventory. Use the [frontend production audit and backend comparison guide](frontend-production-audit.md) for the authoritative current state.
+
 ## Scope and method
 
 The audit reviewed routing and guards, the application shell and design-system primitives, environment configuration, Firebase authentication and bearer-token interception, the central HTTP/error layer, domain models, feature components, unit tests, Playwright coverage, and deployment documentation. Searches covered the former route factory and generic component, highlights and generic actions, sample records/totals/statuses, TODOs, disabled controls, timers, browser storage, mock code, and direct Firestore access.
