@@ -1,4 +1,4 @@
-import { HttpClient, HttpContext, HttpErrorResponse, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, map, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
@@ -8,6 +8,7 @@ import { ANONYMOUS_API_REQUEST } from './authentication.interceptor';
 export interface ApiRequestOptions {
   params?: HttpParams | Record<string, string | number | boolean | readonly (string | number | boolean)[]>;
   anonymous?: boolean;
+  headers?: HttpHeaders | Record<string, string>;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -32,6 +33,10 @@ export class ApiClient {
     return this.patch<{ readonly data: T }>(path, body, options).pipe(map((response) => response.data));
   }
 
+  putData<T>(path: string, body: unknown, options: ApiRequestOptions = {}): Observable<T> {
+    return this.put<{ readonly data: T }>(path, body, options).pipe(map((response) => response.data));
+  }
+
   post<T>(path: string, body: unknown, options: ApiRequestOptions = {}): Observable<T> {
     return this.request('POST', path, body, options);
   }
@@ -53,7 +58,7 @@ export class ApiClient {
     const context = options.anonymous ? new HttpContext().set(ANONYMOUS_API_REQUEST, true) : new HttpContext();
 
     return this.http
-      .request<T>(method, url, { body, params: options.params, context })
+      .request<T>(method, url, { body, params: options.params, headers: options.headers, context })
       .pipe(catchError((error: unknown) => throwError(() => this.toApiError(error))));
   }
 
