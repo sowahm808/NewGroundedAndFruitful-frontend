@@ -1,111 +1,280 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { A11yModule } from '@angular/cdk/a11y';
+import { BreakpointObserver } from '@angular/cdk/layout';
+import { DOCUMENT } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  HostListener,
+  ViewChild,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { AuthService } from '../auth/auth.service';
+import { UserRole } from '../models/domain.models';
+
+export interface NavigationItem {
+  readonly label: string;
+  readonly path: string;
+  readonly exact?: boolean;
+  readonly requiredRoles: readonly UserRole[];
+}
+
+const NAVIGATION: readonly NavigationItem[] = [
+  { label: 'Today', path: '/child/today', requiredRoles: ['child'] },
+  { label: 'Character', path: '/child/character', requiredRoles: ['child'] },
+  { label: 'Bible', path: '/child/bible', requiredRoles: ['child'] },
+  { label: 'Reading', path: '/child/reading', requiredRoles: ['child'] },
+  { label: 'Project', path: '/child/project', requiredRoles: ['child'] },
+  { label: 'Team', path: '/child/team', requiredRoles: ['child'] },
+  { label: 'Children', path: '/parent/children', requiredRoles: ['parent'] },
+  { label: 'Character', path: '/parent/character', requiredRoles: ['parent'] },
+  { label: 'Observations', path: '/parent/observations', requiredRoles: ['parent'] },
+  { label: 'Family', path: '/parent/family', requiredRoles: ['parent'] },
+  { label: 'Support', path: '/parent/academic-support', requiredRoles: ['parent'] },
+  { label: 'Reports', path: '/parent/reports', requiredRoles: ['parent'] },
+  { label: 'Teams', path: '/mentor/teams', requiredRoles: ['mentor'] },
+  { label: 'Projects', path: '/mentor/projects', requiredRoles: ['mentor'] },
+  { label: 'Reading', path: '/mentor/reading', requiredRoles: ['mentor'] },
+  { label: 'Encouragement', path: '/mentor/encouragement', requiredRoles: ['mentor'] },
+  { label: 'Observations', path: '/observer/observations', requiredRoles: ['observer'] },
+  ...['users', 'teams', 'quarters', 'character', 'activities', 'bible', 'family', 'books', 'surveys', 'points', 'reports', 'audit'].map(
+    (name): NavigationItem => ({
+      label: name[0].toUpperCase() + name.slice(1),
+      path: `/admin/${name}`,
+      requiredRoles: ['admin', 'super_admin'],
+    }),
+  ),
+];
+
 @Component({
   selector: 'gf-app-shell',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive, RouterOutlet],
-  template: `<div class="shell">
-    <aside>
-      <a class="brand" routerLink="/">Grounded <span>&amp; Fruitful</span></a>
-      <nav aria-label="Main navigation">
-        @for (item of links(); track item.path) {
-          <a [routerLink]="item.path" routerLinkActive="active">{{ item.label }}</a>
+  imports: [A11yModule, RouterLink, RouterLinkActive, RouterOutlet],
+  template: `
+    <div class="shell">
+      <header class="toolbar">
+        @if (mobile()) {
+          <button
+            #menuButton
+            class="icon-button hamburger"
+            type="button"
+            [attr.aria-label]="drawerOpen() ? 'Close navigation' : 'Open navigation'"
+            [attr.aria-expanded]="drawerOpen()"
+            aria-controls="primary-navigation"
+            (click)="toggleDrawer()"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
         }
-      </nav>
-      <small>Grow with purpose.</small>
-    </aside>
-    <main><router-outlet /></main>
-    <nav class="mobile" aria-label="Mobile navigation">
-      @for (item of links().slice(0, 5); track item.path) {
-        <a [routerLink]="item.path" routerLinkActive="active">{{ item.label }}</a>
+        <a class="brand" [routerLink]="homePath()" aria-label="Grounded and Fruitful home">
+          Grounded <span>&amp; Fruitful</span>
+        </a>
+        <span class="toolbar-spacer"></span>
+        <div class="utility">
+          <button
+            #profileButton
+            class="profile-trigger"
+            type="button"
+            aria-haspopup="menu"
+            [attr.aria-expanded]="utilityOpen()"
+            aria-controls="profile-menu"
+            (click)="toggleUtility()"
+            (keydown.arrowdown)="openUtilityAndFocusFirst($event)"
+          >
+            <span class="avatar" aria-hidden="true">{{ initials() }}</span>
+            <span class="display-name">{{ auth.user()?.displayName }}</span>
+            <span class="sr-only">Open profile menu</span>
+          </button>
+          @if (utilityOpen()) {
+            <div id="profile-menu" class="profile-menu" role="menu" tabindex="-1" (keydown)="onMenuKeydown($event)">
+              @if (auth.user(); as user) {
+                <div class="account-context">
+                  <strong>{{ user.displayName }}</strong>
+                  @if (user.email) { <span>{{ user.email }}</span> }
+                  <span>{{ roleLabel() }}</span>
+                </div>
+              }
+              <a #menuItem role="menuitem" routerLink="/account/profile" (click)="closeUtility(false)">Profile</a>
+              <button #menuItem role="menuitem" type="button" [disabled]="loggingOut()" (click)="logout()">
+                {{ loggingOut() ? 'Logging out…' : 'Logout' }}
+              </button>
+            </div>
+          }
+        </div>
+      </header>
+
+      @if (mobile() && drawerOpen()) {
+        <button class="backdrop" type="button" aria-label="Close navigation" (click)="closeDrawer()"></button>
       }
-    </nav>
-  </div>`,
-  styles: [
-    `
-      .shell {
-        min-height: 100dvh;
-      }
-      aside {
-        position: fixed;
-        inset: 0 auto 0 0;
-        width: 230px;
-        padding: 2rem 1.25rem;
-        background: #244a37;
-        color: #fff;
-        display: flex;
-        flex-direction: column;
-      }
-      .brand {
-        font-size: 1.3rem;
-        font-weight: 800;
-        color: #fff;
-        text-decoration: none;
-      }
-      .brand span {
-        color: #ffd77a;
-      }
-      nav {
-        display: grid;
-        gap: 0.35rem;
-        margin-top: 2rem;
-      }
-      nav a {
-        color: inherit;
-        text-decoration: none;
-        padding: 0.75rem;
-        border-radius: 0.6rem;
-      }
-      .active,
-      nav a:hover {
-        background: #ffffff1f;
-      }
-      small {
-        margin-top: auto;
-      }
-      main {
-        margin-left: 230px;
-        padding: clamp(1rem, 4vw, 3rem);
-        max-width: 1300px;
-      }
-      .mobile {
-        display: none;
-      }
-      @media (max-width: 700px) {
-        aside {
-          position: static;
-          width: auto;
-          height: auto;
-          padding: 1rem;
-        }
-        aside nav,
-        aside small {
-          display: none;
-        }
-        main {
-          margin: 0;
-          padding: 1rem 1rem 6rem;
-        }
-        .mobile {
-          display: flex;
-          position: fixed;
-          z-index: 5;
-          inset: auto 0 0;
-          justify-content: space-around;
-          margin: 0;
-          padding: 0.5rem;
-          background: #244a37;
-          color: white;
-        }
-        .mobile a {
-          font-size: 0.75rem;
-          padding: 0.7rem 0.35rem;
-        }
-      }
-    `,
-  ],
+      <aside
+        id="primary-navigation"
+        class="drawer"
+        [class.mobile-drawer]="mobile()"
+        [class.open]="drawerOpen()"
+        [attr.aria-hidden]="mobile() && !drawerOpen() ? 'true' : null"
+        [cdkTrapFocus]="mobile() && drawerOpen()"
+        [cdkTrapFocusAutoCapture]="mobile() && drawerOpen()"
+      >
+        <nav aria-label="Main navigation">
+          @for (item of links(); track item.path) {
+            <a
+              [routerLink]="item.path"
+              routerLinkActive="active"
+              [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
+              #active="routerLinkActive"
+              [attr.aria-current]="active.isActive ? 'page' : null"
+              (click)="closeDrawer(false)"
+            >{{ item.label }}</a>
+          }
+        </nav>
+        <small>Grow with purpose.</small>
+      </aside>
+
+      <main [attr.inert]="mobile() && drawerOpen() ? '' : null" [attr.aria-hidden]="mobile() && drawerOpen() ? 'true' : null"><router-outlet /></main>
+      @if (logoutError()) { <div class="logout-error" role="alert">{{ logoutError() }}</div> }
+    </div>
+  `,
+  styles: [`
+    :host { display: block; min-width: 0; }
+    .shell { min-height: 100dvh; overflow-x: clip; }
+    .toolbar { position: sticky; top: 0; z-index: 30; height: 64px; padding: 0 max(1rem, env(safe-area-inset-right)) 0 max(1rem, env(safe-area-inset-left)); background: var(--brand-dark); color: #fff; display: flex; align-items: center; gap: .75rem; box-shadow: 0 2px 12px #0002; }
+    .brand { color: #fff; text-decoration: none; font-size: clamp(1rem, 3vw, 1.3rem); font-weight: 800; white-space: nowrap; }
+    .brand span { color: #ffd77a; }
+    .toolbar-spacer { flex: 1; min-width: 0; }
+    button { font: inherit; }
+    .icon-button, .profile-trigger { min-width: 44px; min-height: 44px; border: 0; border-radius: .65rem; color: #fff; background: transparent; cursor: pointer; }
+    .icon-button:hover, .profile-trigger:hover { background: #ffffff1f; }
+    .hamburger { display: grid; place-items: center; padding: .6rem; }
+    .hamburger svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+    .utility { position: relative; min-width: 0; }
+    .profile-trigger { display: flex; align-items: center; gap: .55rem; max-width: min(18rem, 40vw); padding: .25rem .55rem; }
+    .avatar { display: grid; place-items: center; flex: 0 0 34px; height: 34px; border-radius: 50%; color: var(--brand-dark); background: #ffd77a; font-weight: 800; }
+    .display-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+    .profile-menu { position: absolute; z-index: 50; top: calc(100% + .5rem); right: 0; width: min(19rem, calc(100vw - 2rem)); padding: .45rem; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--ink); background: #fff; box-shadow: 0 12px 36px #0003; }
+    .account-context { display: grid; gap: .25rem; padding: .65rem .75rem .8rem; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+    .account-context span { color: var(--muted); font-size: .85rem; }
+    .profile-menu a, .profile-menu button { display: flex; align-items: center; width: 100%; min-height: 44px; padding: .65rem .75rem; border: 0; border-radius: .45rem; color: inherit; background: transparent; text-align: left; text-decoration: none; cursor: pointer; }
+    .profile-menu a:hover, .profile-menu button:hover { background: var(--leaf-soft); }
+    .drawer { position: fixed; z-index: 20; inset: 64px auto 0 0; width: 240px; padding: 1.25rem; background: var(--brand); color: #fff; display: flex; flex-direction: column; overflow-y: auto; }
+    .drawer nav { display: grid; gap: .25rem; }
+    .drawer a { min-height: 44px; padding: .7rem .8rem; border-radius: .55rem; color: inherit; text-decoration: none; }
+    .drawer a:hover, .drawer a.active { background: #ffffff24; }
+    .drawer small { margin-top: auto; padding-top: 1rem; }
+    main { min-width: 0; margin-left: 240px; padding: clamp(1rem, 3vw, 3rem); scroll-margin-top: 72px; }
+    .mobile-drawer { z-index: 40; width: min(19rem, 86vw); transform: translateX(-105%); visibility: hidden; transition: transform .2s ease, visibility .2s; box-shadow: 8px 0 24px #0003; }
+    .mobile-drawer.open { transform: none; visibility: visible; }
+    .backdrop { position: fixed; z-index: 35; inset: 64px 0 0; width: 100%; border: 0; background: #17231db8; cursor: pointer; }
+    .logout-error { position: fixed; z-index: 60; right: 1rem; bottom: 1rem; max-width: min(28rem, calc(100vw - 2rem)); padding: 1rem; border-radius: var(--radius-md); background: #fff4d8; border-left: 4px solid #a13b2b; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    @media (max-width: 959px) { main { margin-left: 0; } .display-name { display: none; } }
+    @media (prefers-reduced-motion: reduce) { .mobile-drawer { transition: none; } }
+  `],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppShellComponent {
-  readonly links = input.required<readonly { label: string; path: string }[]>();
+  readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
+  private readonly document = inject(DOCUMENT);
+  private readonly breakpoint = inject(BreakpointObserver);
+  readonly mobile = signal(false);
+  readonly drawerOpen = signal(false);
+  readonly utilityOpen = signal(false);
+  readonly loggingOut = signal(false);
+  readonly logoutError = signal<string | null>(null);
+  readonly links = computed(() => NAVIGATION.filter((item) => item.requiredRoles.some((role) => this.auth.roles().includes(role))));
+  readonly initials = computed(() => initialsFor(this.auth.user()?.displayName ?? ''));
+  readonly roleLabel = computed(() => this.auth.roles().map(formatRole).join(', '));
+  readonly homePath = computed(() => this.links()[0]?.path ?? '/account/profile');
+
+  @ViewChild('menuButton') private menuButton?: ElementRef<HTMLButtonElement>;
+  @ViewChild('profileButton') private profileButton?: ElementRef<HTMLButtonElement>;
+
+  constructor() {
+    this.breakpoint.observe('(max-width: 959px)').pipe(takeUntilDestroyed()).subscribe(({ matches }) => {
+      this.mobile.set(matches);
+      if (!matches) this.closeDrawer(false);
+    });
+    this.router.events.pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd), takeUntilDestroyed()).subscribe(() => {
+      this.closeDrawer(false);
+      this.closeUtility(false);
+    });
+  }
+
+  toggleDrawer(): void {
+    if (this.drawerOpen()) this.closeDrawer();
+    else this.openDrawer();
+  }
+  openDrawer(): void { if (this.mobile()) { this.drawerOpen.set(true); this.setPageScrollLocked(true); } }
+  closeDrawer(restoreFocus = true): void {
+    const wasOpen = this.drawerOpen();
+    this.drawerOpen.set(false);
+    this.setPageScrollLocked(false);
+    if (restoreFocus && wasOpen) queueMicrotask(() => this.menuButton?.nativeElement.focus());
+  }
+  toggleUtility(): void {
+    if (this.utilityOpen()) this.closeUtility();
+    else this.utilityOpen.set(true);
+  }
+  openUtilityAndFocusFirst(event: Event): void {
+    event.preventDefault();
+    this.utilityOpen.set(true);
+    queueMicrotask(() => this.firstMenuItem()?.focus());
+  }
+  closeUtility(restoreFocus = true): void {
+    const wasOpen = this.utilityOpen();
+    this.utilityOpen.set(false);
+    if (restoreFocus && wasOpen) queueMicrotask(() => this.profileButton?.nativeElement.focus());
+  }
+  onMenuKeydown(event: KeyboardEvent): void {
+    const items = this.menuItems();
+    const activeElement = this.document.activeElement;
+    const current = activeElement instanceof HTMLElement ? items.indexOf(activeElement) : -1;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const offset = event.key === 'ArrowDown' ? 1 : -1;
+      items[(current + offset + items.length) % items.length]?.focus();
+    } else if (event.key === 'Home') { event.preventDefault(); items[0]?.focus(); }
+    else if (event.key === 'End') { event.preventDefault(); items.at(-1)?.focus(); }
+  }
+  @HostListener('document:keydown.escape') onEscape(): void {
+    if (this.utilityOpen()) this.closeUtility();
+    else if (this.drawerOpen()) this.closeDrawer();
+  }
+  @HostListener('document:pointerdown', ['$event']) onOutsidePointer(event: PointerEvent): void {
+    const target = event.target;
+    if (this.utilityOpen() && target instanceof Node && !this.profileButton?.nativeElement.parentElement?.contains(target))
+      this.closeUtility(false);
+  }
+  async logout(): Promise<void> {
+    if (this.loggingOut()) return;
+    this.loggingOut.set(true);
+    this.logoutError.set(null);
+    this.closeUtility(false);
+    this.closeDrawer(false);
+    try {
+      await this.auth.logout();
+      await this.router.navigateByUrl('/auth/login', { replaceUrl: true });
+    } catch {
+      this.logoutError.set('We could not sign you out. Please try again.');
+    } finally { this.loggingOut.set(false); }
+  }
+  private menuItems(): HTMLElement[] { return Array.from(this.document.querySelectorAll<HTMLElement>('#profile-menu [role="menuitem"]:not([disabled])')); }
+  private firstMenuItem(): HTMLElement | undefined { return this.menuItems()[0]; }
+  private setPageScrollLocked(locked: boolean): void { this.document.body.style.overflow = locked ? 'hidden' : ''; }
+}
+
+export function initialsFor(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return parts.length ? parts.slice(0, 2).map((part) => part[0].toUpperCase()).join('') : '';
+}
+
+function formatRole(role: UserRole): string {
+  return role.split('_').map((part) => part[0].toUpperCase() + part.slice(1)).join(' ');
 }

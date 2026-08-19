@@ -152,12 +152,28 @@ export const routes: Routes = [
     canActivate: [authGuard, roleGuard(['admin', 'super_admin'])],
     data: { links: adminNames.map((n) => ({ label: n[0].toUpperCase() + n.slice(1), path: '/admin/' + n })) },
     children: [
-      ...adminNames.map((name) => ({
+      {
+        path: 'quarters',
+        loadComponent: () =>
+          import('./features/admin/quarters/admin-quarters.component').then((m) => m.AdminQuartersComponent),
+      },
+      ...adminNames.filter((name) => name !== 'quarters').map((name) => ({
         path: name,
         loadComponent: unavailable,
         data: { title: name[0].toUpperCase() + name.slice(1), eyebrow: 'Administration' },
       })),
       { path: '', pathMatch: 'full', redirectTo: 'users' },
+    ],
+  },
+  {
+    path: 'account/profile',
+    component: AppShellComponent,
+    canActivate: [authGuard],
+    children: [
+      {
+        path: '',
+        loadComponent: () => import('./features/account/profile.component').then((m) => m.ProfileComponent),
+      },
     ],
   },
   {
