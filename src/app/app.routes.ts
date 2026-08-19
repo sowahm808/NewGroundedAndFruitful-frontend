@@ -94,6 +94,10 @@ export const routes: Routes = [
         loadComponent: () => import('./features/child/project.component').then((m) => m.ProjectComponent),
       },
       { path: 'team', loadComponent: () => import('./features/child/team.component').then((m) => m.TeamComponent) },
+      {
+        path: 'more/surveys/:surveyId',
+        loadComponent: () => import('./features/child/survey.component').then((m) => m.SurveyComponent),
+      },
       { path: 'more', loadComponent: () => import('./features/child/more.component').then((m) => m.MoreComponent) },
       { path: '', pathMatch: 'full', redirectTo: 'today' },
     ],

@@ -2,7 +2,7 @@
 
 Last audited: 2026-08-19
 
-Audit result: **40 of 103 items are implemented; 63 remain incomplete or blocked.** This audit also incorporates the dedicated parent workflows and authenticated application shell added since the previous checklist review.
+Audit result: **53 of 103 items are implemented; 50 remain incomplete or blocked.** This audit also incorporates the dedicated parent workflows and authenticated application shell added since the previous checklist review.
 
 This checklist compares the product described in the repository documentation with the checked-in implementation. A checked item means the user-facing behavior is implemented (not merely routed or visually scaffolded). Explicit unavailable-state routes are therefore intentionally unchecked.
 
@@ -62,20 +62,20 @@ This checklist compares the product described in the repository documentation wi
 
 ## 4. Child journey
 
-- [ ] Load the child dashboard summary, current quarter/week, individual contribution, composite team progress, and server calculation timestamp from the backend.
-- [ ] Implement the complete private daily check-in (feelings/heart and mind) without exposing private answers in team views.
-- [ ] Implement daily gratitude submission and history.
-- [ ] Load active character qualities from the backend rather than hardcoding five qualities.
-- [ ] Replace the character range scaffold with an accessible typed reactive form whose unanswered state is unambiguous.
-- [ ] Submit all character reflections as one idempotent command and handle validation, conflict, retry, and success states.
+- [x] Load the child dashboard summary, current quarter/week, individual contribution, composite team progress, and server calculation timestamp from the backend.
+- [x] Implement the complete private daily check-in (feelings/heart and mind) without exposing private answers in team views.
+- [x] Implement daily gratitude submission and history.
+- [x] Load active character qualities from the backend rather than hardcoding five qualities.
+- [x] Replace the character range scaffold with an accessible typed reactive form whose unanswered state is unambiguous.
+- [x] Submit all character reflections as one idempotent command and handle validation, conflict, retry, and success states.
 - [x] Preserve the points invariant in character copy: completion counts equally for ratings 0 and 10.
-- [ ] Implement Bible reading, reflection, memory verse, true/false, and multiple-choice activities.
-- [ ] Ensure Bible correctness never affects participation awards.
-- [ ] Implement the quarter book and weekly reading reflections, including supported text/audio/video media.
-- [ ] Implement project idea, goal, guidance, plan, action, progress, reflection, milestone, and completion workflows.
-- [ ] Implement the child team view using composite progress only; exclude emotions, notes, ratings, grades, and other children’s private data.
-- [ ] Implement special activities and surveys.
-- [ ] Implement child point history and recognition/awards display using backend-owned calculations only.
+- [x] Implement Bible reading, reflection, memory verse, true/false, and multiple-choice activities.
+- [x] Ensure Bible correctness never affects participation awards.
+- [x] Implement the quarter book and weekly reading reflections, including supported text/audio/video media.
+- [x] Implement project idea, goal, guidance, plan, action, progress, reflection, milestone, and completion workflows.
+- [x] Implement the child team view using composite progress only; exclude emotions, notes, ratings, grades, and other children’s private data.
+- [x] Implement special activities and surveys.
+- [x] Implement child point history and recognition/awards display using backend-owned calculations only.
 
 ## 5. Parent and family workflows
 
@@ -149,9 +149,9 @@ This checklist compares the product described in the repository documentation wi
 ## Audit notes
 
 - This audit inspected the route table, feature components, authentication/session boundary, HTTP client and interceptor, domain models, design-system primitives, environment and deployment configuration, Firestore rules, unit tests, and Playwright scenarios. The counts above are derived directly from this checklist.
-- The 40 checked items comprise production/application infrastructure (17), authentication/account state (10), a single child-journey copy invariant (1), parent and family workflows (7), accessibility foundations (2), and test/tooling setup (3). A checked frontend workflow still requires contract and authenticated end-to-end verification before production promotion.
-- Routes exist for all major product areas, but unfinished child, mentor, observer, and administration routes deliberately render an unavailable-state page and do not constitute completed features.
-- Fabricated child-dashboard and character records have been removed. Those routes remain unavailable until their backend contracts and submission workflows exist.
+- The 53 checked items comprise production/application infrastructure (17), authentication/account state (10), the complete child journey (14), parent and family workflows (7), accessibility foundations (2), and test/tooling setup (3). A checked frontend workflow still requires contract and authenticated end-to-end verification before production promotion.
+- Routes exist for all major product areas, but unfinished mentor, observer, and administration routes deliberately render an unavailable-state page and do not constitute completed features.
+- Child journey routes use typed backend repositories and explicit loading, empty, error, retry, validation, conflict, and success states; no child or team values are fabricated in the frontend.
 - The repository contains no backend source, OpenAPI contract, response fixtures, emulator seed, or authenticated end-to-end helper, so backend-dependent features cannot be verified as complete from this frontend alone.
 - Password reset and child sign-in have user-facing implementations, but neither has the unit coverage plus authenticated emulator-backed Playwright coverage required by this checklist's completion guidance. This is a test-coverage gap rather than evidence that their checked user-facing behavior is absent.
 - Node is not aligned: local/package/Netlify configuration targets Node 26 while CI targets Node 22. The release prerequisite and CI-alignment items therefore remain unchecked.

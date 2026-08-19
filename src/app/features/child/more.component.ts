@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { ApiError } from '../../core/http/api-error';
 import { GfAlert, GfCard, GfEmptyState, GfPageHeader } from '../../shared/components/design-system';
 import { Award, ChildApi, newIdempotencyKey, PointEntry, SpecialActivity, SurveySummary } from './child-api.service';
 @Component({
   standalone: true,
-  imports: [GfAlert, GfCard, GfEmptyState, GfPageHeader],
+  imports: [RouterLink, GfAlert, GfCard, GfEmptyState, GfPageHeader],
   styleUrl: './child-feature.scss',
   template: `<gf-page-header title="Activities and recognition" eyebrow="Your private journey"
       ><p>Points and recognition come from backend-owned calculations. There are no rankings.</p></gf-page-header
@@ -41,6 +42,9 @@ import { Award, ChildApi, newIdempotencyKey, PointEntry, SpecialActivity, Survey
           @for (s of surveys(); track s.id) {
             <li>
               <strong>{{ s.title }}</strong> — {{ s.status }}
+              @if (s.status !== 'completed' && s.status !== 'locked') {
+                <a [routerLink]="['/child/more/surveys', s.id]">Open survey</a>
+              }
             </li>
           }
         </ul>

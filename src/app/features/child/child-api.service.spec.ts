@@ -66,6 +66,16 @@ describe('ChildApi', () => {
     expect(actualCompletion).toBe(completion);
   });
 
+  it('submits a private survey as one idempotent command', () => {
+    const answers = [{ questionId: 'question-1', value: false }];
+    api.submitSurvey('survey/id', answers, true, 'survey-key').subscribe();
+    const request = http.expectOne(`${environment.apiUrl}/child/surveys/survey%2Fid/responses`);
+    expect(request.request.method).toBe('POST');
+    expect(request.request.headers.get('Idempotency-Key')).toBe('survey-key');
+    expect(request.request.body).toEqual({ answers, final: true });
+    request.flush({ data: { id: 'survey/id', title: 'Survey', status: 'completed', privacyNotice: '', questions: [], supportsDraft: true } });
+  });
+
   it('keeps private gratitude text in the request body, never the URL', () => {
     api.submitGratitude('private words', 'key').subscribe();
     const request = http.expectOne(`${environment.apiUrl}/child/gratitude`);
