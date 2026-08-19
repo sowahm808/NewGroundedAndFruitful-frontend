@@ -50,9 +50,9 @@ This checklist compares the product described in the repository documentation wi
 - [x] Force-refresh the Firebase token once when the backend reports pending claim synchronization.
 - [x] Route active users by backend role and distinguish role-required, pending, disabled, session-error, and unauthorized states.
 - [x] Enforce role-based route guards as a UX control while documenting that backend authorization remains mandatory.
-- [ ] Replace the password-reset placeholder with Firebase password-reset submission, confirmation, validation, and success/error states.
-- [ ] Implement child family-code/handle/PIN exchange against the rate-limited backend, sign in with the returned Firebase custom token, clear the PIN on every outcome, and show safe error messages.
-- [ ] Add child-login busy state, duplicate-submit prevention, rate-limit feedback, and keyboard/screen-reader-friendly field errors.
+- [x] Replace the password-reset placeholder with Firebase password-reset submission, confirmation, validation, and success/error states.
+- [x] Implement child family-code/handle/PIN exchange against the rate-limited backend, sign in with the returned Firebase custom token, clear the PIN on every outcome, and show safe error messages.
+- [x] Add child-login busy state, duplicate-submit prevention, rate-limit feedback, and keyboard/screen-reader-friendly field errors.
 - [ ] Implement profile completion and onboarding.
 - [ ] Implement consent/privacy review and acceptance.
 - [ ] Implement parent-child linking and approval states.
