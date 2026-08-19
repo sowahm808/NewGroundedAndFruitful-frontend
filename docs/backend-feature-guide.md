@@ -71,3 +71,36 @@ Use the common envelope `{ "code", "message", "details", "requestId" }`. Support
 5. Verify idempotency replay returns the original result and conflicting payload reuse is rejected.
 6. Verify ratings 0 and 10 receive identical completion credit and Bible correctness never changes participation points.
 7. Export OpenAPI plus emulator seed instructions so frontend unit and Playwright tests can consume the real contract.
+
+## Child journey endpoint matrix
+
+The checked child journey is a frontend implementation against the following required, versioned contract. The backend team should either implement these exact paths or publish an OpenAPI migration before changing them; never silently return a persistence entity where an allow-listed response DTO is expected.
+
+| Frontend resource | Method and path | Required backend behavior |
+| --- | --- | --- |
+| Today | `GET /child/today` | Return the active quarter/local date/week, activity statuses, own contribution, composite team totals/percent, timezone, and `calculatedAt`. |
+| Check-in | `GET /child/check-ins/today`, `PUT /child/check-ins/today/draft`, `POST /child/check-ins/today/complete` | Scope to the authenticated child; accept heart/feelings, mind, optional private note, and version; atomically lock completion. |
+| Gratitude | `GET /child/gratitude?cursor=`, `POST /child/gratitude` | Return cursor history and enforce one server-local-date entry with idempotent replay. |
+| Character | `GET /child/character`, `PUT /child/character/draft`, `POST /child/character/complete` | Return active configured qualities; validate every quality exactly once and atomically complete against `version`. Ratings never change completion credit. |
+| Bible | `GET /child/bible`, `GET /child/bible/{id}`, `POST /child/bible/{id}/responses` | Support reading, reflection, memory verse, true/false, and multiple choice. Compute participation before/independently from correctness. |
+| Reading | `GET /child/reading`, `GET /child/reading/{id}`, `POST /child/reading/{id}/responses` | Return quarter book, weekly assignments/history, and media policy. Exchange private uploads through the policy target, scan them, then accept only opaque media references. |
+| Projects | `GET/POST /child/projects`, `GET/PATCH /child/projects/{id}`, `POST .../milestones`, `POST .../updates` | Enforce the idea-to-completion state machine, versions, mentor-guidance ownership, milestone transitions, and idempotent commands. |
+| Team | `GET /child/team` | Build an allow-listed DTO containing only team label, quarter, composite totals/percent, own contribution, and `calculatedAt`. |
+| More | `GET /child/special-activities`, `POST .../{id}/complete`, `GET /child/surveys`, `GET /child/surveys/{id}`, `POST .../{id}/responses` | Enforce eligibility/window, survey required fields, draft support, privacy notice/version, and idempotency. |
+| Recognition | `GET /child/points?cursor=`, `GET /child/awards` | Return an immutable point ledger and backend-issued/revoked awards with an authoritative calculation time; the client must never derive awards. |
+
+### Mutation, concurrency, and retry rules
+
+All completion/submission commands require an `Idempotency-Key` scoped to the authenticated subject, route, and normalized payload. Persist the first status/body and replay it for an identical request. Reject reuse with a different payload as `409 business_conflict`. Drafts and project transitions carry a monotonically increasing `version`; reject stale versions with `409` and return no private record snapshot in the error. Use `422 validation_error` with `{ "details": { "fields": { "stableFieldName": "safe message" } } }`, never echoing answers. Clients retry network and 5xx failures using the same key and generate a new key only after success.
+
+### Media implementation
+
+1. Authenticate and authorize the assignment before issuing a short-lived, single-object upload target from the assignment's `uploadTargetEndpoint`.
+2. Bind the target to the configured MIME allow-list and maximum byte count; do not trust the browser-provided MIME type.
+3. Quarantine and scan the upload. For video, require captions or a transcript when `captionsRequired` is true.
+4. Return an opaque `MediaReference` (`id`, detected `mimeType`, `size`) only after acceptance. Never expose bucket names, durable storage URLs, or another child's media.
+5. On reflection submission, verify that the reference belongs to the signed-in child and assignment, then consume or attach it transactionally.
+
+### Privacy acceptance tests
+
+Create schema-level allow-list tests for `/child/team` and every parent, mentor, report, notification, survey-result, and export DTO. Recursively fail if a payload includes `feelings`, `mind`, `privateNote`, gratitude `text`, character `rating`/`reflection`, Bible/survey answers, grades, school fields, media references/URLs, or another child's contribution. Test values as well as keys so renamed fields cannot leak fixtures. Verify authorization with an unrelated opaque ID for every endpoint, and retain audit events for privileged reads without copying private content into logs.
