@@ -8,8 +8,7 @@ import { ChildApi, TeamView } from './child-api.service';
   styleUrl: './child-feature.scss',
   template: `<gf-page-header title="Team progress" eyebrow="Together"
       ><p>
-        This view uses only the server's composite progress and your own contribution. Private answers and other
-        children's contributions are never shown.
+        This view uses only the server's composite progress. Private answers and individual contributions are never shown.
       </p></gf-page-header
     >
     @if (error()) {
@@ -18,10 +17,7 @@ import { ChildApi, TeamView } from './child-api.service';
       <p role="status">Loading composite team progress…</p>
     } @else if (data(); as d) {
       <div class="grid">
-        <gf-stat-card label="Team" [value]="d.name" /><gf-stat-card label="Quarter" [value]="d.quarter" /><gf-stat-card
-          label="Your contribution"
-          [value]="d.ownContribution"
-        />
+        <gf-stat-card label="Team" [value]="d.name" /><gf-stat-card label="Quarter" [value]="d.quarter" />
       </div>
       <gf-card
         ><gf-progress
@@ -32,6 +28,9 @@ import { ChildApi, TeamView } from './child-api.service';
           Last calculated by the server: <time [attr.datetime]="d.calculatedAt">{{ d.calculatedAt }}</time>
         </p></gf-card
       >
+      <h2>Approved recognition</h2>
+      @if (!d.recognition?.length) { <p>No approved recognition yet.</p> }
+      @else { <ul>@for (item of d.recognition!; track item.id) { <li><strong>{{ item.name }}</strong> — {{ item.description }}</li> }</ul> }
     }`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

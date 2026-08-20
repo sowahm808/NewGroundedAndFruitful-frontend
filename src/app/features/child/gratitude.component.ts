@@ -12,7 +12,8 @@ import { ChildApi, GratitudeEntry, newIdempotencyKey } from './child-api.service
     >
     <form (ngSubmit)="submit()">
       <label class="field" for="gratitude"
-        ><span>Today's gratitude</span><textarea id="gratitude" [formControl]="text"></textarea></label
+        ><span>Today's gratitude</span><textarea id="gratitude" [formControl]="text" aria-describedby="gratitude-count"></textarea></label
+      ><p id="gratitude-count" class="muted">{{ text.value.length }} of 2,000 characters</p
       ><button [disabled]="text.invalid || busy()">Save gratitude</button>
     </form>
     <p aria-live="polite" role="status">{{ message() }}</p>
