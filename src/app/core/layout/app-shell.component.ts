@@ -40,6 +40,11 @@ const NAVIGATION: readonly NavigationItem[] = [
   { label: 'Support', path: '/parent/academic-support', requiredRoles: ['parent'] },
   { label: 'Reports', path: '/parent/reports', requiredRoles: ['parent'] },
   { label: 'Notifications', path: '/parent/notifications', requiredRoles: ['parent'] },
+  { label: 'Teams', path: '/mentor/teams', requiredRoles: ['mentor'] },
+  { label: 'Projects', path: '/mentor/projects', requiredRoles: ['mentor'] },
+  { label: 'Reading', path: '/mentor/reading', requiredRoles: ['mentor'] },
+  { label: 'Encouragement', path: '/mentor/encouragement', requiredRoles: ['mentor'] },
+  { label: 'Observations', path: '/observer/observations', requiredRoles: ['observer'] },
   { label: 'Quarters', path: '/admin/quarters', requiredRoles: ['admin', 'super_admin'] },
 ];
 
