@@ -82,32 +82,6 @@ export interface CharacterResult {
   readonly participationAward?: { readonly label: string; readonly points: number };
   readonly calculatedAt: string;
 }
-interface BibleBase {
-  readonly id: string;
-  readonly title: string;
-  readonly prompt: string;
-  readonly status: ActivityStatus;
-  readonly availableFrom?: string;
-  readonly availableUntil?: string;
-}
-export type BibleActivity =
-  | (BibleBase & { readonly type: 'reading'; readonly passage: string })
-  | (BibleBase & { readonly type: 'reflection'; readonly maxLength?: number })
-  | (BibleBase & { readonly type: 'memory_verse'; readonly verse: string })
-  | (BibleBase & { readonly type: 'true_false'; readonly statement: string })
-  | (BibleBase & {
-      readonly type: 'multiple_choice';
-      readonly choices: readonly { readonly id: string; readonly label: string }[];
-    });
-export interface BibleResponse {
-  readonly response: string | boolean;
-  readonly final: boolean;
-}
-export interface BibleResult {
-  readonly status: 'draft' | 'completed';
-  readonly learningFeedback?: string;
-  readonly participationAward?: { readonly label: string; readonly points: number };
-}
 export interface ReadingSummary {
   readonly book?: {
     readonly id: string;
@@ -256,15 +230,6 @@ export class ChildApi {
     key: string,
   ): Observable<CharacterResult> {
     return this.api.postData('/child/character/complete', { responses, version }, this.idempotent(key));
-  }
-  bible(): Observable<readonly BibleActivity[]> {
-    return this.api.getData('/child/bible');
-  }
-  bibleActivity(id: string): Observable<BibleActivity> {
-    return this.api.getData(`/child/bible/${encodeURIComponent(id)}`);
-  }
-  submitBible(id: string, command: BibleResponse, key: string): Observable<BibleResult> {
-    return this.api.postData(`/child/bible/${encodeURIComponent(id)}/responses`, command, this.idempotent(key));
   }
   reading(): Observable<ReadingSummary> {
     return this.api.getData('/child/reading');
