@@ -12,12 +12,23 @@ import {
 } from '../../../shared/components/design-system';
 import { ParentApi, SupportRequest } from '../parent-api.service';
 import { parentViewError, ViewError } from '../parent-view.utilities';
+import { ParentChildScopeComponent } from '../shared/parent-child-scope.component';
 @Component({
   standalone: true,
-  imports: [ReactiveFormsModule, GfAlert, GfButton, GfCard, GfEmptyState, GfLoading, GfPageHeader],
+  imports: [
+    ParentChildScopeComponent,
+    ReactiveFormsModule,
+    GfAlert,
+    GfButton,
+    GfCard,
+    GfEmptyState,
+    GfLoading,
+    GfPageHeader,
+  ],
   template: `<gf-page-header title="Academic support" eyebrow="Help with dignity"
       ><p>Create and track authorized support requests.</p></gf-page-header
     >
+    <gf-parent-child-scope (childChange)="childId.set($event)" />
     @if (loading()) {
       <gf-loading />
     }
@@ -31,8 +42,7 @@ import { parentViewError, ViewError } from '../parent-view.utilities';
     }
     @if (!loading()) {
       <form [formGroup]="form" (ngSubmit)="submit()">
-        <label>Linked child ID<input formControlName="childId" required /></label
-        ><label
+        <label
           >Category<select formControlName="categoryId" required>
             <option value="">Choose a category</option>
             @for (c of categories(); track c.id) {
@@ -40,7 +50,7 @@ import { parentViewError, ViewError } from '../parent-view.utilities';
             }
           </select></label
         ><label>What support is needed?<textarea formControlName="summary" maxlength="1000" required></textarea></label
-        ><gf-button type="submit" [disabled]="form.invalid || submitting()">{{
+        ><gf-button type="submit" [disabled]="form.invalid || !childId() || submitting()">{{
           submitting() ? 'Sending…' : 'Request support'
         }}</gf-button>
       </form>
@@ -63,8 +73,8 @@ import { parentViewError, ViewError } from '../parent-view.utilities';
 export class ParentAcademicSupportComponent {
   private api = inject(ParentApi);
   private destroy = inject(DestroyRef);
+  readonly childId = signal('');
   readonly form = new FormGroup({
-    childId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     categoryId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     summary: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.maxLength(1000)] }),
   });
@@ -89,10 +99,14 @@ export class ParentAcademicSupportComponent {
       });
   }
   submit() {
-    if (this.form.invalid || this.submitting()) return;
+    if (this.form.invalid || !this.childId() || this.submitting()) return;
     this.submitting.set(true);
     this.api
-      .createSupport(this.form.getRawValue())
+      .createSupport({
+        childId: this.childId(),
+        categoryId: this.form.controls.categoryId.value,
+        summary: this.form.controls.summary.value.trim(),
+      })
       .pipe(takeUntilDestroyed(this.destroy))
       .subscribe({
         next: (r) => {

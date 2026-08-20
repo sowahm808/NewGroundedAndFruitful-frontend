@@ -1,45 +1,30 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { GfAlert, GfCard, GfEmptyState, GfLoading, GfPageHeader } from '../../../shared/components/design-system';
+import { GfAlert, GfCard, GfLoading, GfPageHeader } from '../../../shared/components/design-system';
 import { ParentApi, ParentReport } from '../parent-api.service';
 import { parentViewError, ViewError } from '../parent-view.utilities';
+import { ParentChildScopeComponent } from '../shared/parent-child-scope.component';
 @Component({
   standalone: true,
-  imports: [ReactiveFormsModule, GfAlert, GfCard, GfEmptyState, GfLoading, GfPageHeader],
-  template: `<gf-page-header title="Reports" eyebrow="Participation and growth"
-      ><p>Only reports made available by the program are shown.</p></gf-page-header
-    ><label
-      >Linked child ID<input [formControl]="childId" /><button type="button" (click)="load()">
-        Load reports
-      </button></label
-    >
+  imports: [ParentChildScopeComponent, GfAlert, GfCard, GfLoading, GfPageHeader],
+  template: `<gf-page-header title="Reports" eyebrow="Parent journey"
+      ><p>Report values are limited to the parent-safe backend contract.</p></gf-page-header
+    ><gf-parent-child-scope (childChange)="load($event)" />
     @if (loading()) {
       <gf-loading />
     }
     @if (error(); as e) {
       <gf-alert [title]="e.title"
-        ><p>{{ e.message }}</p>
-        @if (e.requestId) {
-          <p>Support reference: {{ e.requestId }}</p>
-        }
-      </gf-alert>
-    }
-    @if (!loading() && !items().length && !error()) {
-      <gf-empty-state
-        title="There is not enough data for a report yet"
-        message="Available participation, reading, project, and team summaries will appear here."
-      />
+        ><p>{{ e.message }}</p></gf-alert
+      >
     }
     <div class="cards">
       @for (r of items(); track r.id) {
         <gf-card
           ><h2>{{ r.title }}</h2>
           <p>Status: {{ r.status }}</p>
-          @if (r.availableAt) {
-            <p>Available {{ r.availableAt }}</p>
-          }
-        </gf-card>
+          <p><strong>Calculated:</strong> {{ r.calculatedAt || 'Calculation time not supplied' }}</p></gf-card
+        >
       }
     </div>`,
   styleUrl: '../parent-feature.styles.scss',
@@ -48,24 +33,28 @@ import { parentViewError, ViewError } from '../parent-view.utilities';
 export class ParentReportsComponent {
   private api = inject(ParentApi);
   private destroy = inject(DestroyRef);
-  readonly childId = new FormControl('', { nonNullable: true });
-  readonly items = signal<readonly ParentReport[]>([]);
+  readonly childId = signal('');
   readonly loading = signal(false);
   readonly error = signal<ViewError | null>(null);
-  load() {
+  readonly items = signal<readonly ParentReport[]>([]);
+  load(id: string) {
+    this.childId.set(id);
+    this.error.set(null);
+    if (!id) return;
     this.loading.set(true);
     this.api
-      .reports(this.childId.value)
+      .reports(id)
       .pipe(takeUntilDestroyed(this.destroy))
       .subscribe({
         next: (p) => {
           this.items.set(p.items);
           this.loading.set(false);
         },
-        error: (e) => {
-          this.error.set(parentViewError(e));
-          this.loading.set(false);
-        },
+        error: (e) => this.fail(e),
       });
+  }
+  private fail(e: unknown) {
+    this.error.set(parentViewError(e));
+    this.loading.set(false);
   }
 }
