@@ -2,17 +2,28 @@ export type UserRole = 'child' | 'parent' | 'mentor' | 'observer' | 'admin' | 's
 export type MembershipState = 'active' | 'pending' | 'suspended' | 'deleted';
 export interface SessionMembership {
   readonly id?: string;
-  readonly role?: UserRole;
+  readonly organizationId?: string;
+  readonly organizationName?: string;
+  readonly roles?: readonly UserRole[];
   readonly status?: MembershipState;
 }
+export type OnboardingStatus =
+  | 'complete'
+  | 'organization_required'
+  | 'migration_required'
+  | 'consent_required'
+  | 'profile_required'
+  | 'role_required'
+  | 'pending_approval';
 export interface SessionUser {
   readonly uid: string;
   readonly email?: string;
   readonly displayName: string;
   readonly roles: readonly UserRole[];
   readonly disabled: boolean;
-  readonly onboardingStatus: 'complete' | 'profile_required' | 'role_required' | 'pending_approval';
+  readonly onboardingStatus: OnboardingStatus;
   readonly memberships: readonly SessionMembership[];
+  readonly authorization?: { readonly source: string; readonly migrationRequired: boolean };
 }
 export interface ClaimSynchronization {
   readonly status: 'synchronized' | 'refresh_required' | 'failed';

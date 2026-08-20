@@ -22,6 +22,7 @@ export type AuthStatus =
   | 'anonymous'
   | 'loading-session'
   | 'authenticated'
+  | 'organization-required'
   | 'role-required'
   | 'pending-approval'
   | 'disabled'
@@ -105,6 +106,12 @@ export class AuthService {
     return this.loadBackendSession(user);
   }
 
+  /** Reloads the canonical backend session, optionally forcing a Firebase token first. */
+  async refreshSession(forceToken = false): Promise<SessionUser | null> {
+    if (forceToken) await this.firebaseAuth.currentUser?.getIdToken(true);
+    return this.retrySession();
+  }
+
   /** Applies an already backend-verified session in isolated tests. */
   restore(user: SessionUser | null): void {
     this.current.set(user);
@@ -160,7 +167,9 @@ export class AuthService {
         if (attempt === this.bootstrapAttempt) {
           this.current.set(null);
           this.currentStatus.set('error');
-          this.currentError.set('Your account was verified, but its application session could not be loaded. Try again.');
+          this.currentError.set(
+            'Your account was verified, but its application session could not be loaded. Try again.',
+          );
           this.bootstrap = undefined;
         }
         throw classifySessionError(error);
@@ -178,7 +187,9 @@ export class AuthService {
       const refreshedResponse = await firstValueFrom(this.api.get<ApiResponse<SessionData>>('/auth/session'));
       session = refreshedResponse.data;
       if (session.claimSynchronization.tokenRefreshRequired) {
-        this.synchronizationWarning.set('Firebase claims remain pending synchronization; backend session roles are in use.');
+        this.synchronizationWarning.set(
+          'Firebase claims remain pending synchronization; backend session roles are in use.',
+        );
       }
     }
 
@@ -190,6 +201,7 @@ export class AuthService {
       disabled: session.disabled,
       onboardingStatus: session.onboardingStatus,
       memberships: session.memberships,
+      ...(session.authorization ? { authorization: session.authorization } : {}),
     };
   }
 
@@ -198,6 +210,14 @@ export class AuthService {
     const membershipStates = user?.memberships.map((membership) => membership.status) ?? [];
     if (!user) this.currentStatus.set('anonymous');
     else if (user.disabled || membershipStates.includes('suspended')) this.currentStatus.set('disabled');
+    else if (
+      user.onboardingStatus === 'organization_required' ||
+      user.onboardingStatus === 'migration_required' ||
+      (user.onboardingStatus === 'complete' &&
+        !membershipStates.includes('active') &&
+        user.authorization?.migrationRequired === true)
+    )
+      this.currentStatus.set('organization-required');
     else if (
       user.onboardingStatus === 'pending_approval' ||
       (membershipStates.includes('pending') && !membershipStates.includes('active'))

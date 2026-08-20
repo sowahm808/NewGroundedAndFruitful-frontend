@@ -122,6 +122,14 @@ describe('AuthService backend session bootstrap', () => {
     expect(auth.status()).toBe('role-required');
   });
 
+  it('treats organization-required and contradictory migration state as account setup', () => {
+    const session = backendSession(false).data;
+    auth.restore({ ...session, onboardingStatus: 'organization_required' });
+    expect(auth.status()).toBe('organization-required');
+    auth.restore({ ...session, authorization: { source: 'legacy_user_profile', migrationRequired: true } });
+    expect(auth.status()).toBe('organization-required');
+  });
+
   it('uses canonical membership state for pending and suspended accounts', () => {
     const session = backendSession(false).data;
     auth.restore({ ...session, memberships: [{ status: 'pending' }] });

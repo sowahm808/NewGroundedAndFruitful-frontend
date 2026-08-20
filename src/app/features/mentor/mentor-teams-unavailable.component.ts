@@ -11,7 +11,7 @@ import { GfAlert, GfPageHeader } from '../../shared/components/design-system';
         This operation is not available because the backend does not publish an authorized mentor team-list capability.
       </p>
     </gf-page-header>
-    <gf-alert title="Capability not published">
+    <gf-alert title="Feature unavailable">
       <p>No records or controls are shown until this capability is supported.</p>
       <a routerLink="/account/profile">Return to your profile</a>
     </gf-alert>

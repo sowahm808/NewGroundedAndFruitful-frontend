@@ -17,6 +17,7 @@ import { filter } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../auth/auth.service';
 import { UserRole } from '../models/domain.models';
+import { ActiveOrganizationService } from '../organizations/active-organization.service';
 
 export interface NavigationItem {
   readonly label: string;
@@ -94,6 +95,19 @@ const NAVIGATION: readonly NavigationItem[] = [
           <span class="brand-name">Grounded <b>&amp; Fruitful</b></span>
         </a>
         <span class="toolbar-spacer"></span>
+        @if (organizations.memberships().length > 1) {
+          <label class="organization-context"
+            ><span>Organization</span
+            ><select [value]="organizations.organizationId() || ''" (change)="selectOrganization($event)">
+              <option value="" disabled>Select organization</option>
+              @for (membership of organizations.memberships(); track membership.id) {
+                <option [value]="membership.organizationId">{{ membership.organizationName }}</option>
+              }
+            </select></label
+          >
+        } @else if (organizations.activeMembership(); as membership) {
+          <span class="current-organization">{{ membership.organizationName }}</span>
+        }
         <div class="utility">
           <button
             #profileButton
@@ -233,6 +247,20 @@ const NAVIGATION: readonly NavigationItem[] = [
       .toolbar-spacer {
         flex: 1;
         min-width: 0;
+      }
+      .organization-context {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.8rem;
+      }
+      .organization-context select {
+        min-height: 40px;
+        max-width: 14rem;
+      }
+      .current-organization {
+        font-weight: 700;
+        font-size: 0.9rem;
       }
       button {
         font: inherit;
@@ -503,6 +531,7 @@ const NAVIGATION: readonly NavigationItem[] = [
 })
 export class AppShellComponent {
   readonly auth = inject(AuthService);
+  readonly organizations = inject(ActiveOrganizationService);
   private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
   private readonly breakpoint = inject(BreakpointObserver);
@@ -618,6 +647,10 @@ export class AppShellComponent {
     } finally {
       this.loggingOut.set(false);
     }
+  }
+  selectOrganization(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    this.organizations.select(value);
   }
   private menuItems(): HTMLElement[] {
     return Array.from(this.document.querySelectorAll<HTMLElement>('#profile-menu [role="menuitem"]:not([disabled])'));

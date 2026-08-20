@@ -5,6 +5,7 @@ import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Va
 import { Subject, catchError, finalize, map, of, switchMap } from 'rxjs';
 import { ApiError } from '../../../core/http/api-error';
 import { AuthService } from '../../../core/auth/auth.service';
+import { ActiveOrganizationService } from '../../../core/organizations/active-organization.service';
 import { GfAlert, GfBadge, GfEmptyState, GfPageHeader } from '../../../shared/components/design-system';
 import {
   AdminQuartersApiService,
@@ -176,7 +177,7 @@ function dateRange(control: AbstractControl): ValidationErrors | null {
       }
     }
     @if (editing()) {
-      <div class="backdrop" (click)="closeDialog()"></div>
+      <button class="backdrop" type="button" aria-label="Close quarter dialog" (click)="closeDialog()"></button>
       <section
         class="dialog"
         role="dialog"
@@ -199,6 +200,24 @@ function dateRange(control: AbstractControl): ValidationErrors | null {
           >
         }
         <form [formGroup]="quarterForm" (ngSubmit)="save()">
+          @if (!editing()!.id) {
+            <label for="quarter-organization">Organization</label
+            ><select id="quarter-organization" formControlName="organizationId">
+              <option value="" disabled>Select organization</option>
+              @for (membership of organizations.memberships(); track membership.id) {
+                <option [value]="membership.organizationId">{{ membership.organizationName }}</option>
+              }
+            </select>
+            @if (invalid('organizationId')) {
+              <p class="field-error">Select an organization before creating a quarter.</p>
+            }
+            @if (!organizations.memberships().length) {
+              <p class="field-error">
+                An active organization membership is required.
+                <a href="/onboarding/organization">Finish account setup</a>.
+              </p>
+            }
+          }
           <label for="quarter-name">Name</label><input id="quarter-name" formControlName="name" maxlength="120" />
           @if (invalid('name')) {
             <p class="field-error">Enter a name of 120 characters or fewer.</p>
@@ -409,6 +428,7 @@ export class AdminQuartersComponent {
   private readonly api = inject(AdminQuartersApiService);
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
+  readonly organizations = inject(ActiveOrganizationService);
   readonly statuses: readonly QuarterStatus[] = ['draft', 'active', 'closed', 'archived'];
   readonly sorts: readonly { value: QuarterSort; label: string }[] = [
     { value: '-updatedAt', label: 'Recently updated' },
@@ -423,6 +443,7 @@ export class AdminQuartersComponent {
   });
   readonly quarterForm = this.fb.nonNullable.group(
     {
+      organizationId: ['', Validators.required],
       name: ['', [Validators.required, Validators.maxLength(120)]],
       startsOn: ['', Validators.required],
       endsOn: ['', Validators.required],
@@ -459,7 +480,8 @@ export class AdminQuartersComponent {
         switchMap((q) => {
           const sequence = ++this.sequence;
           this.error.set(null);
-          this.result() ? this.refreshing.set(true) : this.initialLoading.set(true);
+          if (this.result()) this.refreshing.set(true);
+          else this.initialLoading.set(true);
           return this.api.list(q).pipe(
             map((data) => ({ sequence, data }) satisfies LoadResult),
             catchError((error: ApiError) => of({ sequence, error } satisfies LoadResult)),
@@ -504,11 +526,17 @@ export class AdminQuartersComponent {
   openCreate() {
     this.editing.set({ id: '' });
     this.quarterForm.reset();
+    this.quarterForm.controls.organizationId.setValue(this.organizations.organizationId() ?? '');
     this.resetMutation();
   }
   openEdit(q: Quarter) {
     this.editing.set(q);
-    this.quarterForm.setValue({ name: q.name, startsOn: q.startsOn, endsOn: q.endsOn });
+    this.quarterForm.setValue({
+      organizationId: q.organization?.id ?? '',
+      name: q.name,
+      startsOn: q.startsOn,
+      endsOn: q.endsOn,
+    });
     this.resetMutation();
   }
   closeDialog() {
@@ -531,7 +559,7 @@ export class AdminQuartersComponent {
     this.mutating.set(true);
     const request = record.id
       ? this.api.update(record.id, { ...body, expectedVersion: (record as Quarter).version })
-      : this.api.create(body);
+      : this.api.create({ ...body, organizationId: value.organizationId });
     request.pipe(finalize(() => this.mutating.set(false))).subscribe({
       next: (q) => {
         this.editing.set(null);

@@ -1,7 +1,13 @@
 import { Routes } from '@angular/router';
-import { authGuard, roleGuard } from './core/guards/auth.guards';
+import { authGuard, organizationSetupGuard, roleGuard } from './core/guards/auth.guards';
 import { AppShellComponent } from './core/layout/app-shell.component';
 export const routes: Routes = [
+  {
+    path: 'onboarding/organization',
+    canActivate: [organizationSetupGuard],
+    loadComponent: () =>
+      import('./features/onboarding/organization-onboarding.component').then((m) => m.OrganizationOnboardingComponent),
+  },
   { path: 'auth/login', loadComponent: () => import('./features/auth/login.component').then((m) => m.LoginComponent) },
   {
     path: 'auth/create-account',
@@ -174,9 +180,19 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/quarters/admin-quarters.component').then((m) => m.AdminQuartersComponent),
       },
+      {
+        path: 'organizations',
+        loadComponent: () =>
+          import('./features/admin/organizations/admin-organizations.component').then(
+            (m) => m.AdminOrganizationsComponent,
+          ),
+      },
+      {
+        path: 'memberships',
+        loadComponent: () =>
+          import('./features/admin/memberships/admin-memberships.component').then((m) => m.AdminMembershipsComponent),
+      },
       ...[
-        ['organizations', 'Organizations'],
-        ['memberships', 'Memberships'],
         ['roles', 'Roles'],
         ['participants', 'Participants'],
         ['assignments', 'Assignments'],
