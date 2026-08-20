@@ -25,11 +25,8 @@ export interface ApiResponse<T> {
   readonly data: T;
   readonly requestId?: string;
 }
-export type LoadState<T> =
-  | { status: 'idle' | 'loading' }
-  | { status: 'success'; data: T }
-  | { status: 'empty' }
-  | { status: 'error'; message: string; kind: 'validation' | 'authorization' | 'network' | 'unexpected' };
+/** @deprecated Data pages use DataPageState from shared/state/data-page-state. */
+export type { DataPageState as LoadState } from '../../shared/state/data-page-state';
 export interface CharacterQuality {
   readonly id: string;
   readonly name: string;
