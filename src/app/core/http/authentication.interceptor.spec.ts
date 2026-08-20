@@ -1,6 +1,6 @@
-import { HttpRequest, HttpResponse } from '@angular/common/http';
+import { HttpErrorResponse, HttpRequest, HttpResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { firstValueFrom, of } from 'rxjs';
+import { firstValueFrom, of, throwError } from 'rxjs';
 import { Auth } from 'firebase/auth';
 import { environment } from '../../../environments/environment';
 import { FIREBASE_AUTH } from '../auth/firebase-auth.token';
@@ -63,5 +63,45 @@ describe('authenticationInterceptor', () => {
       ),
     ).toBeRejectedWith(failure);
     expect(forwarded).toBeFalse();
+  });
+
+  it('force-refreshes once after 401 and retries with the fresh token', async () => {
+    const getIdToken = jasmine.createSpy().and.callFake((force?: boolean) => Promise.resolve(force ? 'fresh' : 'old'));
+    const authorizations: (string | null)[] = [];
+    TestBed.configureTestingModule({
+      providers: [{ provide: FIREBASE_AUTH, useValue: { currentUser: { getIdToken } } }],
+    });
+    await TestBed.runInInjectionContext(() =>
+      firstValueFrom(
+        authenticationInterceptor(new HttpRequest('GET', `${environment.apiUrl}/data`), (request) => {
+          authorizations.push(request.headers.get('Authorization'));
+          return authorizations.length === 1
+            ? throwError(() => new HttpErrorResponse({ status: 401 }))
+            : of(new HttpResponse());
+        }),
+      ),
+    );
+    expect(authorizations).toEqual(['Bearer old', 'Bearer fresh']);
+    expect(getIdToken.calls.allArgs()).toEqual([[false], [true]]);
+  });
+
+  it('does not refresh or retry a 403', async () => {
+    const getIdToken = jasmine.createSpy().and.resolveTo('token');
+    let attempts = 0;
+    TestBed.configureTestingModule({
+      providers: [{ provide: FIREBASE_AUTH, useValue: { currentUser: { getIdToken } } }],
+    });
+    await expectAsync(
+      TestBed.runInInjectionContext(() =>
+        firstValueFrom(
+          authenticationInterceptor(new HttpRequest('GET', `${environment.apiUrl}/data`), () => {
+            attempts++;
+            return throwError(() => new HttpErrorResponse({ status: 403 }));
+          }),
+        ),
+      ),
+    ).toBeRejected();
+    expect(attempts).toBe(1);
+    expect(getIdToken).toHaveBeenCalledOnceWith(false);
   });
 });

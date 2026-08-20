@@ -11,6 +11,7 @@
     "lint": "ng lint",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "test": "ng test --watch=false",
+    "test:contract": "node scripts/verify-backend-openapi.mjs",
     "e2e": "playwright test",
     "emulators": "firebase emulators:start"
   },

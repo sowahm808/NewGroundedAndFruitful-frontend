@@ -94,7 +94,7 @@ export class ChildDashboardComponent implements OnInit {
       },
       error: (e) => {
         this.error.set(
-          e instanceof ApiError && e.code === 'authorization_denied'
+          e instanceof ApiError && e.code === 'relationship_forbidden'
             ? 'You do not have permission to view this journey.'
             : e instanceof ApiError
               ? e.message
