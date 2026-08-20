@@ -5,7 +5,7 @@ import { RouterOutlet } from '@angular/router';
   standalone: true,
   imports: [RouterOutlet],
   template: `<a class="skip" href="#main-content">Skip to content</a>
-    <div id="main-content"><router-outlet /></div>`,
+    <div id="main-content" tabindex="-1"><router-outlet /></div>`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppComponent {}

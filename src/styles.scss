@@ -24,6 +24,11 @@
 body {
   margin: 0;
   min-width: 320px;
+  overflow-x: hidden;
+  background: var(--background);
+}
+body.drawer-scroll-lock {
+  overflow: hidden;
 }
 button,
 input,
