@@ -123,38 +123,28 @@ export const routes: Routes = [
     children: [
       {
         path: 'teams',
-        loadComponent: () =>
-          import('./features/mentor/mentor-teams-unavailable.component').then((m) => m.MentorTeamsUnavailableComponent),
+        loadComponent: () => import('./features/mentor/mentor-teams.component').then((m) => m.MentorTeamsComponent),
       },
       {
         path: 'teams/:teamId',
         loadComponent: () =>
-          import('./features/mentor/mentor-team-detail-unavailable.component').then(
-            (m) => m.MentorTeamDetailUnavailableComponent,
-          ),
+          import('./features/mentor/mentor-team-detail.component').then((m) => m.MentorTeamDetailComponent),
       },
       {
         path: 'projects',
         loadComponent: () =>
-          import('./features/mentor/mentor-projects-unavailable.component').then(
-            (m) => m.MentorProjectsUnavailableComponent,
-          ),
+          import('./features/mentor/mentor-projects.component').then((m) => m.MentorProjectsComponent),
       },
       {
         path: 'reading',
-        loadComponent: () =>
-          import('./features/mentor/mentor-reading-unavailable.component').then(
-            (m) => m.MentorReadingUnavailableComponent,
-          ),
+        loadComponent: () => import('./features/mentor/mentor-reading.component').then((m) => m.MentorReadingComponent),
       },
       {
         path: 'encouragement',
         loadComponent: () =>
-          import('./features/mentor/mentor-encouragement-unavailable.component').then(
-            (m) => m.MentorEncouragementUnavailableComponent,
-          ),
+          import('./features/mentor/mentor-encouragement.component').then((m) => m.MentorEncouragementComponent),
       },
-      { path: '', pathMatch: 'full', redirectTo: '/account/profile' },
+      { path: '', pathMatch: 'full', redirectTo: 'teams' },
     ],
   },
   {
@@ -165,11 +155,9 @@ export const routes: Routes = [
       {
         path: 'observations',
         loadComponent: () =>
-          import('./features/observer/observer-observations-unavailable.component').then(
-            (m) => m.ObserverObservationsUnavailableComponent,
-          ),
+          import('./features/observer/observer-observations.component').then((m) => m.ObserverObservationsComponent),
       },
-      { path: '', pathMatch: 'full', redirectTo: '/account/profile' },
+      { path: '', pathMatch: 'full', redirectTo: 'observations' },
     ],
   },
   {
