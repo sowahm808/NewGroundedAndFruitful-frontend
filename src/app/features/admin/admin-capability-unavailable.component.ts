@@ -8,9 +8,9 @@ import { GfAlert, GfPageHeader } from '../../shared/components/design-system';
   imports: [RouterLink, GfAlert, GfPageHeader],
   template: `
     <gf-page-header [title]="title + ' administration'" eyebrow="Unavailable">
-      <p>This operation is not available because the backend does not publish an authorized API contract.</p>
+      <p>This feature is not currently available.</p>
     </gf-page-header>
-    <gf-alert title="Capability not published">
+    <gf-alert title="Feature unavailable">
       <p>No records or controls are shown until this capability is supported.</p>
       <a routerLink="/admin/quarters">Return to quarters</a>
     </gf-alert>

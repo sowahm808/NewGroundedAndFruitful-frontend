@@ -40,10 +40,17 @@ describe('AdminQuartersApiService', () => {
   });
 
   it('maps create and versioned edit requests without extra fields', () => {
-    service.create({ name: 'Autumn 2026', startsOn: '2026-09-01', endsOn: '2026-11-30' }).subscribe();
+    service
+      .create({ organizationId: 'organization-1', name: 'Autumn 2026', startsOn: '2026-09-01', endsOn: '2026-11-30' })
+      .subscribe();
     const create = http.expectOne((req) => req.url.endsWith('/admin/quarters'));
     expect(create.request.method).toBe('POST');
-    expect(create.request.body).toEqual({ name: 'Autumn 2026', startsOn: '2026-09-01', endsOn: '2026-11-30' });
+    expect(create.request.body).toEqual({
+      organizationId: 'organization-1',
+      name: 'Autumn 2026',
+      startsOn: '2026-09-01',
+      endsOn: '2026-11-30',
+    });
     create.flush({ data: quarter });
     service
       .update(quarter.id, {

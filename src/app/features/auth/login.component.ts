@@ -100,6 +100,7 @@ export function safeReturnUrl(
     !candidate ||
     !candidate.startsWith('/') ||
     candidate.startsWith('//') ||
+    // eslint-disable-next-line no-control-regex -- control bytes are invalid in a return URL.
     /[\\\u0000-\u001f\u007f]/.test(candidate)
   )
     return null;

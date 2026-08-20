@@ -39,11 +39,12 @@ export interface QuarterQuery {
   readonly sort: QuarterSort;
 }
 export interface CreateQuarterRequest {
+  readonly organizationId: string;
   readonly name: string;
   readonly startsOn: string;
   readonly endsOn: string;
 }
-export interface UpdateQuarterRequest extends CreateQuarterRequest {
+export interface UpdateQuarterRequest extends Omit<CreateQuarterRequest, 'organizationId'> {
   readonly expectedVersion: number;
 }
 export interface QuarterCommandRequest {

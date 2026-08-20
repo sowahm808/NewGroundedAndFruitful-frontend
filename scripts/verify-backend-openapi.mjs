@@ -15,6 +15,12 @@ const document = source.startsWith('https://')
 const operations = [
   ['post', '/auth/child-token'],
   ['get', '/auth/session'],
+  ['post', '/onboarding/organization'],
+  ['get', '/admin/organizations'],
+  ['get', '/admin/memberships'],
+  ['patch', '/admin/memberships/{membershipId}'],
+  ['get', '/admin/quarters'],
+  ['post', '/admin/quarters'],
   ['get', '/child/today'],
   ['get', '/child/check-ins/today'],
   ['put', '/child/check-ins/today/draft'],
@@ -48,7 +54,9 @@ const operations = [
 
 const missing = operations.filter(([method, path]) => !document.paths?.[path]?.[method]);
 if (missing.length) {
-  throw new Error(`Frontend operations missing from backend OpenAPI:\n${missing.map(([m, p]) => `${m.toUpperCase()} ${p}`).join('\n')}`);
+  throw new Error(
+    `Frontend operations missing from backend OpenAPI:\n${missing.map(([m, p]) => `${m.toUpperCase()} ${p}`).join('\n')}`,
+  );
 }
 
 for (const [method, path] of operations) {
