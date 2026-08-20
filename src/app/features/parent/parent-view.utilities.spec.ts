@@ -11,7 +11,7 @@ describe('parentViewError', () => {
   });
 
   it('does not offer a retry for forbidden resources', () => {
-    const result = parentViewError(new ApiError(403, 'authorization_denied', 'Forbidden'));
+    const result = parentViewError(new ApiError(403, 'relationship_forbidden', 'Forbidden'));
     expect(result.title).toBe('Access denied');
     expect(result.retryable).toBeFalse();
   });
@@ -29,6 +29,6 @@ describe('parentViewError', () => {
 
   it('distinguishes invalid sessions and backend failures', () => {
     expect(parentViewError(new ApiError(401, 'authentication_required', 'Sign in')).title).toBe('Session invalid');
-    expect(parentViewError(new ApiError(500, 'server_error', 'Failed')).title).toBe('Backend failure');
+    expect(parentViewError(new ApiError(500, 'dependency_failure', 'Failed')).title).toBe('Backend failure');
   });
 });

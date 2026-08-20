@@ -16,6 +16,8 @@ All API calls must go through `ApiClient`. The authentication interceptor attach
 
 Before adding a repository, obtain the backend OpenAPI/schema source and record the exact method, path, request, response, authorization/resource scope, validation errors, correlation ID, caching, version conflict, and idempotency semantics. The unresolved contract inventory is maintained in `frontend-production-audit.md`.
 
+Run `BACKEND_OPENAPI=/path/to/backend-openapi.json npm run test:contract` (an HTTPS URL is also accepted) against the exact backend-owned artifact being deployed. The check deliberately fails when the artifact is absent, when a consumed operation drifts, or when required success and error responses are undocumented; the frontend does not carry a self-authored substitute for the backend authority.
+
 ## Local emulators
 
 1. Use the runtime selected by `.nvmrc` and run `npm ci`.

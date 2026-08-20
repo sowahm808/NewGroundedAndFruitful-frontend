@@ -11,6 +11,11 @@ export interface ApiRequestOptions {
   headers?: HttpHeaders | Record<string, string>;
 }
 
+export interface ApiEnvelope<T> {
+  readonly data: T;
+  readonly requestId?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ApiClient {
   private readonly http = inject(HttpClient);
@@ -22,19 +27,19 @@ export class ApiClient {
 
   /** Reads the API's standard envelope in one place. */
   getData<T>(path: string, options: ApiRequestOptions = {}): Observable<T> {
-    return this.get<{ readonly data: T }>(path, options).pipe(map((response) => response.data));
+    return this.get<ApiEnvelope<T>>(path, options).pipe(map(unwrapEnvelope));
   }
 
   postData<T>(path: string, body: unknown, options: ApiRequestOptions = {}): Observable<T> {
-    return this.post<{ readonly data: T }>(path, body, options).pipe(map((response) => response.data));
+    return this.post<ApiEnvelope<T>>(path, body, options).pipe(map(unwrapEnvelope));
   }
 
   patchData<T>(path: string, body: unknown, options: ApiRequestOptions = {}): Observable<T> {
-    return this.patch<{ readonly data: T }>(path, body, options).pipe(map((response) => response.data));
+    return this.patch<ApiEnvelope<T>>(path, body, options).pipe(map(unwrapEnvelope));
   }
 
   putData<T>(path: string, body: unknown, options: ApiRequestOptions = {}): Observable<T> {
-    return this.put<{ readonly data: T }>(path, body, options).pipe(map((response) => response.data));
+    return this.put<ApiEnvelope<T>>(path, body, options).pipe(map(unwrapEnvelope));
   }
 
   post<T>(path: string, body: unknown, options: ApiRequestOptions = {}): Observable<T> {
@@ -70,18 +75,19 @@ export class ApiClient {
     const errors: Record<number, [ApiErrorCode, string]> = {
       0: ['network_error', 'The backend could not be reached. Check your network connection and try again.'],
       401: ['authentication_required', 'Authentication is required. Please sign in again.'],
-      403: ['authorization_denied', 'You are not authorized to perform this operation.'],
+      403: ['relationship_forbidden', 'You are not authorized to perform this operation.'],
       404: ['resource_not_found', 'The requested resource was not found.'],
       409: ['business_conflict', 'The operation conflicts with the current resource state.'],
       422: ['validation_error', 'Some submitted values are invalid.'],
       429: ['rate_limit', 'Too many requests. Please wait and try again.'],
-      500: ['server_error', 'The server could not complete the request.'],
+      500: ['dependency_failure', 'A backend dependency could not complete the request.'],
     };
-    const [code, fallback] = errors[error.status] ?? ['unexpected_error', 'The request could not be completed.'];
+    const [code, fallback] = error.status >= 500
+      ? (['dependency_failure', 'A backend dependency could not complete the request.'] as const)
+      : (errors[error.status] ?? ['unexpected_error', 'The request could not be completed.']);
     const payload = error.error as { code?: unknown; message?: unknown; details?: unknown; requestId?: unknown } | null;
     const message = typeof payload?.message === 'string' ? payload.message : fallback;
-    const retryAfter = error.headers.get('Retry-After');
-    const retryAfterSeconds = retryAfter !== null && /^\d+$/.test(retryAfter) ? Number(retryAfter) : undefined;
+    const retryAfterSeconds = parseRetryAfter(error.headers.get('Retry-After'));
 
     const backendCode = typeof payload?.code === 'string' ? payload.code : undefined;
     const requestIdHeader = error.headers.get('X-Request-Id') ?? error.headers.get('X-Request-ID');
@@ -100,15 +106,33 @@ export class ApiClient {
 function backendCodeToApiCode(backendCode: string | undefined, fallback: ApiErrorCode): ApiErrorCode {
   const known: readonly ApiErrorCode[] = [
     'authentication_required',
-    'authorization_denied',
+    'feature_unpublished',
+    'role_required',
+    'approval_pending',
+    'account_disabled',
+    'relationship_forbidden',
     'resource_not_found',
     'business_conflict',
     'validation_error',
     'rate_limit',
-    'server_error',
+    'dependency_failure',
     'network_error',
     'unexpected_error',
   ];
   const normalized = backendCode?.toLowerCase();
   return known.includes(normalized as ApiErrorCode) ? (normalized as ApiErrorCode) : fallback;
+}
+
+function unwrapEnvelope<T>(response: ApiEnvelope<T>): T {
+  if (!response || typeof response !== 'object' || !('data' in response)) {
+    throw new ApiError(-1, 'unexpected_error', 'The backend returned an invalid response envelope.');
+  }
+  return response.data;
+}
+
+function parseRetryAfter(value: string | null): number | undefined {
+  if (value === null) return undefined;
+  if (/^\d+$/.test(value)) return Number(value);
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? undefined : Math.max(0, Math.ceil((timestamp - Date.now()) / 1000));
 }

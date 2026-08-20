@@ -23,6 +23,7 @@ export interface SessionData extends SessionUser {
 }
 export interface ApiResponse<T> {
   readonly data: T;
+  readonly requestId?: string;
 }
 export type LoadState<T> =
   | { status: 'idle' | 'loading' }
