@@ -165,68 +165,30 @@ export const routes: Routes = [
     component: AppShellComponent,
     canActivate: [authGuard, roleGuard(['admin', 'super_admin'])],
     children: [
-      {
-        path: 'quarters',
-        loadComponent: () =>
-          import('./features/admin/quarters/admin-quarters.component').then((m) => m.AdminQuartersComponent),
-      },
-      {
-        path: 'users',
-        loadComponent: () =>
-          import('./features/admin/users-unavailable.component').then((m) => m.AdminUsersUnavailableComponent),
-      },
-      {
-        path: 'teams',
-        loadComponent: () =>
-          import('./features/admin/teams-unavailable.component').then((m) => m.AdminTeamsUnavailableComponent),
-      },
-      {
-        path: 'character',
-        loadComponent: () =>
-          import('./features/admin/character-unavailable.component').then((m) => m.AdminCharacterUnavailableComponent),
-      },
-      {
-        path: 'activities',
-        loadComponent: () =>
-          import('./features/admin/activities-unavailable.component').then(
-            (m) => m.AdminActivitiesUnavailableComponent,
-          ),
-      },
-      {
-        path: 'bible',
-        loadComponent: () =>
-          import('./features/admin/bible-unavailable.component').then((m) => m.AdminBibleUnavailableComponent),
-      },
-      {
-        path: 'family',
-        loadComponent: () =>
-          import('./features/admin/family-unavailable.component').then((m) => m.AdminFamilyUnavailableComponent),
-      },
-      {
-        path: 'books',
-        loadComponent: () =>
-          import('./features/admin/books-unavailable.component').then((m) => m.AdminBooksUnavailableComponent),
-      },
-      {
-        path: 'surveys',
-        loadComponent: () =>
-          import('./features/admin/surveys-unavailable.component').then((m) => m.AdminSurveysUnavailableComponent),
-      },
-      {
-        path: 'points',
-        loadComponent: () =>
-          import('./features/admin/points-unavailable.component').then((m) => m.AdminPointsUnavailableComponent),
-      },
-      {
-        path: 'reports',
-        loadComponent: () =>
-          import('./features/admin/reports-unavailable.component').then((m) => m.AdminReportsUnavailableComponent),
-      },
-      {
-        path: 'audit',
-        loadComponent: () =>
-          import('./features/admin/audit-unavailable.component').then((m) => m.AdminAuditUnavailableComponent),
-      },
+      ...[
+        'users',
+        'organizations',
+        'memberships',
+        'roles',
+        'participants',
+        'teams',
+        'assignments',
+        'quarters',
+        'character',
+        'bible',
+        'family',
+        'books',
+        'projects',
+        'surveys',
+        'points',
+        'reports',
+        'awards',
+        'audit',
+      ].map((resource) => ({
+        path: resource,
+        data: { resource },
+        loadComponent: () => import('./features/admin/admin-pages.component').then((m) => m.AdminPageComponent),
+      })),
       { path: '', pathMatch: 'full', redirectTo: 'quarters' },
     ],
   },
