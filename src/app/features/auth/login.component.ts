@@ -96,8 +96,16 @@ export function safeReturnUrl(
   router: Router,
   roles: SessionUser['roles'] = [],
 ): UrlTree | null {
-  if (!candidate || !candidate.startsWith('/') || candidate.startsWith('//')) return null;
+  if (
+    !candidate ||
+    !candidate.startsWith('/') ||
+    candidate.startsWith('//') ||
+    /[\\\u0000-\u001f\u007f]/.test(candidate)
+  )
+    return null;
   try {
+    // Reject bad percent escapes and encoded protocol-relative paths before Angular normalizes them.
+    if (decodeURIComponent(candidate).startsWith('//')) return null;
     const tree = router.parseUrl(candidate);
     const path = '/' + (tree.root.children['primary']?.segments.map((segment) => segment.path).join('/') ?? '');
     if (
