@@ -7,9 +7,9 @@
 /.angular/
 .angular/
 
-# Node modules and dependency files
+# Node modules and alternative dependency files. The npm lockfile is committed so
+# CI and Netlify install the audited dependency graph with `npm ci`.
 /node_modules/
-/package-lock.json
 /yarn.lock
 
 # Environment files

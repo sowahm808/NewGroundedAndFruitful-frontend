@@ -3,7 +3,7 @@
   publish = "dist/grounded-fruitful/browser"
 
 [build.environment]
-  NODE_VERSION = "26"
+  NODE_VERSION = "22.22.3"
   NG_CLI_ANALYTICS = "false"
 
 [[redirects]]

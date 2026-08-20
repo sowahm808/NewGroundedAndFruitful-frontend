@@ -1,7 +1,9 @@
 # Frontend production audit and backend comparison guide
 
-Audit date: 2026-08-19
+Audit date: 2026-08-20
 Audited revision: the current working tree on branch `work`
+
+The latest execution record, consolidated route matrix, feature checklist, staging procedure, and rollback procedure are in [`release-readiness-2026-08-20.md`](release-readiness-2026-08-20.md). Contract-dependent work remains stopped because a backend-published OpenAPI artifact and backend-owned frontend-integration handoff are absent.
 
 ## Executive result
 
