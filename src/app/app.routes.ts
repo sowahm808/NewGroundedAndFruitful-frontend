@@ -165,8 +165,11 @@ export const routes: Routes = [
     component: AppShellComponent,
     canActivate: [authGuard, roleGuard(['admin', 'super_admin'])],
     children: [
+      {
+        path: 'users',
+        loadComponent: () => import('./features/admin/admin-users.component').then((m) => m.AdminUsersComponent),
+      },
       ...[
-        'users',
         'organizations',
         'memberships',
         'roles',
