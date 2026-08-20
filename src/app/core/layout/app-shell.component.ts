@@ -4,6 +4,7 @@ import { DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   ElementRef,
   HostListener,
   ViewChild,
@@ -74,7 +75,10 @@ const NAVIGATION: readonly NavigationItem[] = [
           </button>
         }
         <a class="brand" [routerLink]="homePath()" aria-label="Grounded and Fruitful home">
-          Grounded <span>&amp; Fruitful</span>
+          <svg class="brand-mark" aria-hidden="true" viewBox="0 0 32 32" focusable="false">
+            <path d="M16 27V13m0 5c-5 0-9-3-9-8 5 0 9 3 9 8Zm0-4c0-5 4-9 9-9 0 5-4 9-9 9Z" />
+          </svg>
+          <span class="brand-name">Grounded <b>&amp; Fruitful</b></span>
         </a>
         <span class="toolbar-spacer"></span>
         <div class="utility">
@@ -89,8 +93,12 @@ const NAVIGATION: readonly NavigationItem[] = [
             (keydown.arrowdown)="openUtilityAndFocusFirst($event)"
           >
             <span class="avatar" aria-hidden="true">{{ initials() }}</span>
-            <span class="display-name">{{ auth.user()?.displayName }}</span>
-            <span class="sr-only">Open profile menu</span>
+            <span class="identity">
+              <span class="display-name">{{ auth.user()?.displayName || 'My account' }}</span>
+              <span class="role-label">{{ roleLabel() }}</span>
+            </span>
+            <svg class="chevron" aria-hidden="true" viewBox="0 0 20 20"><path d="m6 8 4 4 4-4" /></svg>
+            <span class="sr-only">Account menu</span>
           </button>
           @if (utilityOpen()) {
             <div id="profile-menu" class="profile-menu" role="menu" tabindex="-1" (keydown)="onMenuKeydown($event)">
@@ -122,6 +130,14 @@ const NAVIGATION: readonly NavigationItem[] = [
         [cdkTrapFocus]="mobile() && drawerOpen()"
         [cdkTrapFocusAutoCapture]="mobile() && drawerOpen()"
       >
+        <div class="drawer-heading">
+          <span>Navigation</span>
+          @if (mobile()) {
+            <button class="drawer-close" type="button" aria-label="Close navigation" (click)="closeDrawer()">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" /></svg>
+            </button>
+          }
+        </div>
         <nav aria-label="Main navigation">
           @for (item of links(); track item.path) {
             <a
@@ -145,8 +161,9 @@ const NAVIGATION: readonly NavigationItem[] = [
     :host { display: block; min-width: 0; }
     .shell { min-height: 100dvh; overflow-x: clip; }
     .toolbar { position: sticky; top: 0; z-index: 30; height: 64px; padding: 0 max(1rem, env(safe-area-inset-right)) 0 max(1rem, env(safe-area-inset-left)); background: var(--brand-dark); color: #fff; display: flex; align-items: center; gap: .75rem; box-shadow: 0 2px 12px #0002; }
-    .brand { color: #fff; text-decoration: none; font-size: clamp(1rem, 3vw, 1.3rem); font-weight: 800; white-space: nowrap; }
-    .brand span { color: #ffd77a; }
+    .brand { display: flex; align-items: center; gap: .5rem; min-height: 44px; color: #fff; text-decoration: none; font-size: clamp(1rem, 3vw, 1.3rem); font-weight: 800; white-space: nowrap; }
+    .brand-mark { width: 32px; height: 32px; padding: 3px; border-radius: 50%; color: #ffd77a; background: #ffffff14; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .brand-name b { color: #ffd77a; }
     .toolbar-spacer { flex: 1; min-width: 0; }
     button { font: inherit; }
     .icon-button, .profile-trigger { min-width: 44px; min-height: 44px; border: 0; border-radius: .65rem; color: #fff; background: transparent; cursor: pointer; }
@@ -154,9 +171,13 @@ const NAVIGATION: readonly NavigationItem[] = [
     .hamburger { display: grid; place-items: center; padding: .6rem; }
     .hamburger svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
     .utility { position: relative; min-width: 0; }
-    .profile-trigger { display: flex; align-items: center; gap: .55rem; max-width: min(18rem, 40vw); padding: .25rem .55rem; }
+    .profile-trigger { display: flex; align-items: center; gap: .55rem; max-width: min(20rem, 42vw); padding: .25rem .55rem; }
     .avatar { display: grid; place-items: center; flex: 0 0 34px; height: 34px; border-radius: 50%; color: var(--brand-dark); background: #ffd77a; font-weight: 800; }
-    .display-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+    .identity { display: grid; min-width: 0; text-align: left; }
+    .display-name, .role-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .display-name { font-weight: 700; }
+    .role-label { color: #dcebd5; font-size: .72rem; line-height: 1.15; }
+    .chevron { width: 18px; height: 18px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .profile-menu { position: absolute; z-index: 50; top: calc(100% + .5rem); right: 0; width: min(19rem, calc(100vw - 2rem)); padding: .45rem; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--ink); background: #fff; box-shadow: 0 12px 36px #0003; }
     .account-context { display: grid; gap: .25rem; padding: .65rem .75rem .8rem; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
     .account-context span { color: var(--muted); font-size: .85rem; }
@@ -164,6 +185,10 @@ const NAVIGATION: readonly NavigationItem[] = [
     .profile-menu a:hover, .profile-menu button:hover { background: var(--leaf-soft); }
     .drawer { position: fixed; z-index: 20; inset: 64px auto 0 0; width: 240px; padding: 1.25rem; background: var(--brand); color: #fff; display: flex; flex-direction: column; overflow-y: auto; }
     .drawer nav { display: grid; gap: .25rem; }
+    .drawer-heading { display: flex; align-items: center; justify-content: space-between; min-height: 44px; margin-bottom: .75rem; padding-left: .8rem; color: #dcebd5; font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .drawer-close { display: grid; place-items: center; width: 44px; height: 44px; padding: .6rem; border: 0; border-radius: .65rem; color: #fff; background: transparent; cursor: pointer; }
+    .drawer-close:hover { background: #ffffff1f; }
+    .drawer-close svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
     .drawer a { min-height: 44px; padding: .7rem .8rem; border-radius: .55rem; color: inherit; text-decoration: none; }
     .drawer a:hover, .drawer a.active { background: #ffffff24; }
     .drawer small { margin-top: auto; padding-top: 1rem; }
@@ -173,7 +198,8 @@ const NAVIGATION: readonly NavigationItem[] = [
     .backdrop { position: fixed; z-index: 35; inset: 64px 0 0; width: 100%; border: 0; background: #17231db8; cursor: pointer; }
     .logout-error { position: fixed; z-index: 60; right: 1rem; bottom: 1rem; max-width: min(28rem, calc(100vw - 2rem)); padding: 1rem; border-radius: var(--radius-md); background: #fff4d8; border-left: 4px solid #a13b2b; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-    @media (max-width: 959px) { main { margin-left: 0; } .display-name { display: none; } }
+    @media (max-width: 959px) { main { margin-left: 0; } .identity, .chevron { display: none; } }
+    @media (max-width: 420px) { .brand-name { font-size: .95rem; } .toolbar { gap: .35rem; } }
     @media (prefers-reduced-motion: reduce) { .mobile-drawer { transition: none; } }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -183,6 +209,7 @@ export class AppShellComponent {
   private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
   private readonly breakpoint = inject(BreakpointObserver);
+  private readonly destroyRef = inject(DestroyRef);
   readonly mobile = signal(false);
   readonly drawerOpen = signal(false);
   readonly utilityOpen = signal(false);
@@ -197,6 +224,7 @@ export class AppShellComponent {
   @ViewChild('profileButton') private profileButton?: ElementRef<HTMLButtonElement>;
 
   constructor() {
+    this.destroyRef.onDestroy(() => this.setPageScrollLocked(false));
     this.breakpoint.observe('(max-width: 959px)').pipe(takeUntilDestroyed()).subscribe(({ matches }) => {
       this.mobile.set(matches);
       if (!matches) this.closeDrawer(false);
@@ -220,7 +248,10 @@ export class AppShellComponent {
   }
   toggleUtility(): void {
     if (this.utilityOpen()) this.closeUtility();
-    else this.utilityOpen.set(true);
+    else {
+      this.utilityOpen.set(true);
+      queueMicrotask(() => this.firstMenuItem()?.focus());
+    }
   }
   openUtilityAndFocusFirst(event: Event): void {
     event.preventDefault();
@@ -267,7 +298,9 @@ export class AppShellComponent {
   }
   private menuItems(): HTMLElement[] { return Array.from(this.document.querySelectorAll<HTMLElement>('#profile-menu [role="menuitem"]:not([disabled])')); }
   private firstMenuItem(): HTMLElement | undefined { return this.menuItems()[0]; }
-  private setPageScrollLocked(locked: boolean): void { this.document.body.style.overflow = locked ? 'hidden' : ''; }
+  private setPageScrollLocked(locked: boolean): void {
+    this.document.body.classList.toggle('drawer-scroll-lock', locked);
+  }
 }
 
 export function initialsFor(name: string): string {
