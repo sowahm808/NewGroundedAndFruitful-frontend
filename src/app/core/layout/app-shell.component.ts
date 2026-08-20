@@ -38,18 +38,7 @@ const NAVIGATION: readonly NavigationItem[] = [
   { label: 'Family', path: '/parent/family', requiredRoles: ['parent'] },
   { label: 'Support', path: '/parent/academic-support', requiredRoles: ['parent'] },
   { label: 'Reports', path: '/parent/reports', requiredRoles: ['parent'] },
-  { label: 'Teams', path: '/mentor/teams', requiredRoles: ['mentor'] },
-  { label: 'Projects', path: '/mentor/projects', requiredRoles: ['mentor'] },
-  { label: 'Reading', path: '/mentor/reading', requiredRoles: ['mentor'] },
-  { label: 'Encouragement', path: '/mentor/encouragement', requiredRoles: ['mentor'] },
-  { label: 'Observations', path: '/observer/observations', requiredRoles: ['observer'] },
-  ...['users', 'teams', 'quarters', 'character', 'activities', 'bible', 'family', 'books', 'surveys', 'points', 'reports', 'audit'].map(
-    (name): NavigationItem => ({
-      label: name[0].toUpperCase() + name.slice(1),
-      path: `/admin/${name}`,
-      requiredRoles: ['admin', 'super_admin'],
-    }),
-  ),
+  { label: 'Quarters', path: '/admin/quarters', requiredRoles: ['admin', 'super_admin'] },
 ];
 
 @Component({

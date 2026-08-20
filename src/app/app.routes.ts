@@ -1,52 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard, roleGuard } from './core/guards/auth.guards';
 import { AppShellComponent } from './core/layout/app-shell.component';
-interface NavigationItem {
-  readonly label: string;
-  readonly path: string;
-  readonly icon?: string;
-  readonly exact?: boolean;
-}
-const childLinks: readonly NavigationItem[] = [
-  { label: 'Today', path: '/child/today' },
-  { label: 'Character', path: '/child/character' },
-  { label: 'Bible', path: '/child/bible' },
-  { label: 'Reading', path: '/child/reading' },
-  { label: 'Project', path: '/child/project' },
-  { label: 'Team', path: '/child/team' },
-  { label: 'More', path: '/child/more' },
-];
-const parentLinks: readonly NavigationItem[] = [
-  { label: 'Children', path: '/parent/children' },
-  { label: 'Character', path: '/parent/character' },
-  { label: 'Observations', path: '/parent/observations' },
-  { label: 'Family', path: '/parent/family' },
-  { label: 'Support', path: '/parent/academic-support' },
-  { label: 'Reports', path: '/parent/reports' },
-];
-const mentorLinks: readonly NavigationItem[] = [
-  { label: 'Teams', path: '/mentor/teams' },
-  { label: 'Projects', path: '/mentor/projects' },
-  { label: 'Reading', path: '/mentor/reading' },
-  { label: 'Encouragement', path: '/mentor/encouragement' },
-];
-const observerLinks: readonly NavigationItem[] = [{ label: 'Observations', path: '/observer/observations' }];
-const adminNames = [
-  'users',
-  'teams',
-  'quarters',
-  'character',
-  'activities',
-  'bible',
-  'family',
-  'books',
-  'surveys',
-  'points',
-  'reports',
-  'audit',
-] as const;
-const unavailable = () =>
-  import('./features/shared/unavailable-page.component').then((m) => m.UnavailablePageComponent);
 export const routes: Routes = [
   { path: 'auth/login', loadComponent: () => import('./features/auth/login.component').then((m) => m.LoginComponent) },
   {
@@ -65,7 +19,6 @@ export const routes: Routes = [
     path: 'child',
     component: AppShellComponent,
     canActivate: [authGuard, roleGuard(['child'])],
-    data: { links: childLinks },
     children: [
       {
         path: 'today',
@@ -106,7 +59,6 @@ export const routes: Routes = [
     path: 'parent',
     component: AppShellComponent,
     canActivate: [authGuard, roleGuard(['parent'])],
-    data: { links: parentLinks },
     children: [
       {
         path: 'children/:childId',
@@ -154,45 +106,126 @@ export const routes: Routes = [
     path: 'mentor',
     component: AppShellComponent,
     canActivate: [authGuard, roleGuard(['mentor'])],
-    data: { links: mentorLinks },
     children: [
-      ...['teams', 'teams/:teamId', 'projects', 'reading', 'encouragement'].map((path) => ({
-        path,
-        loadComponent: unavailable,
-        data: { title: 'Mentor feature', eyebrow: 'Unavailable' },
-      })),
-      { path: '', pathMatch: 'full', redirectTo: 'teams' },
+      {
+        path: 'teams',
+        loadComponent: () =>
+          import('./features/mentor/mentor-teams-unavailable.component').then((m) => m.MentorTeamsUnavailableComponent),
+      },
+      {
+        path: 'teams/:teamId',
+        loadComponent: () =>
+          import('./features/mentor/mentor-team-detail-unavailable.component').then(
+            (m) => m.MentorTeamDetailUnavailableComponent,
+          ),
+      },
+      {
+        path: 'projects',
+        loadComponent: () =>
+          import('./features/mentor/mentor-projects-unavailable.component').then(
+            (m) => m.MentorProjectsUnavailableComponent,
+          ),
+      },
+      {
+        path: 'reading',
+        loadComponent: () =>
+          import('./features/mentor/mentor-reading-unavailable.component').then(
+            (m) => m.MentorReadingUnavailableComponent,
+          ),
+      },
+      {
+        path: 'encouragement',
+        loadComponent: () =>
+          import('./features/mentor/mentor-encouragement-unavailable.component').then(
+            (m) => m.MentorEncouragementUnavailableComponent,
+          ),
+      },
+      { path: '', pathMatch: 'full', redirectTo: '/account/profile' },
     ],
   },
   {
     path: 'observer',
     component: AppShellComponent,
     canActivate: [authGuard, roleGuard(['observer'])],
-    data: { links: observerLinks },
     children: [
-      { path: 'observations', loadComponent: unavailable, data: { title: 'Observations', eyebrow: 'Observer' } },
-      { path: '', pathMatch: 'full', redirectTo: 'observations' },
+      {
+        path: 'observations',
+        loadComponent: () =>
+          import('./features/observer/observer-observations-unavailable.component').then(
+            (m) => m.ObserverObservationsUnavailableComponent,
+          ),
+      },
+      { path: '', pathMatch: 'full', redirectTo: '/account/profile' },
     ],
   },
   {
     path: 'admin',
     component: AppShellComponent,
     canActivate: [authGuard, roleGuard(['admin', 'super_admin'])],
-    data: { links: adminNames.map((n) => ({ label: n[0].toUpperCase() + n.slice(1), path: '/admin/' + n })) },
     children: [
       {
         path: 'quarters',
         loadComponent: () =>
           import('./features/admin/quarters/admin-quarters.component').then((m) => m.AdminQuartersComponent),
       },
-      ...adminNames
-        .filter((name) => name !== 'quarters')
-        .map((name) => ({
-          path: name,
-          loadComponent: unavailable,
-          data: { title: name[0].toUpperCase() + name.slice(1), eyebrow: 'Administration' },
-        })),
-      { path: '', pathMatch: 'full', redirectTo: 'users' },
+      {
+        path: 'users',
+        loadComponent: () =>
+          import('./features/admin/users-unavailable.component').then((m) => m.AdminUsersUnavailableComponent),
+      },
+      {
+        path: 'teams',
+        loadComponent: () =>
+          import('./features/admin/teams-unavailable.component').then((m) => m.AdminTeamsUnavailableComponent),
+      },
+      {
+        path: 'character',
+        loadComponent: () =>
+          import('./features/admin/character-unavailable.component').then((m) => m.AdminCharacterUnavailableComponent),
+      },
+      {
+        path: 'activities',
+        loadComponent: () =>
+          import('./features/admin/activities-unavailable.component').then(
+            (m) => m.AdminActivitiesUnavailableComponent,
+          ),
+      },
+      {
+        path: 'bible',
+        loadComponent: () =>
+          import('./features/admin/bible-unavailable.component').then((m) => m.AdminBibleUnavailableComponent),
+      },
+      {
+        path: 'family',
+        loadComponent: () =>
+          import('./features/admin/family-unavailable.component').then((m) => m.AdminFamilyUnavailableComponent),
+      },
+      {
+        path: 'books',
+        loadComponent: () =>
+          import('./features/admin/books-unavailable.component').then((m) => m.AdminBooksUnavailableComponent),
+      },
+      {
+        path: 'surveys',
+        loadComponent: () =>
+          import('./features/admin/surveys-unavailable.component').then((m) => m.AdminSurveysUnavailableComponent),
+      },
+      {
+        path: 'points',
+        loadComponent: () =>
+          import('./features/admin/points-unavailable.component').then((m) => m.AdminPointsUnavailableComponent),
+      },
+      {
+        path: 'reports',
+        loadComponent: () =>
+          import('./features/admin/reports-unavailable.component').then((m) => m.AdminReportsUnavailableComponent),
+      },
+      {
+        path: 'audit',
+        loadComponent: () =>
+          import('./features/admin/audit-unavailable.component').then((m) => m.AdminAuditUnavailableComponent),
+      },
+      { path: '', pathMatch: 'full', redirectTo: 'quarters' },
     ],
   },
   {
@@ -208,45 +241,24 @@ export const routes: Routes = [
   },
   {
     path: 'unauthorized',
-    loadComponent: unavailable,
-    data: { title: 'You do not have access', eyebrow: 'Authorization' },
+    loadComponent: () => import('./features/system/unauthorized.component').then((m) => m.UnauthorizedComponent),
   },
   {
     path: 'account/role-required',
-    loadComponent: unavailable,
-    data: {
-      title: 'Your account needs a role',
-      eyebrow: 'Account status',
-      message: 'Contact an administrator to request a program role.',
-    },
+    loadComponent: () => import('./features/system/role-required.component').then((m) => m.RoleRequiredComponent),
   },
   {
     path: 'account/pending',
-    loadComponent: unavailable,
-    data: {
-      title: 'Approval pending',
-      eyebrow: 'Account status',
-      message: 'Your program membership is awaiting approval.',
-    },
+    loadComponent: () => import('./features/system/approval-pending.component').then((m) => m.ApprovalPendingComponent),
   },
   {
     path: 'account/disabled',
-    loadComponent: unavailable,
-    data: {
-      title: 'Account unavailable',
-      eyebrow: 'Account status',
-      message: 'This account is disabled or suspended. Contact an administrator.',
-    },
+    loadComponent: () => import('./features/system/account-disabled.component').then((m) => m.AccountDisabledComponent),
   },
   {
     path: 'account/session-error',
-    loadComponent: unavailable,
-    data: { title: 'Session unavailable', eyebrow: 'Account status', message: 'Return to sign in and retry.' },
+    loadComponent: () => import('./features/system/session-error.component').then((m) => m.SessionErrorComponent),
   },
   { path: '', pathMatch: 'full', redirectTo: 'auth/login' },
-  {
-    path: '**',
-    loadComponent: unavailable,
-    data: { title: 'Page not found', eyebrow: '404', message: 'Check the address or use your dashboard navigation.' },
-  },
+  { path: '**', loadComponent: () => import('./features/system/not-found.component').then((m) => m.NotFoundComponent) },
 ];
