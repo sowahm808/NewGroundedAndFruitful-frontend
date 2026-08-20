@@ -64,6 +64,21 @@ export interface ParentReport {
   readonly title: string;
   readonly status: string;
   readonly availableAt?: string;
+  readonly calculatedAt?: string;
+}
+export interface ParticipationSummary {
+  readonly childId: string;
+  readonly period: string;
+  readonly completed: number;
+  readonly available: number;
+  readonly calculatedAt: string;
+}
+export interface ParentNotification {
+  readonly id: string;
+  readonly title: string;
+  readonly message: string;
+  readonly status: string;
+  readonly createdAt: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -107,5 +122,11 @@ export class ParentApi {
   }
   reports(childId = '', cursor = ''): Observable<CursorPage<ParentReport>> {
     return this.api.getData('/parent/reports', { params: buildHttpParams({ childId, cursor }) });
+  }
+  participation(childId: string, cursor = ''): Observable<CursorPage<ParticipationSummary>> {
+    return this.api.getData('/parent/participation', { params: buildHttpParams({ childId, cursor }) });
+  }
+  notifications(search = '', status = '', cursor = ''): Observable<CursorPage<ParentNotification>> {
+    return this.api.getData('/parent/notifications', { params: buildHttpParams({ search, status, cursor }) });
   }
 }

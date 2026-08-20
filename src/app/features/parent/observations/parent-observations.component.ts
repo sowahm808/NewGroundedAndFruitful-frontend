@@ -11,19 +11,29 @@ import {
 } from '../../../shared/components/design-system';
 import { Observation, ParentApi } from '../parent-api.service';
 import { parentViewError, ViewError } from '../parent-view.utilities';
+import { ParentChildScopeComponent } from '../shared/parent-child-scope.component';
 @Component({
   standalone: true,
-  imports: [ReactiveFormsModule, GfAlert, GfButton, GfCard, GfEmptyState, GfLoading, GfPageHeader],
+  imports: [
+    ParentChildScopeComponent,
+    ReactiveFormsModule,
+    GfAlert,
+    GfButton,
+    GfCard,
+    GfEmptyState,
+    GfLoading,
+    GfPageHeader,
+  ],
   template: `<gf-page-header title="Positive observations" eyebrow="Notice growth"
       ><p>
         Submit an observation for an authorized linked child. For an immediate safeguarding concern, contact your
         program safeguarding lead or emergency services.
       </p></gf-page-header
     >
+    <gf-parent-child-scope (childChange)="selectChild($event)" />
     <form [formGroup]="form" (ngSubmit)="submit()">
-      <label>Linked child ID<input formControlName="childId" required /></label
-      ><label>Observation<textarea formControlName="summary" maxlength="1000" required></textarea></label
-      ><gf-button type="submit" [disabled]="form.invalid || submitting()">{{
+      <label>Observation<textarea formControlName="summary" maxlength="1000" required></textarea></label
+      ><gf-button type="submit" [disabled]="form.invalid || !childId() || submitting()">{{
         submitting() ? 'Submitting…' : 'Submit observation'
       }}</gf-button>
     </form>
@@ -47,7 +57,7 @@ import { parentViewError, ViewError } from '../parent-view.utilities';
       @for (item of items(); track item.id) {
         <gf-card
           ><h2>{{ item.summary }}</h2>
-          <p>Status: {{ item.status }}</p>
+          <p><strong>Moderation status:</strong> {{ item.status }}</p>
           <p>{{ item.submittedAt }}</p></gf-card
         >
       }
@@ -58,8 +68,8 @@ import { parentViewError, ViewError } from '../parent-view.utilities';
 export class ParentObservationsComponent {
   private api = inject(ParentApi);
   private destroy = inject(DestroyRef);
+  readonly childId = signal('');
   readonly form = new FormGroup({
-    childId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     summary: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.maxLength(1000)] }),
   });
   readonly items = signal<readonly Observation[]>([]);
@@ -67,12 +77,9 @@ export class ParentObservationsComponent {
   readonly submitting = signal(false);
   readonly confirmation = signal(false);
   readonly error = signal<ViewError | null>(null);
-  constructor() {
-    this.reload();
-  }
-  reload() {
+  reload(childId = this.childId()) {
     this.api
-      .observations()
+      .observations(childId)
       .pipe(takeUntilDestroyed(this.destroy))
       .subscribe({
         next: (p) => {
@@ -85,12 +92,17 @@ export class ParentObservationsComponent {
         },
       });
   }
+  selectChild(id: string) {
+    this.childId.set(id);
+    this.items.set([]);
+    if (id) this.reload(id);
+  }
   submit() {
-    if (this.form.invalid || this.submitting()) return;
+    if (this.form.invalid || !this.childId() || this.submitting()) return;
     this.submitting.set(true);
     this.confirmation.set(false);
     this.api
-      .submitObservation(this.form.getRawValue())
+      .submitObservation({ childId: this.childId(), summary: this.form.controls.summary.value.trim() })
       .pipe(takeUntilDestroyed(this.destroy))
       .subscribe({
         next: (o) => {

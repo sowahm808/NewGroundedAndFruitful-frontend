@@ -33,11 +33,13 @@ const NAVIGATION: readonly NavigationItem[] = [
   { label: 'Project', path: '/child/project', requiredRoles: ['child'] },
   { label: 'Team', path: '/child/team', requiredRoles: ['child'] },
   { label: 'Children', path: '/parent/children', requiredRoles: ['parent'] },
+  { label: 'Participation', path: '/parent/participation', requiredRoles: ['parent'] },
   { label: 'Character', path: '/parent/character', requiredRoles: ['parent'] },
   { label: 'Observations', path: '/parent/observations', requiredRoles: ['parent'] },
   { label: 'Family', path: '/parent/family', requiredRoles: ['parent'] },
   { label: 'Support', path: '/parent/academic-support', requiredRoles: ['parent'] },
   { label: 'Reports', path: '/parent/reports', requiredRoles: ['parent'] },
+  { label: 'Notifications', path: '/parent/notifications', requiredRoles: ['parent'] },
   { label: 'Quarters', path: '/admin/quarters', requiredRoles: ['admin', 'super_admin'] },
 ];
 
@@ -94,7 +96,9 @@ const NAVIGATION: readonly NavigationItem[] = [
               @if (auth.user(); as user) {
                 <div class="account-context">
                   <strong>{{ user.displayName }}</strong>
-                  @if (user.email) { <span>{{ user.email }}</span> }
+                  @if (user.email) {
+                    <span>{{ user.email }}</span>
+                  }
                   <span>{{ roleLabel() }}</span>
                 </div>
               }
@@ -136,61 +140,343 @@ const NAVIGATION: readonly NavigationItem[] = [
               #active="routerLinkActive"
               [attr.aria-current]="active.isActive ? 'page' : null"
               (click)="closeDrawer(false)"
-            >{{ item.label }}</a>
+              >{{ item.label }}</a
+            >
           }
         </nav>
         <small>Grow with purpose.</small>
       </aside>
 
-      <main [attr.inert]="mobile() && drawerOpen() ? '' : null" [attr.aria-hidden]="mobile() && drawerOpen() ? 'true' : null"><router-outlet /></main>
-      @if (logoutError()) { <div class="logout-error" role="alert">{{ logoutError() }}</div> }
+      <main
+        [attr.inert]="mobile() && drawerOpen() ? '' : null"
+        [attr.aria-hidden]="mobile() && drawerOpen() ? 'true' : null"
+      >
+        <router-outlet />
+      </main>
+      @if (logoutError()) {
+        <div class="logout-error" role="alert">{{ logoutError() }}</div>
+      }
     </div>
   `,
-  styles: [`
-    :host { display: block; min-width: 0; }
-    .shell { min-height: 100dvh; overflow-x: clip; }
-    .toolbar { position: sticky; top: 0; z-index: 30; height: 64px; padding: 0 max(1rem, env(safe-area-inset-right)) 0 max(1rem, env(safe-area-inset-left)); background: var(--brand-dark); color: #fff; display: flex; align-items: center; gap: .75rem; box-shadow: 0 2px 12px #0002; }
-    .brand { display: flex; align-items: center; gap: .5rem; min-height: 44px; color: #fff; text-decoration: none; font-size: clamp(1rem, 3vw, 1.3rem); font-weight: 800; white-space: nowrap; }
-    .brand-mark { width: 32px; height: 32px; padding: 3px; border-radius: 50%; color: #ffd77a; background: #ffffff14; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-    .brand-name b { color: #ffd77a; }
-    .toolbar-spacer { flex: 1; min-width: 0; }
-    button { font: inherit; }
-    .icon-button, .profile-trigger { min-width: 44px; min-height: 44px; border: 0; border-radius: .65rem; color: #fff; background: transparent; cursor: pointer; }
-    .icon-button:hover, .profile-trigger:hover { background: #ffffff1f; }
-    .hamburger { display: grid; place-items: center; padding: .6rem; }
-    .hamburger svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
-    .utility { position: relative; min-width: 0; }
-    .profile-trigger { display: flex; align-items: center; gap: .55rem; max-width: min(20rem, 42vw); padding: .25rem .55rem; }
-    .avatar { display: grid; place-items: center; flex: 0 0 34px; height: 34px; border-radius: 50%; color: var(--brand-dark); background: #ffd77a; font-weight: 800; }
-    .identity { display: grid; min-width: 0; text-align: left; }
-    .display-name, .role-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .display-name { font-weight: 700; }
-    .role-label { color: #dcebd5; font-size: .72rem; line-height: 1.15; }
-    .chevron { width: 18px; height: 18px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    .profile-menu { position: absolute; z-index: 50; top: calc(100% + .5rem); right: 0; width: min(19rem, calc(100vw - 2rem)); padding: .45rem; border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--ink); background: #fff; box-shadow: 0 12px 36px #0003; }
-    .account-context { display: grid; gap: .25rem; padding: .65rem .75rem .8rem; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
-    .account-context span { color: var(--muted); font-size: .85rem; }
-    .profile-menu a, .profile-menu button { display: flex; align-items: center; width: 100%; min-height: 44px; padding: .65rem .75rem; border: 0; border-radius: .45rem; color: inherit; background: transparent; text-align: left; text-decoration: none; cursor: pointer; }
-    .profile-menu a:hover, .profile-menu button:hover { background: var(--leaf-soft); }
-    .drawer { position: fixed; z-index: 20; inset: 64px auto 0 0; width: 240px; padding: 1.25rem; background: var(--brand); color: #fff; display: flex; flex-direction: column; overflow-y: auto; }
-    .drawer nav { display: grid; gap: .25rem; }
-    .drawer-heading { display: flex; align-items: center; justify-content: space-between; min-height: 44px; margin-bottom: .75rem; padding-left: .8rem; color: #dcebd5; font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-    .drawer-close { display: grid; place-items: center; width: 44px; height: 44px; padding: .6rem; border: 0; border-radius: .65rem; color: #fff; background: transparent; cursor: pointer; }
-    .drawer-close:hover { background: #ffffff1f; }
-    .drawer-close svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
-    .drawer a { min-height: 44px; padding: .7rem .8rem; border-radius: .55rem; color: inherit; text-decoration: none; }
-    .drawer a:hover, .drawer a.active { background: #ffffff24; }
-    .drawer small { margin-top: auto; padding-top: 1rem; }
-    main { min-width: 0; margin-left: 240px; padding: clamp(1rem, 3vw, 3rem); scroll-margin-top: 72px; }
-    .mobile-drawer { z-index: 40; width: min(19rem, 86vw); transform: translateX(-105%); visibility: hidden; transition: transform .2s ease, visibility .2s; box-shadow: 8px 0 24px #0003; }
-    .mobile-drawer.open { transform: none; visibility: visible; }
-    .backdrop { position: fixed; z-index: 35; inset: 64px 0 0; width: 100%; border: 0; background: #17231db8; cursor: pointer; }
-    .logout-error { position: fixed; z-index: 60; right: 1rem; bottom: 1rem; max-width: min(28rem, calc(100vw - 2rem)); padding: 1rem; border-radius: var(--radius-md); background: #fff4d8; border-left: 4px solid #a13b2b; }
-    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-    @media (max-width: 959px) { main { margin-left: 0; } .identity, .chevron { display: none; } }
-    @media (max-width: 420px) { .brand-name { font-size: .95rem; } .toolbar { gap: .35rem; } }
-    @media (prefers-reduced-motion: reduce) { .mobile-drawer { transition: none; } }
-  `],
+  styles: [
+    `
+      :host {
+        display: block;
+        min-width: 0;
+      }
+      .shell {
+        min-height: 100dvh;
+        overflow-x: clip;
+      }
+      .toolbar {
+        position: sticky;
+        top: 0;
+        z-index: 30;
+        height: 64px;
+        padding: 0 max(1rem, env(safe-area-inset-right)) 0 max(1rem, env(safe-area-inset-left));
+        background: var(--brand-dark);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        box-shadow: 0 2px 12px #0002;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        min-height: 44px;
+        color: #fff;
+        text-decoration: none;
+        font-size: clamp(1rem, 3vw, 1.3rem);
+        font-weight: 800;
+        white-space: nowrap;
+      }
+      .brand-mark {
+        width: 32px;
+        height: 32px;
+        padding: 3px;
+        border-radius: 50%;
+        color: #ffd77a;
+        background: #ffffff14;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .brand-name b {
+        color: #ffd77a;
+      }
+      .toolbar-spacer {
+        flex: 1;
+        min-width: 0;
+      }
+      button {
+        font: inherit;
+      }
+      .icon-button,
+      .profile-trigger {
+        min-width: 44px;
+        min-height: 44px;
+        border: 0;
+        border-radius: 0.65rem;
+        color: #fff;
+        background: transparent;
+        cursor: pointer;
+      }
+      .icon-button:hover,
+      .profile-trigger:hover {
+        background: #ffffff1f;
+      }
+      .hamburger {
+        display: grid;
+        place-items: center;
+        padding: 0.6rem;
+      }
+      .hamburger svg {
+        width: 24px;
+        height: 24px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+      }
+      .utility {
+        position: relative;
+        min-width: 0;
+      }
+      .profile-trigger {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        max-width: min(20rem, 42vw);
+        padding: 0.25rem 0.55rem;
+      }
+      .avatar {
+        display: grid;
+        place-items: center;
+        flex: 0 0 34px;
+        height: 34px;
+        border-radius: 50%;
+        color: var(--brand-dark);
+        background: #ffd77a;
+        font-weight: 800;
+      }
+      .identity {
+        display: grid;
+        min-width: 0;
+        text-align: left;
+      }
+      .display-name,
+      .role-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .display-name {
+        font-weight: 700;
+      }
+      .role-label {
+        color: #dcebd5;
+        font-size: 0.72rem;
+        line-height: 1.15;
+      }
+      .chevron {
+        width: 18px;
+        height: 18px;
+        flex: 0 0 auto;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .profile-menu {
+        position: absolute;
+        z-index: 50;
+        top: calc(100% + 0.5rem);
+        right: 0;
+        width: min(19rem, calc(100vw - 2rem));
+        padding: 0.45rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        color: var(--ink);
+        background: #fff;
+        box-shadow: 0 12px 36px #0003;
+      }
+      .account-context {
+        display: grid;
+        gap: 0.25rem;
+        padding: 0.65rem 0.75rem 0.8rem;
+        border-bottom: 1px solid var(--border);
+        overflow-wrap: anywhere;
+      }
+      .account-context span {
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+      .profile-menu a,
+      .profile-menu button {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        min-height: 44px;
+        padding: 0.65rem 0.75rem;
+        border: 0;
+        border-radius: 0.45rem;
+        color: inherit;
+        background: transparent;
+        text-align: left;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .profile-menu a:hover,
+      .profile-menu button:hover {
+        background: var(--leaf-soft);
+      }
+      .drawer {
+        position: fixed;
+        z-index: 20;
+        inset: 64px auto 0 0;
+        width: 240px;
+        padding: 1.25rem;
+        background: var(--brand);
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+      }
+      .drawer nav {
+        display: grid;
+        gap: 0.25rem;
+      }
+      .drawer-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 44px;
+        margin-bottom: 0.75rem;
+        padding-left: 0.8rem;
+        color: #dcebd5;
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .drawer-close {
+        display: grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        padding: 0.6rem;
+        border: 0;
+        border-radius: 0.65rem;
+        color: #fff;
+        background: transparent;
+        cursor: pointer;
+      }
+      .drawer-close:hover {
+        background: #ffffff1f;
+      }
+      .drawer-close svg {
+        width: 24px;
+        height: 24px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+      }
+      .drawer a {
+        min-height: 44px;
+        padding: 0.7rem 0.8rem;
+        border-radius: 0.55rem;
+        color: inherit;
+        text-decoration: none;
+      }
+      .drawer a:hover,
+      .drawer a.active {
+        background: #ffffff24;
+      }
+      .drawer small {
+        margin-top: auto;
+        padding-top: 1rem;
+      }
+      main {
+        min-width: 0;
+        margin-left: 240px;
+        padding: clamp(1rem, 3vw, 3rem);
+        scroll-margin-top: 72px;
+      }
+      .mobile-drawer {
+        z-index: 40;
+        width: min(19rem, 86vw);
+        transform: translateX(-105%);
+        visibility: hidden;
+        transition:
+          transform 0.2s ease,
+          visibility 0.2s;
+        box-shadow: 8px 0 24px #0003;
+      }
+      .mobile-drawer.open {
+        transform: none;
+        visibility: visible;
+      }
+      .backdrop {
+        position: fixed;
+        z-index: 35;
+        inset: 64px 0 0;
+        width: 100%;
+        border: 0;
+        background: #17231db8;
+        cursor: pointer;
+      }
+      .logout-error {
+        position: fixed;
+        z-index: 60;
+        right: 1rem;
+        bottom: 1rem;
+        max-width: min(28rem, calc(100vw - 2rem));
+        padding: 1rem;
+        border-radius: var(--radius-md);
+        background: #fff4d8;
+        border-left: 4px solid #a13b2b;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      @media (max-width: 959px) {
+        main {
+          margin-left: 0;
+        }
+        .identity,
+        .chevron {
+          display: none;
+        }
+      }
+      @media (max-width: 420px) {
+        .brand-name {
+          font-size: 0.95rem;
+        }
+        .toolbar {
+          gap: 0.35rem;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .mobile-drawer {
+          transition: none;
+        }
+      }
+    `,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppShellComponent {
@@ -204,7 +490,9 @@ export class AppShellComponent {
   readonly utilityOpen = signal(false);
   readonly loggingOut = signal(false);
   readonly logoutError = signal<string | null>(null);
-  readonly links = computed(() => NAVIGATION.filter((item) => item.requiredRoles.some((role) => this.auth.roles().includes(role))));
+  readonly links = computed(() =>
+    NAVIGATION.filter((item) => item.requiredRoles.some((role) => this.auth.roles().includes(role))),
+  );
   readonly initials = computed(() => initialsFor(this.auth.user()?.displayName ?? ''));
   readonly roleLabel = computed(() => this.auth.roles().map(formatRole).join(', '));
   readonly homePath = computed(() => this.links()[0]?.path ?? '/account/profile');
@@ -214,21 +502,34 @@ export class AppShellComponent {
 
   constructor() {
     this.destroyRef.onDestroy(() => this.setPageScrollLocked(false));
-    this.breakpoint.observe('(max-width: 959px)').pipe(takeUntilDestroyed()).subscribe(({ matches }) => {
-      this.mobile.set(matches);
-      if (!matches) this.closeDrawer(false);
-    });
-    this.router.events.pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd), takeUntilDestroyed()).subscribe(() => {
-      this.closeDrawer(false);
-      this.closeUtility(false);
-    });
+    this.breakpoint
+      .observe('(max-width: 959px)')
+      .pipe(takeUntilDestroyed())
+      .subscribe(({ matches }) => {
+        this.mobile.set(matches);
+        if (!matches) this.closeDrawer(false);
+      });
+    this.router.events
+      .pipe(
+        filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+        takeUntilDestroyed(),
+      )
+      .subscribe(() => {
+        this.closeDrawer(false);
+        this.closeUtility(false);
+      });
   }
 
   toggleDrawer(): void {
     if (this.drawerOpen()) this.closeDrawer();
     else this.openDrawer();
   }
-  openDrawer(): void { if (this.mobile()) { this.drawerOpen.set(true); this.setPageScrollLocked(true); } }
+  openDrawer(): void {
+    if (this.mobile()) {
+      this.drawerOpen.set(true);
+      this.setPageScrollLocked(true);
+    }
+  }
   closeDrawer(restoreFocus = true): void {
     const wasOpen = this.drawerOpen();
     this.drawerOpen.set(false);
@@ -260,8 +561,13 @@ export class AppShellComponent {
       event.preventDefault();
       const offset = event.key === 'ArrowDown' ? 1 : -1;
       items[(current + offset + items.length) % items.length]?.focus();
-    } else if (event.key === 'Home') { event.preventDefault(); items[0]?.focus(); }
-    else if (event.key === 'End') { event.preventDefault(); items.at(-1)?.focus(); }
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      items[0]?.focus();
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      items.at(-1)?.focus();
+    }
   }
   @HostListener('document:keydown.escape') onEscape(): void {
     if (this.utilityOpen()) this.closeUtility();
@@ -269,7 +575,11 @@ export class AppShellComponent {
   }
   @HostListener('document:pointerdown', ['$event']) onOutsidePointer(event: PointerEvent): void {
     const target = event.target;
-    if (this.utilityOpen() && target instanceof Node && !this.profileButton?.nativeElement.parentElement?.contains(target))
+    if (
+      this.utilityOpen() &&
+      target instanceof Node &&
+      !this.profileButton?.nativeElement.parentElement?.contains(target)
+    )
       this.closeUtility(false);
   }
   async logout(): Promise<void> {
@@ -283,10 +593,16 @@ export class AppShellComponent {
       await this.router.navigateByUrl('/auth/login', { replaceUrl: true });
     } catch {
       this.logoutError.set('We could not sign you out. Please try again.');
-    } finally { this.loggingOut.set(false); }
+    } finally {
+      this.loggingOut.set(false);
+    }
   }
-  private menuItems(): HTMLElement[] { return Array.from(this.document.querySelectorAll<HTMLElement>('#profile-menu [role="menuitem"]:not([disabled])')); }
-  private firstMenuItem(): HTMLElement | undefined { return this.menuItems()[0]; }
+  private menuItems(): HTMLElement[] {
+    return Array.from(this.document.querySelectorAll<HTMLElement>('#profile-menu [role="menuitem"]:not([disabled])'));
+  }
+  private firstMenuItem(): HTMLElement | undefined {
+    return this.menuItems()[0];
+  }
   private setPageScrollLocked(locked: boolean): void {
     this.document.body.classList.toggle('drawer-scroll-lock', locked);
   }
@@ -294,9 +610,17 @@ export class AppShellComponent {
 
 export function initialsFor(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
-  return parts.length ? parts.slice(0, 2).map((part) => part[0].toUpperCase()).join('') : '';
+  return parts.length
+    ? parts
+        .slice(0, 2)
+        .map((part) => part[0].toUpperCase())
+        .join('')
+    : '';
 }
 
 function formatRole(role: UserRole): string {
-  return role.split('_').map((part) => part[0].toUpperCase() + part.slice(1)).join(' ');
+  return role
+    .split('_')
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(' ');
 }

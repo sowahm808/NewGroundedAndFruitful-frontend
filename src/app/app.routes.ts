@@ -95,6 +95,20 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'participation',
+        loadComponent: () =>
+          import('./features/parent/participation/parent-participation.component').then(
+            (m) => m.ParentParticipationComponent,
+          ),
+      },
+      {
+        path: 'notifications',
+        loadComponent: () =>
+          import('./features/parent/notifications/parent-notifications.component').then(
+            (m) => m.ParentNotificationsComponent,
+          ),
+      },
+      {
         path: 'reports',
         loadComponent: () =>
           import('./features/parent/reports/parent-reports.component').then((m) => m.ParentReportsComponent),
