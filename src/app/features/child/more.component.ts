@@ -50,6 +50,9 @@ import { Award, ChildApi, newIdempotencyKey, PointEntry, SpecialActivity, Survey
         </ul>
       }
       <h2>Point history</h2>
+      @if (quarterTotals().length) {
+        <div class="grid">@for (total of quarterTotals(); track total.quarter) { <gf-card><strong>{{ total.quarter }}</strong><p>{{ total.total }} points</p></gf-card> }</div>
+      }
       @if (!points().length) {
         <gf-empty-state title="No point history" message="Backend-calculated entries will appear here." />
       } @else {
@@ -62,9 +65,12 @@ import { Award, ChildApi, newIdempotencyKey, PointEntry, SpecialActivity, Survey
               @if (p.adjustment) {
                 <strong>Adjustment</strong>
               }
+              @if (p.reversesEntryId) { <span> — reverses entry {{ p.reversesEntryId }}</span> }
+              @if (p.adjustedEntryId) { <span> — adjusts entry {{ p.adjustedEntryId }}</span> }
             </li>
           }
         </ul>
+        @if (pointsCursor()) { <button class="secondary" type="button" (click)="loadMorePoints()">Load more history</button> }
       }
       <h2>Recognition</h2>
       @if (!awards().length) {
@@ -95,6 +101,8 @@ export class MoreComponent implements OnInit {
   readonly special = signal<readonly SpecialActivity[]>([]);
   readonly surveys = signal<readonly SurveySummary[]>([]);
   readonly points = signal<readonly PointEntry[]>([]);
+  readonly pointsCursor = signal<string | null>(null);
+  readonly quarterTotals = signal<readonly { readonly quarter: string; readonly total: number }[]>([]);
   readonly awards = signal<readonly Award[]>([]);
   ngOnInit() {
     this.load();
@@ -111,6 +119,8 @@ export class MoreComponent implements OnInit {
         this.special.set(r.special);
         this.surveys.set(r.surveys);
         this.points.set(r.points.items);
+        this.pointsCursor.set(r.points.nextCursor ?? null);
+        this.quarterTotals.set(r.points.quarterTotals ?? []);
         this.awards.set(r.awards.items);
         this.loading.set(false);
       },
@@ -118,6 +128,17 @@ export class MoreComponent implements OnInit {
         this.error.set(e instanceof ApiError ? e.message : 'Activities and recognition could not be loaded.');
         this.loading.set(false);
       },
+    });
+  }
+  loadMorePoints() {
+    const cursor = this.pointsCursor();
+    if (!cursor) return;
+    this.api.points(cursor).subscribe({
+      next: (page) => {
+        this.points.update((items) => [...items, ...page.items]);
+        this.pointsCursor.set(page.nextCursor ?? null);
+      },
+      error: (e) => this.message.set(e instanceof ApiError ? e.message : 'More point history could not be loaded.'),
     });
   }
   complete(a: SpecialActivity) {

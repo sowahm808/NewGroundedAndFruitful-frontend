@@ -18,6 +18,12 @@ export interface QuarterSummary {
   readonly timezone: string;
   readonly week: number;
   readonly totalWeeks: number;
+  readonly startsOn?: string;
+  readonly endsOn?: string;
+}
+export interface RecognitionSummary {
+  readonly count: number;
+  readonly latestLabel?: string;
 }
 export interface TodaySummary {
   readonly quarter?: QuarterSummary;
@@ -32,6 +38,7 @@ export interface TodaySummary {
     readonly progressPercent: number;
   };
   readonly calculatedAt: string;
+  readonly recognition?: RecognitionSummary;
 }
 export interface CheckIn {
   readonly status: ActivityStatus;
@@ -163,8 +170,8 @@ export interface TeamView {
   readonly compositePoints: number;
   readonly target: number;
   readonly progressPercent: number;
-  readonly ownContribution: number;
   readonly calculatedAt: string;
+  readonly recognition?: readonly Pick<Award, 'id' | 'name' | 'description' | 'issuedDate'>[];
 }
 export interface SpecialActivity {
   readonly id: string;
@@ -201,6 +208,11 @@ export interface PointEntry {
   readonly date: string;
   readonly quarter: string;
   readonly adjustment: boolean;
+  readonly reversesEntryId?: string;
+  readonly adjustedEntryId?: string;
+}
+export interface PointHistory extends CursorPage<PointEntry> {
+  readonly quarterTotals?: readonly { readonly quarter: string; readonly total: number }[];
 }
 export interface Award {
   readonly id: string;
@@ -326,7 +338,7 @@ export class ChildApi {
       this.idempotent(key),
     );
   }
-  points(cursor = ''): Observable<CursorPage<PointEntry>> {
+  points(cursor = ''): Observable<PointHistory> {
     return this.api.getData('/child/points', { params: buildHttpParams({ cursor }) });
   }
   awards(): Observable<{ readonly items: readonly Award[]; readonly calculatedAt: string }> {

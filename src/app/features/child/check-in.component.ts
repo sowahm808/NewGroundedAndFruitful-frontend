@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, OnInit, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ApiError } from '../../core/http/api-error';
 import { GfAlert, GfEmptyState, GfPageHeader } from '../../shared/components/design-system';
@@ -18,10 +18,17 @@ import { CheckIn, ChildApi, newIdempotencyKey } from './child-api.service';
       <gf-empty-state title="Check-in complete" message="Your private check-in is locked for today." />
     } @else {
       <form [formGroup]="form" (ngSubmit)="complete()">
-        <label class="field" for="feelings"
-          ><span>How does your heart feel today?</span
-          ><input id="feelings" formControlName="feelings" autocomplete="off" /></label
-        ><label class="field" for="mind"
+        <fieldset>
+          <legend>How does your heart feel today?</legend>
+          <p id="feeling-help">Nothing is selected until you choose. Choose the answer that fits you.</p>
+          <div class="rating" role="radiogroup" aria-describedby="feeling-help">
+            @for (feeling of feelings; track feeling.value) {
+              <label><input type="radio" formControlName="feelings" [value]="feeling.value" /><span>{{ feeling.label }}</span></label>
+            }
+          </div>
+          @if (form.controls.feelings.value === null) { <p class="muted">Unanswered</p> }
+        </fieldset>
+        <label class="field" for="mind"
           ><span>What is on your mind?</span><textarea id="mind" formControlName="mind"></textarea></label
         ><label class="field" for="note"
           ><span>Private note (optional)</span><textarea id="note" formControlName="privateNote"></textarea>
@@ -43,8 +50,15 @@ export class CheckInComponent implements OnInit {
   readonly message = signal('');
   readonly record = signal<CheckIn | null>(null);
   private key = newIdempotencyKey();
+  readonly feelings = [
+    { value: 'very_low', label: 'Very low' },
+    { value: 'low', label: 'Low' },
+    { value: 'okay', label: 'Okay' },
+    { value: 'good', label: 'Good' },
+    { value: 'great', label: 'Great' },
+  ] as const;
   readonly form = new FormGroup({
-    feelings: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.maxLength(200)] }),
+    feelings: new FormControl<string | null>(null, { validators: [Validators.required] }),
     mind: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.maxLength(2000)] }),
     privateNote: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(2000)] }),
   });
@@ -56,7 +70,8 @@ export class CheckInComponent implements OnInit {
     this.api.checkIn().subscribe({
       next: (r) => {
         this.record.set(r);
-        this.form.patchValue({ feelings: r.feelings ?? '', mind: r.mind ?? '', privateNote: r.privateNote ?? '' });
+        this.form.patchValue({ feelings: r.feelings ?? null, mind: r.mind ?? '', privateNote: r.privateNote ?? '' });
+        this.form.markAsPristine();
         this.loading.set(false);
       },
       error: (e) => this.fail(e),
@@ -72,15 +87,17 @@ export class CheckInComponent implements OnInit {
   private send(final: boolean) {
     const r = this.record();
     if (!r || this.busy()) return;
+    const v = this.form.getRawValue();
+    if (v.feelings === null) return;
     this.busy.set(true);
     this.message.set('');
-    const v = this.form.getRawValue();
-    const command = { ...v, privateNote: v.privateNote || undefined, version: r.version };
+    const command = { ...v, feelings: v.feelings, privateNote: v.privateNote || undefined, version: r.version };
     (final ? this.api.completeCheckIn(command, this.key) : this.api.saveCheckIn(command)).subscribe({
       next: (x) => {
         this.record.set(x);
         this.busy.set(false);
         this.message.set(final ? 'Check-in complete.' : 'Draft saved.');
+        this.form.markAsPristine();
         if (final) this.key = newIdempotencyKey();
       },
       error: (e) => {
@@ -88,6 +105,10 @@ export class CheckInComponent implements OnInit {
         this.error.set(e instanceof ApiError ? e.message : 'The check-in could not be saved.');
       },
     });
+  }
+  @HostListener('window:beforeunload', ['$event'])
+  warnIfUnsaved(event: BeforeUnloadEvent) {
+    if (this.form.dirty && !this.busy()) event.preventDefault();
   }
   private fail(e: unknown) {
     this.error.set(e instanceof ApiError ? e.message : 'The check-in could not be loaded.');
