@@ -116,13 +116,13 @@ export class AuthService {
   }
 
   async logout(): Promise<void> {
-    await signOut(this.firebaseAuth);
     this.bootstrapAttempt++;
     this.bootstrap = undefined;
     this.current.set(null);
     this.currentError.set(null);
     this.synchronizationWarning.set(null);
     this.currentStatus.set('anonymous');
+    await signOut(this.firebaseAuth);
   }
 
   private async handleAuthChange(user: User | null): Promise<void> {
@@ -195,9 +195,14 @@ export class AuthService {
 
   private applySessionStatus(user: SessionUser | null): void {
     this.currentError.set(null);
+    const membershipStates = user?.memberships.map((membership) => membership.status) ?? [];
     if (!user) this.currentStatus.set('anonymous');
-    else if (user.disabled) this.currentStatus.set('disabled');
-    else if (user.onboardingStatus === 'pending_approval') this.currentStatus.set('pending-approval');
+    else if (user.disabled || membershipStates.includes('suspended')) this.currentStatus.set('disabled');
+    else if (
+      user.onboardingStatus === 'pending_approval' ||
+      (membershipStates.includes('pending') && !membershipStates.includes('active'))
+    )
+      this.currentStatus.set('pending-approval');
     else if (user.onboardingStatus === 'role_required' || user.roles.length === 0)
       this.currentStatus.set('role-required');
     else this.currentStatus.set('authenticated');

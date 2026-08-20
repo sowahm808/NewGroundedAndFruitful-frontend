@@ -121,4 +121,16 @@ describe('AuthService backend session bootstrap', () => {
 
     expect(auth.status()).toBe('role-required');
   });
+
+  it('uses canonical membership state for pending and suspended accounts', () => {
+    const session = backendSession(false).data;
+    auth.restore({ ...session, memberships: [{ status: 'pending' }] });
+    expect(auth.status()).toBe('pending-approval');
+
+    auth.restore({ ...session, memberships: [{ status: 'suspended' }] });
+    expect(auth.status()).toBe('disabled');
+
+    auth.restore({ ...session, memberships: [{ status: 'active' }, { status: 'pending' }] });
+    expect(auth.status()).toBe('authenticated');
+  });
 });

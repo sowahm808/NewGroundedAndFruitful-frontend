@@ -18,6 +18,9 @@ describe('safeReturnUrl', () => {
     expect(safeReturnUrl('/account/role-required', router, ['super_admin'])).toBeNull();
     expect(safeReturnUrl('/auth/login', router, ['parent'])).toBeNull();
     expect(safeReturnUrl('//example.invalid', router, ['parent'])).toBeNull();
+    expect(safeReturnUrl('/%2F%2Fexample.invalid', router, ['parent'])).toBeNull();
+    expect(safeReturnUrl('/parent/%zz', router, ['parent'])).toBeNull();
+    expect(safeReturnUrl('/parent\\reports', router, ['parent'])).toBeNull();
     expect(safeReturnUrl('https://example.invalid', router, ['parent'])).toBeNull();
     expect(safeReturnUrl('/admin/users', router, ['parent'])).toBeNull();
   });

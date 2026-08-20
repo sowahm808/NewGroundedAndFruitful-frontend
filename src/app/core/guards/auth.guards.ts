@@ -25,9 +25,13 @@ export const roleGuard =
     return auth.hasRole(roles) || router.createUrlTree(['/unauthorized']);
   };
 
-function safeAttemptedUrl(url: string): string {
+export function safeAttemptedUrl(url: string): string {
   const rejected = ['/account/role-required', '/unauthorized', '/login', '/auth/'];
-  return url.startsWith('/') && !url.startsWith('//') && !rejected.some((path) => url === path || url.startsWith(path))
-    ? url
-    : '/';
+  if (!url.startsWith('/') || url.startsWith('//') || /[\\\u0000-\u001f\u007f]/.test(url)) return '/';
+  try {
+    decodeURIComponent(url);
+  } catch {
+    return '/';
+  }
+  return !rejected.some((path) => url === path || url.startsWith(path)) ? url : '/';
 }
