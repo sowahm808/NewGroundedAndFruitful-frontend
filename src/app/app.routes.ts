@@ -206,6 +206,24 @@ export const routes: Routes = [
           import('./features/admin/bible-unavailable.component').then((m) => m.AdminBibleUnavailableComponent),
       },
       {
+        path: 'bible/imports/new',
+        data: { bibleView: 'new-import' },
+        loadComponent: () =>
+          import('./features/admin/bible-unavailable.component').then((m) => m.AdminBibleUnavailableComponent),
+      },
+      {
+        path: 'bible/imports/:importId',
+        data: { bibleView: 'import-review' },
+        loadComponent: () =>
+          import('./features/admin/bible-unavailable.component').then((m) => m.AdminBibleUnavailableComponent),
+      },
+      {
+        path: 'bible/content/:contentSetId',
+        data: { bibleView: 'content-review' },
+        loadComponent: () =>
+          import('./features/admin/bible-unavailable.component').then((m) => m.AdminBibleUnavailableComponent),
+      },
+      {
         path: 'family',
         loadComponent: () =>
           import('./features/admin/family-unavailable.component').then((m) => m.AdminFamilyUnavailableComponent),
