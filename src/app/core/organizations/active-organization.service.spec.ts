@@ -1,12 +1,13 @@
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { AuthService } from '../auth/auth.service';
+import { ApiClient } from '../http/api-client.service';
 import { SessionUser } from '../models/domain.models';
 import { ActiveOrganizationService } from './active-organization.service';
+import { of } from 'rxjs';
 
 describe('ActiveOrganizationService role isolation', () => {
-  it('changes organization context without replacing effective platform roles', () => {
-    localStorage.clear();
+  it('changes organization context through the backend without replacing effective platform roles', async () => {
     const session = signal<SessionUser>({
       uid: 'server-user',
       displayName: 'Administrator',
@@ -23,19 +24,27 @@ describe('ActiveOrganizationService role isolation', () => {
     TestBed.configureTestingModule({
       providers: [
         ActiveOrganizationService,
-        { provide: AuthService, useValue: { user: session, roles: () => session().roles } },
+        {
+          provide: AuthService,
+          useValue: {
+            user: session,
+            roles: () => session().roles,
+            refreshSession: async () =>
+              session.update((value) => ({ ...value, activeOrganizationId: 'organization-b' })),
+          },
+        },
+        { provide: ApiClient, useValue: { postData: () => of({}) } },
       ],
     });
     const organizations = TestBed.inject(ActiveOrganizationService);
 
     expect(organizations.hasRole('admin')).toBeTrue();
-    expect(organizations.select('organization-b')).toBeTrue();
+    expect(await organizations.selectWorkspace('organization', 'organization-b')).toBeTrue();
     expect(organizations.hasRole('admin')).toBeFalse();
     expect(session().roles).toEqual(['admin', 'super_admin']);
   });
 
-  it('does not accept a stale cached organization outside server memberships', () => {
-    localStorage.setItem('gf.activeOrganizationId', 'stale-organization');
+  it('does not accept a stale server workspace outside current memberships', () => {
     const session = signal<SessionUser>({
       uid: 'server-user',
       displayName: 'Admin',
@@ -43,11 +52,13 @@ describe('ActiveOrganizationService role isolation', () => {
       disabled: false,
       onboardingStatus: 'complete',
       memberships: [],
+      activeOrganizationId: 'stale-organization',
     });
     TestBed.configureTestingModule({
       providers: [
         ActiveOrganizationService,
         { provide: AuthService, useValue: { user: session, roles: () => session().roles } },
+        { provide: ApiClient, useValue: { postData: () => of({}) } },
       ],
     });
     const organizations = TestBed.inject(ActiveOrganizationService);

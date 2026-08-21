@@ -91,7 +91,7 @@ function dateRange(control: AbstractControl): ValidationErrors | null {
                 <th scope="col">Quarter</th>
                 <th scope="col">Date range</th>
                 <th scope="col">Status</th>
-                <th scope="col">Organization</th>
+                <th scope="col">Workspace</th>
                 <th scope="col">Last updated</th>
                 <th scope="col">Actions</th>
               </tr>
@@ -140,7 +140,7 @@ function dateRange(control: AbstractControl): ValidationErrors | null {
                   <dd>{{ label(q.status) }}</dd>
                 </div>
                 <div>
-                  <dt>Organization</dt>
+                  <dt>Workspace</dt>
                   <dd>{{ q.organization?.name || '—' }}</dd>
                 </div>
                 <div>
@@ -201,21 +201,20 @@ function dateRange(control: AbstractControl): ValidationErrors | null {
         }
         <form [formGroup]="quarterForm" (ngSubmit)="save()">
           @if (!editing()!.id) {
-            <label for="quarter-organization">Organization</label
+            <label for="quarter-organization">Workspace</label
             ><select id="quarter-organization" formControlName="organizationId">
-              <option value="" disabled>Select organization</option>
-              @for (membership of organizations.memberships(); track membership.id) {
-                <option [value]="membership.organizationId">{{ membership.organizationName }}</option>
+              <option value="" disabled>Select workspace</option>
+              @for (workspace of organizations.workspaces(); track workspace.type + workspace.id) {
+                <option [value]="workspace.id">
+                  {{ workspace.type === 'personal' ? 'Personal — ' : 'Organization — ' }}{{ workspace.name }}
+                </option>
               }
             </select>
             @if (invalid('organizationId')) {
-              <p class="field-error">Select an organization before creating a quarter.</p>
+              <p class="field-error">Select a workspace before creating a quarter.</p>
             }
-            @if (!organizations.memberships().length) {
-              <p class="field-error">
-                An active organization membership is required.
-                <a href="/onboarding/organization">Finish account setup</a>.
-              </p>
+            @if (!organizations.workspaces().length) {
+              <p class="field-error">Finish workspace setup before creating a quarter.</p>
             }
           }
           <label for="quarter-name">Name</label><input id="quarter-name" formControlName="name" maxlength="120" />
@@ -526,7 +525,7 @@ export class AdminQuartersComponent {
   openCreate() {
     this.editing.set({ id: '' });
     this.quarterForm.reset();
-    this.quarterForm.controls.organizationId.setValue(this.organizations.organizationId() ?? '');
+    this.quarterForm.controls.organizationId.setValue(this.organizations.workspaceId() ?? '');
     this.resetMutation();
   }
   openEdit(q: Quarter) {

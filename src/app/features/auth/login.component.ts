@@ -81,6 +81,7 @@ export class LoginComponent {
   }
 
   private routeUser(user: SessionUser): Promise<boolean> {
+    if (this.auth.status() === 'organization-required') return this.router.navigateByUrl('/onboarding/organization');
     if (this.auth.status() === 'pending-approval') return this.router.navigateByUrl('/account/pending');
     if (this.auth.status() === 'disabled') return this.router.navigateByUrl('/account/disabled');
     if (this.auth.status() === 'role-required') return this.router.navigateByUrl('/account/role-required');
@@ -134,7 +135,8 @@ export function authErrorMessage(error: unknown): string {
     if (error.kind === 'forbidden') return `Your account is disabled or not approved for this program.${reference}`;
     if (error.kind === 'not-found') return `The account session endpoint is unavailable. Contact support.${reference}`;
     if (error.kind === 'rate-limit') return `Too many session requests were made. Wait a moment and retry.${reference}`;
-    if (error.kind === 'server') return `The session service could not complete the request. Retry shortly.${reference}`;
+    if (error.kind === 'server')
+      return `The session service could not complete the request. Retry shortly.${reference}`;
     return `Your account was verified, but its session could not be restored.${reference}`;
   }
   if (!(error instanceof FirebaseError)) return 'We could not complete sign-in. Please try again.';

@@ -1,5 +1,7 @@
 export type UserRole = 'child' | 'parent' | 'mentor' | 'observer' | 'admin' | 'super_admin';
 export type MembershipState = 'active' | 'pending' | 'suspended' | 'deleted';
+export type RegistrationIntent = 'personal' | 'organization';
+export type WorkspaceType = 'personal' | 'organization';
 export interface SessionMembership {
   readonly id?: string;
   readonly organizationId?: string;
@@ -26,6 +28,16 @@ export interface SessionUser {
   readonly onboardingStatus: OnboardingStatus;
   readonly memberships: readonly SessionMembership[];
   readonly activeOrganizationId?: string;
+  /** The backend-selected workspace. It is context only; effective roles remain authoritative. */
+  readonly activeWorkspace?: { readonly type: WorkspaceType; readonly id: string; readonly name?: string };
+  readonly personalWorkspace?: { readonly id: string; readonly displayName?: string; readonly setupComplete?: boolean };
+  readonly elevation?: {
+    readonly active: boolean;
+    readonly scope: string;
+    readonly reason?: string;
+    readonly expiresAt: string;
+    readonly canEnd?: boolean;
+  };
   readonly authorization?: { readonly source: string; readonly migrationRequired: boolean };
 }
 export interface ClaimSynchronization {
