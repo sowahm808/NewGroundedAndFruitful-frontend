@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { ApiClient } from '../http/api-client.service';
+import { ApiError } from '../http/api-error';
 import { ApiResponse, SessionData } from '../models/domain.models';
 import { AuthService } from './auth.service';
 import { FIREBASE_AUTH } from './firebase-auth.token';
@@ -33,6 +34,70 @@ describe('backend role boundary', () => {
     expect(roleDestination(['super_admin'])).toBe('/admin/users');
     expect(roleDestination(['child', 'parent', 'mentor'])).toBe('/mentor/teams');
     expect(roleDestination([])).toBeNull();
+  });
+});
+
+describe('AuthService registration intent', () => {
+  it('waits for Firebase auth, gets a token, sends the exact DTO, reloads the session, and can retry', async () => {
+    const events: string[] = [];
+    const user = {
+      uid: 'new-user',
+      email: 'person@example.com',
+      getIdToken: jasmine.createSpy().and.callFake(async () => {
+        events.push('token');
+        return 'current-token';
+      }),
+    };
+    const postData = jasmine.createSpy().and.returnValues(
+      throwError(() => new ApiError(0, 'network_error', 'offline')),
+      of({ intent: 'personal', nextStep: 'personal_workspace_setup' }),
+    );
+    const get = jasmine.createSpy().and.returnValue(
+      of({
+        data: {
+          uid: 'new-user',
+          displayName: 'Person',
+          roles: [],
+          disabled: false,
+          onboardingStatus: 'profile_required',
+          memberships: [],
+          claimSynchronization: { status: 'synchronized', tokenRefreshRequired: false },
+        },
+      }),
+    );
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        AuthService,
+        { provide: ApiClient, useValue: { postData, get } },
+        {
+          provide: FIREBASE_AUTH,
+          useValue: {
+            currentUser: user,
+            authStateReady: async () => {
+              events.push('auth-ready');
+            },
+          },
+        },
+      ],
+    });
+    const service = TestBed.inject(AuthService);
+    const complete = (
+      service as unknown as { completeRegistration(user: unknown, intent: string): Promise<unknown> }
+    ).completeRegistration.bind(service);
+
+    await expectAsync(complete(user, 'personal')).toBeRejected();
+    const result = (await complete(user, 'personal')) as { intentResult: { nextStep: string } };
+
+    expect(events).toEqual(['auth-ready', 'token', 'auth-ready', 'token']);
+    expect(user.getIdToken).toHaveBeenCalledTimes(2);
+    expect(user.getIdToken).toHaveBeenCalledWith(false);
+    expect(postData.calls.allArgs()).toEqual([
+      ['/auth/registration-intent', { intent: 'personal' }],
+      ['/auth/registration-intent', { intent: 'personal' }],
+    ]);
+    expect(get).toHaveBeenCalledOnceWith('/auth/session');
+    expect(result.intentResult.nextStep).toBe('personal_workspace_setup');
   });
 });
 
