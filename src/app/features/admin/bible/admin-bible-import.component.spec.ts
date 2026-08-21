@@ -171,6 +171,77 @@ describe('AdminBibleImportComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Question document is invalid.');
   });
 
+  it('handles reconciliation failures as safe page results and preserves the complete draft', () => {
+    component.form.setValue({ title: 'Autumn quiz', quarterId: autumn.id });
+    const question = new File(['private question text'], 'questions.docx');
+    const answer = new File(['private answer text'], 'answers.docx');
+    component.selectQuestion({ target: { files: [question] } } as unknown as Event);
+    component.selectAnswer({ target: { files: [answer] } } as unknown as Event);
+    createImport.and.returnValue(
+      throwError(
+        () =>
+          new ApiError(
+            422,
+            'validation_error',
+            'The documents could not be reconciled.',
+            {
+              fields: {
+                questionDocument: ['Check the numbering in the question document.'],
+                answerKeyDocument: ['Check the numbering in the answer-key document.'],
+              },
+              reconciliation: {
+                questionDocumentCount: 12,
+                answerKeyCount: 10,
+                unmatchedQuestionNumbers: [11, 12],
+                missingAnswerNumbers: [11],
+                ambiguousAnswerNumbers: [7],
+                questionText: 'must never appear',
+                answerText: 'must never appear either',
+              },
+            },
+            undefined,
+            'request-422',
+          ),
+      ),
+    );
+
+    component.submit();
+    fixture.detectChanges();
+
+    const pageText = fixture.nativeElement.textContent as string;
+    expect(errorHandler.handleError).not.toHaveBeenCalled();
+    expect(component.form.getRawValue()).toEqual({ title: 'Autumn quiz', quarterId: autumn.id });
+    expect(component.questionDocument()).toBe(question);
+    expect(component.answerKeyDocument()).toBe(answer);
+    expect(pageText).toContain('request-422');
+    expect(pageText).toContain('Question document count');
+    expect(pageText).toContain('12');
+    expect(pageText).toContain('Answer-key count');
+    expect(pageText).toContain('Unmatched question numbers');
+    expect(pageText).toContain('11, 12');
+    expect(pageText).toContain('Missing answer numbers');
+    expect(pageText).toContain('Ambiguous answer numbers');
+    expect(pageText).not.toContain('must never appear');
+    expect(pageText).not.toContain('private question text');
+    expect(pageText).not.toContain('private answer text');
+    const fileFields = fixture.nativeElement.querySelectorAll('.file-field') as NodeListOf<HTMLElement>;
+    expect(fileFields[0].textContent).toContain('Check the numbering in the question document.');
+    expect(fileFields[1].textContent).toContain('Check the numbering in the answer-key document.');
+  });
+
+  it('forwards genuine programming errors to Angular ErrorHandler', () => {
+    component.form.setValue({ title: 'Autumn quiz', quarterId: autumn.id });
+    component.selectQuestion({ target: { files: [new File(['q'], 'q.docx')] } } as unknown as Event);
+    component.selectAnswer({ target: { files: [new File(['a'], 'a.docx')] } } as unknown as Event);
+    const programmingError = new TypeError('broken component invariant');
+    createImport.and.returnValue(throwError(() => programmingError));
+
+    component.submit();
+
+    expect(errorHandler.handleError).toHaveBeenCalledOnceWith(programmingError);
+    expect(component.error()).toBeNull();
+  });
+
   it('handles one recoverable 500 locally, retains diagnostics and selections, and retries idempotently', () => {
     const first = new Subject<{ id: string; status: 'uploaded' }>();
     const retry = new Subject<{ id: string; status: 'uploaded' }>();

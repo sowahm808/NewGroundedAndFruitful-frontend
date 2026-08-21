@@ -1,8 +1,17 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, ViewChild, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  ErrorHandler,
+  ViewChild,
+  inject,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { EMPTY, catchError, finalize, throwError } from 'rxjs';
+import { EMPTY, catchError, finalize } from 'rxjs';
 import { ApiError } from '../../../core/http/api-error';
 import { ActiveOrganizationService } from '../../../core/organizations/active-organization.service';
 import { GfAlert, GfPageHeader } from '../../../shared/components/design-system';
@@ -32,6 +41,28 @@ import { AdminBibleApiService } from './admin-bible-api.service';
               <dd>
                 <code>{{ failure.requestId }}</code>
               </dd>
+            }
+            @if (reconciliationDetails(failure); as reconciliation) {
+              @if (reconciliation.questionDocumentCount !== undefined) {
+                <dt>Question document count</dt>
+                <dd>{{ reconciliation.questionDocumentCount }}</dd>
+              }
+              @if (reconciliation.answerKeyCount !== undefined) {
+                <dt>Answer-key count</dt>
+                <dd>{{ reconciliation.answerKeyCount }}</dd>
+              }
+              @if (reconciliation.unmatchedQuestionNumbers) {
+                <dt>Unmatched question numbers</dt>
+                <dd>{{ reconciliation.unmatchedQuestionNumbers }}</dd>
+              }
+              @if (reconciliation.missingAnswerNumbers) {
+                <dt>Missing answer numbers</dt>
+                <dd>{{ reconciliation.missingAnswerNumbers }}</dd>
+              }
+              @if (reconciliation.ambiguousAnswerNumbers) {
+                <dt>Ambiguous answer numbers</dt>
+                <dd>{{ reconciliation.ambiguousAnswerNumbers }}</dd>
+              }
             }
           </dl>
         </details>
@@ -244,6 +275,7 @@ export class AdminBibleImportComponent {
   private readonly organizations = inject(ActiveOrganizationService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
+  private readonly errorHandler = inject(ErrorHandler);
   @ViewChild('questionInput') private questionInput?: ElementRef<HTMLInputElement>;
   @ViewChild('answerInput') private answerInput?: ElementRef<HTMLInputElement>;
   readonly form = this.fb.nonNullable.group({
@@ -361,7 +393,10 @@ export class AdminBibleImportComponent {
         catchError((error: unknown) => {
           // ApiClient has normalized HttpErrorResponse here. Consume expected request failures
           // locally; only non-HTTP/programming failures continue to Angular's ErrorHandler.
-          if (!(error instanceof ApiError)) return throwError(() => error);
+          if (!(error instanceof ApiError)) {
+            this.errorHandler.handleError(error);
+            return EMPTY;
+          }
           this.error.set(error);
           this.fieldErrors.set(error.fieldErrors ?? {});
           this.announcement.set('The Bible quiz could not be uploaded.');
@@ -397,7 +432,39 @@ export class AdminBibleImportComponent {
     return error.message;
   }
   fieldError(field: string): string | null {
-    return this.fieldErrors()[field]?.[0] ?? null;
+    const aliases: Readonly<Record<string, readonly string[]>> = {
+      quizFile: ['quizFile', 'questionDocument', 'questionFile'],
+      answerKeyFile: ['answerKeyFile', 'answerKeyDocument'],
+    };
+    for (const key of aliases[field] ?? [field]) {
+      const message = this.fieldErrors()[key]?.[0];
+      if (message) return message;
+    }
+    return null;
+  }
+  reconciliationDetails(error: ApiError): ReconciliationDetails | null {
+    if (error.status !== 422 || !isRecord(error.details)) return null;
+    const source = isRecord(error.details['reconciliation']) ? error.details['reconciliation'] : error.details;
+    const questionDocumentCount = safeCount(source['questionDocumentCount'] ?? source['questionCount']);
+    const answerKeyCount = safeCount(source['answerKeyCount'] ?? source['answerCount']);
+    const unmatchedQuestionNumbers = safeNumberList(source['unmatchedQuestionNumbers']);
+    const missingAnswerNumbers = safeNumberList(source['missingAnswerNumbers']);
+    const ambiguousAnswerNumbers = safeNumberList(source['ambiguousAnswerNumbers']);
+    if (
+      questionDocumentCount === undefined &&
+      answerKeyCount === undefined &&
+      !unmatchedQuestionNumbers &&
+      !missingAnswerNumbers &&
+      !ambiguousAnswerNumbers
+    )
+      return null;
+    return {
+      questionDocumentCount,
+      answerKeyCount,
+      unmatchedQuestionNumbers,
+      missingAnswerNumbers,
+      ambiguousAnswerNumbers,
+    };
   }
   private validDocx(file: File | null, field: 'quizFile' | 'answerKeyFile'): File | null {
     if (!file) return null;
@@ -416,4 +483,26 @@ export class AdminBibleImportComponent {
   fileSize(bytes: number) {
     return bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   }
+}
+
+interface ReconciliationDetails {
+  readonly questionDocumentCount?: number;
+  readonly answerKeyCount?: number;
+  readonly unmatchedQuestionNumbers?: string;
+  readonly missingAnswerNumbers?: string;
+  readonly ambiguousAnswerNumbers?: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function safeCount(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+}
+
+/** Deliberately accepts only question numbers, never parser excerpts or document text. */
+function safeNumberList(value: unknown): string | undefined {
+  if (!Array.isArray(value) || !value.every((item) => Number.isSafeInteger(item) && item > 0)) return undefined;
+  return value.length ? value.join(', ') : 'None';
 }
