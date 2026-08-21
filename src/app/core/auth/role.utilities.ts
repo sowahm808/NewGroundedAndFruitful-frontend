@@ -28,7 +28,8 @@ export function normalizeRoles(value: unknown): readonly UserRole[] {
 }
 
 export function roleDestination(roles: readonly UserRole[]): string | null {
-  if (roles.includes('super_admin') || roles.includes('admin')) return '/admin/users';
+  if (roles.includes('super_admin')) return '/admin/users';
+  if (roles.includes('admin')) return '/admin/quarters';
   if (roles.includes('mentor')) return '/mentor/teams';
   if (roles.includes('parent')) return '/parent/children';
   if (roles.includes('observer')) return '/observer/observations';

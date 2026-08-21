@@ -2,6 +2,7 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { UserRole } from '../models/domain.models';
 import { AuthService } from '../auth/auth.service';
+import { ActiveOrganizationService } from '../organizations/active-organization.service';
 
 export const authGuard: CanActivateFn = async (_route, state) => {
   const auth = inject(AuthService);
@@ -36,6 +37,17 @@ export const roleGuard =
     return auth.hasRole(roles) || router.createUrlTree(['/unauthorized']);
   };
 
+/** Organization operations require both an effective role and that role on the active membership. */
+export const organizationRoleGuard =
+  (role: UserRole): CanActivateFn =>
+  async () => {
+    const auth = inject(AuthService);
+    const organizations = inject(ActiveOrganizationService);
+    const router = inject(Router);
+    await auth.initialize();
+    return organizations.hasRole(role) || router.createUrlTree(['/unauthorized']);
+  };
+
 export function safeAttemptedUrl(url: string): string {
   const rejected = ['/account/role-required', '/unauthorized', '/login', '/auth/'];
   // eslint-disable-next-line no-control-regex -- URLs containing control bytes are deliberately rejected.
@@ -49,7 +61,8 @@ export function safeAttemptedUrl(url: string): string {
 }
 
 function dashboardFor(roles: readonly UserRole[]): string {
-  if (roles.includes('super_admin') || roles.includes('admin')) return '/admin/quarters';
+  if (roles.includes('super_admin')) return '/admin/users';
+  if (roles.includes('admin')) return '/admin/quarters';
   if (roles.includes('mentor')) return '/mentor/teams';
   if (roles.includes('observer')) return '/observer/observations';
   if (roles.includes('parent')) return '/parent/children';

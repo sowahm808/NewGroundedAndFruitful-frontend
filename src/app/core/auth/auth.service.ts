@@ -16,6 +16,7 @@ import { FIREBASE_AUTH } from './firebase-auth.token';
 import { ApiResponse, SessionData, SessionUser, UserRole } from '../models/domain.models';
 import { ApiClient } from '../http/api-client.service';
 import { ApiError } from '../http/api-error';
+import { normalizeRoles } from './role.utilities';
 
 export type AuthStatus =
   | 'initializing'
@@ -49,11 +50,14 @@ export class AuthService {
   private initialization?: Promise<void>;
   private bootstrap?: { uid: string; promise: Promise<SessionUser> };
   private bootstrapAttempt = 0;
+  /** Prevents repeated forced refreshes while the backend reports the same pending synchronization state. */
+  private synchronizationRefreshAttempted = false;
 
   readonly status = this.currentStatus.asReadonly();
   readonly user = this.current.asReadonly();
   readonly authenticated = computed(() => this.current() !== null && this.currentStatus() !== 'anonymous');
   readonly roles = computed(() => this.current()?.roles ?? []);
+  readonly platformRoles = computed(() => this.current()?.platformRoles ?? []);
   readonly sessionReady = computed(() => !['initializing', 'loading-session'].includes(this.currentStatus()));
   readonly sessionError = this.currentError.asReadonly();
   readonly sessionSynchronizationWarning = this.synchronizationWarning.asReadonly();
@@ -128,6 +132,7 @@ export class AuthService {
     this.current.set(null);
     this.currentError.set(null);
     this.synchronizationWarning.set(null);
+    this.synchronizationRefreshAttempted = false;
     this.currentStatus.set('anonymous');
     await signOut(this.firebaseAuth);
   }
@@ -182,7 +187,8 @@ export class AuthService {
     const response = await firstValueFrom(this.api.get<ApiResponse<SessionData>>('/auth/session'));
     let session = response.data;
 
-    if (session.claimSynchronization.tokenRefreshRequired) {
+    if (session.claimSynchronization.tokenRefreshRequired && !this.synchronizationRefreshAttempted) {
+      this.synchronizationRefreshAttempted = true;
       await this.firebaseAuth.currentUser?.getIdToken(true);
       const refreshedResponse = await firstValueFrom(this.api.get<ApiResponse<SessionData>>('/auth/session'));
       session = refreshedResponse.data;
@@ -190,17 +196,29 @@ export class AuthService {
         this.synchronizationWarning.set(
           'Firebase claims remain pending synchronization; backend session roles are in use.',
         );
+      } else {
+        // A later refresh-required response represents a new synchronization event.
+        this.synchronizationRefreshAttempted = false;
       }
+    } else if (!session.claimSynchronization.tokenRefreshRequired) {
+      this.synchronizationRefreshAttempted = false;
     }
 
     return {
       uid: session.uid,
       email: session.email,
       displayName: session.displayName,
-      roles: session.roles,
+      // Effective roles are calculated by the server. Never rebuild them from a selected membership.
+      roles: normalizeRoles(session.roles),
+      // Platform roles remain a separate authority dimension and are never inferred from memberships.
+      platformRoles: normalizeRoles(session.platformRoles),
       disabled: session.disabled,
       onboardingStatus: session.onboardingStatus,
-      memberships: session.memberships,
+      memberships: session.memberships.map((membership) => ({
+        ...membership,
+        roles: normalizeRoles(membership.roles),
+      })),
+      ...(session.activeOrganizationId ? { activeOrganizationId: session.activeOrganizationId } : {}),
       ...(session.authorization ? { authorization: session.authorization } : {}),
     };
   }

@@ -47,8 +47,12 @@ describe('authentication guards', () => {
 
     auth.state = 'authenticated';
     auth.session = {
-      uid: '1', displayName: 'Admin', roles: ['super_admin'], disabled: false,
-      onboardingStatus: 'complete', memberships: [],
+      uid: '1',
+      displayName: 'Admin',
+      roles: ['super_admin'],
+      disabled: false,
+      onboardingStatus: 'complete',
+      memberships: [],
     };
     finishInitialization?.();
     expect(await result).toBeTrue();
@@ -62,10 +66,28 @@ describe('authentication guards', () => {
     );
     auth.state = 'authenticated';
     auth.session = {
-      uid: '1', displayName: 'Mentor', roles: ['mentor'], disabled: false,
-      onboardingStatus: 'complete', memberships: [],
+      uid: '1',
+      displayName: 'Mentor',
+      roles: ['mentor'],
+      disabled: false,
+      onboardingStatus: 'complete',
+      memberships: [],
     };
     result = await TestBed.runInInjectionContext(() => roleGuard(['parent'])({} as never, {} as never));
+    expect(TestBed.inject(Router).serializeUrl(result as ReturnType<Router['createUrlTree']>)).toBe('/unauthorized');
+  });
+
+  it('keeps direct super-admin routes unavailable to admin-only sessions', async () => {
+    auth.state = 'authenticated';
+    auth.session = {
+      uid: '1',
+      displayName: 'Organization admin',
+      roles: ['admin'],
+      disabled: false,
+      onboardingStatus: 'complete',
+      memberships: [{ roles: ['admin'], status: 'active' }],
+    };
+    const result = await TestBed.runInInjectionContext(() => roleGuard(['super_admin'])({} as never, {} as never));
     expect(TestBed.inject(Router).serializeUrl(result as ReturnType<Router['createUrlTree']>)).toBe('/unauthorized');
   });
 });
