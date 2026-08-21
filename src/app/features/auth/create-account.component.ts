@@ -5,6 +5,7 @@ import { FirebaseError } from 'firebase/app';
 import { AuthService, RegistrationResult } from '../../core/auth/auth.service';
 import { ApiError } from '../../core/http/api-error';
 import { RegistrationIntent } from '../../core/models/domain.models';
+import { PostAuthRouteCoordinator } from '../../core/auth/post-auth-route.service';
 import { GfButton, GfCard } from '../../shared/components/design-system';
 
 @Component({
@@ -64,6 +65,7 @@ import { GfButton, GfCard } from '../../shared/components/design-system';
 export class CreateAccountComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly coordinator = inject(PostAuthRouteCoordinator);
   readonly busy = signal(false);
   readonly message = signal('');
   readonly intent = signal<'personal' | 'organization'>('personal');
@@ -91,7 +93,8 @@ export class CreateAccountComponent {
     this.message.set('');
     try {
       const result = await operation();
-      await this.router.navigateByUrl(registrationDestination(result, this.intent()));
+      const destination = this.coordinator.resolvePostAuthenticationRoute(result.session, this.router.url);
+      if (destination) await this.router.navigateByUrl(destination);
     } catch (error) {
       this.message.set(registrationErrorMessage(error));
     } finally {
@@ -104,12 +107,12 @@ export function registrationDestination(result: RegistrationResult, intent: Regi
   const step = result.intentResult.nextStep;
   if (step === '/onboarding/organization' || step === 'organization_setup') return '/onboarding/organization';
   if (step === '/account/profile' || step === '/onboarding/personal' || step === 'personal_workspace_setup')
-    return '/account/profile';
+    return '/onboarding/personal';
   if (result.intentResult.onboardingStatus === 'organization_required') return '/onboarding/organization';
-  if (result.intentResult.onboardingStatus === 'profile_required') return '/account/profile';
+  if (result.intentResult.onboardingStatus === 'profile_required') return '/onboarding/personal';
   // The selected intent is only a routing fallback; it never assigns authority or completes onboarding.
   if (intent === 'organization') return '/onboarding/organization';
-  if (intent === 'personal') return '/account/profile';
+  if (intent === 'personal') return '/onboarding/personal';
   return '/account/role-required';
 }
 

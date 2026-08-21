@@ -16,6 +16,9 @@ export interface SessionMembership {
 }
 export type OnboardingStatus =
   | 'complete'
+  | 'registration_intent_required'
+  | 'personal_workspace_required'
+  | 'organization_setup_required'
   | 'organization_required'
   | 'migration_required'
   | 'consent_required'
@@ -31,10 +34,15 @@ export interface SessionUser {
   readonly platformRoles?: readonly UserRole[];
   readonly disabled: boolean;
   readonly onboardingStatus: OnboardingStatus;
+  readonly nextStep?: string;
+  readonly registrationIntent?: RegistrationIntent;
   readonly memberships: readonly SessionMembership[];
   readonly activeOrganizationId?: string;
   /** The backend-selected workspace. It is context only; effective roles remain authoritative. */
   readonly activeWorkspace?: { readonly type: WorkspaceType; readonly id: string; readonly name?: string };
+  readonly workspaces?: readonly { readonly type: WorkspaceType; readonly id: string; readonly name?: string }[];
+  /** The backend-calculated authority. It is never derived from memberships in the browser. */
+  readonly effectiveRoles?: readonly UserRole[];
   readonly personalWorkspace?: { readonly id: string; readonly displayName?: string; readonly setupComplete?: boolean };
   readonly elevation?: {
     readonly active: boolean;

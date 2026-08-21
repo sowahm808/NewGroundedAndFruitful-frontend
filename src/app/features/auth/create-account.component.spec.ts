@@ -11,12 +11,12 @@ describe('registration routing', () => {
 
   it('routes the two server-returned registration paths', () => {
     expect(registrationDestination(result('organization_setup'), 'organization')).toBe('/onboarding/organization');
-    expect(registrationDestination(result('personal_workspace_setup'), 'personal')).toBe('/account/profile');
+    expect(registrationDestination(result('personal_workspace_setup'), 'personal')).toBe('/onboarding/personal');
   });
 
   it('uses the server onboarding status when nextStep is absent', () => {
     expect(registrationDestination(result('', 'organization_required'), 'personal')).toBe('/onboarding/organization');
-    expect(registrationDestination(result('', 'profile_required'), 'organization')).toBe('/account/profile');
+    expect(registrationDestination(result('', 'profile_required'), 'organization')).toBe('/onboarding/personal');
   });
 });
 
