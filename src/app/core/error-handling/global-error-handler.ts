@@ -1,5 +1,6 @@
 import { DOCUMENT } from '@angular/common';
 import { ErrorHandler, Injectable, inject } from '@angular/core';
+import { Router } from '@angular/router';
 
 interface SafeErrorDiagnostics {
   readonly angularErrorCode: string | null;
@@ -12,12 +13,14 @@ interface SafeErrorDiagnostics {
 @Injectable()
 export class GlobalErrorHandler implements ErrorHandler {
   private readonly document = inject(DOCUMENT);
+  private readonly router = inject(Router);
 
   handleError(error: unknown): void {
     const message = error instanceof Error ? error.message : String(error);
     const diagnostics: SafeErrorDiagnostics = {
       angularErrorCode: /\bNG\d{4}\b/.exec(message)?.[0] ?? null,
-      route: this.document.defaultView?.location.pathname ?? '/',
+      // Router.url reflects the active Angular navigation, including redirects, at failure time.
+      route: this.router.url || this.document.defaultView?.location.pathname || '/',
       applicationVersion: this.meta('application-version'),
       buildSha: this.meta('build-sha'),
       correlationId: globalThis.crypto?.randomUUID?.() ?? `error-${Date.now()}`,

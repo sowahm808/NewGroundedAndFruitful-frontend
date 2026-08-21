@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, ViewChild, 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { finalize } from 'rxjs';
+import { EMPTY, catchError, finalize, throwError } from 'rxjs';
 import { ApiError } from '../../../core/http/api-error';
 import { ActiveOrganizationService } from '../../../core/organizations/active-organization.service';
 import { GfAlert, GfPageHeader } from '../../../shared/components/design-system';
@@ -18,9 +18,24 @@ import { AdminBibleApiService } from './admin-bible-api.service';
     </gf-page-header>
     <p class="back"><a routerLink="/admin/bible">← Back to Bible content</a></p>
     @if (error(); as failure) {
-      <gf-alert title="The quiz could not be uploaded"
-        ><p>{{ failure.message }}</p></gf-alert
-      >
+      <gf-alert [title]="errorTitle(failure)">
+        <p>{{ errorMessage(failure) }}</p>
+        <details>
+          <summary>Technical and support details</summary>
+          <dl>
+            <dt>Status</dt>
+            <dd>{{ failure.status }}</dd>
+            <dt>Code</dt>
+            <dd>{{ failure.code }}</dd>
+            @if (failure.requestId) {
+              <dt>Request ID</dt>
+              <dd>
+                <code>{{ failure.requestId }}</code>
+              </dd>
+            }
+          </dl>
+        </details>
+      </gf-alert>
     }
     @if (!organizationId()) {
       <gf-alert title="Organization required"
@@ -248,6 +263,7 @@ export class AdminBibleImportComponent {
   readonly organizationId = this.organizations.organizationId;
   readonly announcement = signal('');
   private quarterLoadSequence = 0;
+  private importIdempotencyKey: string | null = null;
   constructor() {
     if (this.organizationId()) this.loadQuarters();
     else this.quartersLoading.set(false);
@@ -327,6 +343,7 @@ export class AdminBibleImportComponent {
     )
       return;
     const value = this.form.getRawValue();
+    this.importIdempotencyKey ??= globalThis.crypto?.randomUUID?.() ?? `bible-import-${Date.now()}`;
     this.uploading.set(true);
     this.error.set(null);
     this.fieldErrors.set({});
@@ -338,19 +355,46 @@ export class AdminBibleImportComponent {
         title: value.title,
         quizFile: question,
         answerKeyFile: answer,
+        idempotencyKey: this.importIdempotencyKey,
       })
-      .pipe(finalize(() => this.uploading.set(false)))
-      .subscribe({
-        next: (created) => {
-          this.announcement.set('Upload complete. Opening import review.');
-          void this.router.navigate(['/admin/bible/imports', created.id]);
-        },
-        error: (error: ApiError) => {
+      .pipe(
+        catchError((error: unknown) => {
+          // ApiClient has normalized HttpErrorResponse here. Consume expected request failures
+          // locally; only non-HTTP/programming failures continue to Angular's ErrorHandler.
+          if (!(error instanceof ApiError)) return throwError(() => error);
           this.error.set(error);
           this.fieldErrors.set(error.fieldErrors ?? {});
           this.announcement.set('The Bible quiz could not be uploaded.');
+          return EMPTY;
+        }),
+        finalize(() => this.uploading.set(false)),
+      )
+      .subscribe({
+        next: (created) => {
+          this.importIdempotencyKey = null;
+          this.announcement.set('Upload complete. Opening import review.');
+          void this.router.navigate(['/admin/bible/imports', created.id]);
         },
       });
+  }
+  errorTitle(error: ApiError): string {
+    if (error.status === 403) return 'Access denied';
+    if (error.status === 409) return 'This quarter already has an import';
+    if (error.status === 422) return 'Check the import documents';
+    if (error.status === 429) return 'Upload limit reached';
+    return 'Bible import creation failed';
+  }
+  errorMessage(error: ApiError): string {
+    if (error.status === 403) return 'You do not have permission to create Bible imports.';
+    if (error.status === 409) return 'Review the existing quarter import before trying another upload.';
+    if (error.status === 422) return error.message;
+    if (error.status === 429)
+      return error.retryAfterSeconds === undefined
+        ? 'Please wait before retrying this upload.'
+        : `Please retry in ${error.retryAfterSeconds} seconds.`;
+    if (error.status === 0 || error.status === 500 || error.status === 503)
+      return 'The import service could not complete the upload. Your selections are preserved; please retry.';
+    return error.message;
   }
   fieldError(field: string): string | null {
     return this.fieldErrors()[field]?.[0] ?? null;

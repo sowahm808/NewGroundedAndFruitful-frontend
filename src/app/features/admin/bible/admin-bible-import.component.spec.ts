@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { signal } from '@angular/core';
+import { ErrorHandler, signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { ApiError } from '../../../core/http/api-error';
@@ -16,6 +16,7 @@ describe('AdminBibleImportComponent', () => {
   let createImport: jasmine.Spy;
   let organizationId: ReturnType<typeof signal<string | null>>;
   let workspaceChanges: Subject<void>;
+  let errorHandler: jasmine.SpyObj<ErrorHandler>;
 
   const autumn = {
     id: 'quarter-autumn',
@@ -37,6 +38,7 @@ describe('AdminBibleImportComponent', () => {
     quarterQueries = [];
     organizationId = signal<string | null>('organization-1');
     workspaceChanges = new Subject<void>();
+    errorHandler = jasmine.createSpyObj<ErrorHandler>('ErrorHandler', ['handleError']);
     createImport = jasmine.createSpy('createImport').and.returnValue(of({ id: 'import-1', status: 'uploaded' }));
     await TestBed.configureTestingModule({
       imports: [AdminBibleImportComponent],
@@ -55,6 +57,7 @@ describe('AdminBibleImportComponent', () => {
         },
         { provide: AdminBibleApiService, useValue: { createBibleContentImport: createImport } },
         { provide: ActiveOrganizationService, useValue: { organizationId, workspaceChanged$: workspaceChanges } },
+        { provide: ErrorHandler, useValue: errorHandler },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(AdminBibleImportComponent);
@@ -115,6 +118,7 @@ describe('AdminBibleImportComponent', () => {
       title: 'Updated quiz title',
       quizFile: question,
       answerKeyFile: answer,
+      idempotencyKey: jasmine.any(String),
     });
   });
 
@@ -165,5 +169,34 @@ describe('AdminBibleImportComponent', () => {
     );
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Question document is invalid.');
+  });
+
+  it('handles one recoverable 500 locally, retains diagnostics and selections, and retries idempotently', () => {
+    const first = new Subject<{ id: string; status: 'uploaded' }>();
+    const retry = new Subject<{ id: string; status: 'uploaded' }>();
+    createImport.and.returnValues(first, retry);
+    component.form.setValue({ title: 'Autumn quiz', quarterId: autumn.id });
+    const question = new File(['q'], 'q.docx');
+    const answer = new File(['a'], 'a.docx');
+    component.selectQuestion({ target: { files: [question] } } as unknown as Event);
+    component.selectAnswer({ target: { files: [answer] } } as unknown as Event);
+
+    component.submit();
+    component.submit();
+    const failure = new ApiError(500, 'dependency_failure', 'Backend failed', undefined, undefined, 'request-500');
+    first.error(failure);
+    fixture.detectChanges();
+
+    expect(component.error()).toBe(failure);
+    expect(errorHandler.handleError).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('Bible import creation failed');
+    expect(fixture.nativeElement.textContent).toContain('request-500');
+    expect(component.form.getRawValue()).toEqual({ title: 'Autumn quiz', quarterId: autumn.id });
+    expect(component.questionDocument()).toBe(question);
+    expect(component.answerKeyDocument()).toBe(answer);
+
+    component.submit();
+    expect(createImport).toHaveBeenCalledTimes(2);
+    expect(createImport.calls.argsFor(1)[0].idempotencyKey).toBe(createImport.calls.argsFor(0)[0].idempotencyKey);
   });
 });
