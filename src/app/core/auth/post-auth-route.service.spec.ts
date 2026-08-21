@@ -40,6 +40,51 @@ describe('resolvePostAuthDestination', () => {
     });
   });
 
+  it('treats an HTTP-success role-required account with empty authority and workspace data as domain state', () => {
+    const decision = resolvePostAuthDestination(
+      session({ onboardingStatus: 'role_required', roles: [], memberships: [], workspaces: [] }),
+    );
+    expect(decision).toEqual({
+      destination: '/account/role-required',
+      path: '/account/role-required',
+      reason: 'role-required',
+      recoveryAction: 'contact-support',
+    });
+    expect(decision.path).not.toBe('/account/session-error');
+  });
+
+  it('routes a pending invitation to pending acceptance', () => {
+    expect(
+      resolvePostAuthDestination(
+        session({ onboardingStatus: 'role_required', memberships: [{ status: 'pending', organizationId: 'org-1' }] }),
+      ).path,
+    ).toBe('/account/pending');
+  });
+
+  it('uses authoritative registration intent to recover an incomplete role-required bootstrap', () => {
+    expect(
+      resolvePostAuthDestination(session({ onboardingStatus: 'role_required', registrationIntent: 'personal' })).path,
+    ).toBe('/onboarding/personal');
+    expect(
+      resolvePostAuthDestination(session({ onboardingStatus: 'role_required', registrationIntent: 'organization' }))
+        .path,
+    ).toBe('/onboarding/organization');
+  });
+
+  it('routes every canonical setup state and unknown states without using session-error', () => {
+    expect(resolvePostAuthDestination(session({ onboardingStatus: 'personal_workspace_required' })).path).toBe(
+      '/onboarding/personal',
+    );
+    expect(resolvePostAuthDestination(session({ onboardingStatus: 'organization_setup_required' })).path).toBe(
+      '/onboarding/organization',
+    );
+    const unknown = resolvePostAuthDestination(
+      session({ onboardingStatus: 'future_state' as SessionUser['onboardingStatus'] }),
+    );
+    expect(unknown.path).toBe('/account/role-required');
+    expect(unknown.reason).toBe('account-state-recovery');
+  });
+
   it('routes the supplied complete personal owner session to the established family dashboard', () => {
     const decision = resolvePostAuthDestination(personalOwner());
     expect(decision).toEqual({
