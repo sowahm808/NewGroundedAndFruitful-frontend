@@ -19,8 +19,8 @@ import { GfAlert, GfButton, GfCard } from '../../shared/components/design-system
         >
       }
       <div class="actions">
-        <gf-button [disabled]="busy()" (pressed)="choose('personal')">Personal</gf-button>
-        <gf-button [disabled]="busy()" (pressed)="choose('organization')">Organization</gf-button>
+        <gf-button [disabled]="busy()" (pressed)="choose('personal')">Personal/family account</gf-button>
+        <gf-button [disabled]="busy()" (pressed)="choose('organization')">Organization/program account</gf-button>
       </div>
       <span aria-live="polite">{{ busy() ? 'Saving account type…' : '' }}</span>
     </gf-card>

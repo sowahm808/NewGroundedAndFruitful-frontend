@@ -344,7 +344,19 @@ export const routes: Routes = [
   },
   {
     path: 'account/role-required',
+    canActivate: [onboardingGuard],
     loadComponent: () => import('./features/system/role-required.component').then((m) => m.RoleRequiredComponent),
+  },
+  {
+    path: 'account/invitation',
+    canActivate: [onboardingGuard],
+    loadComponent: () =>
+      import('./features/system/invitation-required.component').then((m) => m.InvitationRequiredComponent),
+  },
+  {
+    path: 'account/recovery',
+    canActivate: [onboardingGuard],
+    loadComponent: () => import('./features/system/account-recovery.component').then((m) => m.AccountRecoveryComponent),
   },
   {
     path: 'account/pending',

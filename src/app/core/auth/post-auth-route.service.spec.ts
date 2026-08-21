@@ -43,14 +43,14 @@ describe('resolvePostAuthDestination', () => {
     });
   });
 
-  it('treats an HTTP-success role-required account with empty authority and workspace data as domain state', () => {
+  it('safely recovers an HTTP-success role-required account whose canonical nextStep is missing', () => {
     const decision = resolvePostAuthDestination(
       session({ onboardingStatus: 'role_required', roles: [], memberships: [], workspaces: [] }),
     );
     expect(decision).toEqual({
-      destination: '/account/role-required',
-      path: '/account/role-required',
-      reason: 'role-required',
+      destination: '/account/recovery',
+      path: '/account/recovery',
+      reason: 'account-state-recovery',
       recoveryAction: 'contact-support',
     });
     expect(decision.path).not.toBe('/account/session-error');
@@ -59,32 +59,36 @@ describe('resolvePostAuthDestination', () => {
   it('routes a pending invitation to pending acceptance', () => {
     expect(
       resolvePostAuthDestination(
-        session({ onboardingStatus: 'role_required', memberships: [{ status: 'pending', organizationId: 'org-1' }] }),
+        session({ onboardingStatus: 'invitation_required', nextStep: 'accept_invitation', pendingInvitation: true }),
       ).path,
-    ).toBe('/account/pending');
+    ).toBe('/account/invitation');
   });
 
-  it('uses authoritative registration intent to recover an incomplete role-required bootstrap', () => {
+  it('does not use registration intent as a substitute for nextStep', () => {
     expect(
       resolvePostAuthDestination(session({ onboardingStatus: 'role_required', registrationIntent: 'personal' })).path,
-    ).toBe('/onboarding/personal');
+    ).toBe('/account/recovery');
     expect(
       resolvePostAuthDestination(session({ onboardingStatus: 'role_required', registrationIntent: 'organization' }))
         .path,
-    ).toBe('/onboarding/organization');
+    ).toBe('/account/recovery');
   });
 
   it('routes every canonical setup state and unknown states without using session-error', () => {
-    expect(resolvePostAuthDestination(session({ onboardingStatus: 'personal_workspace_required' })).path).toBe(
-      '/onboarding/personal',
-    );
-    expect(resolvePostAuthDestination(session({ onboardingStatus: 'organization_setup_required' })).path).toBe(
-      '/onboarding/organization',
-    );
+    expect(
+      resolvePostAuthDestination(
+        session({ onboardingStatus: 'personal_workspace_required', nextStep: 'personal_workspace_setup' }),
+      ).path,
+    ).toBe('/onboarding/personal');
+    expect(
+      resolvePostAuthDestination(
+        session({ onboardingStatus: 'organization_setup_required', nextStep: 'organization_setup' }),
+      ).path,
+    ).toBe('/onboarding/organization');
     const unknown = resolvePostAuthDestination(
       session({ onboardingStatus: 'future_state' as SessionUser['onboardingStatus'] }),
     );
-    expect(unknown.path).toBe('/account/role-required');
+    expect(unknown.path).toBe('/account/recovery');
     expect(unknown.reason).toBe('account-state-recovery');
   });
 
@@ -164,6 +168,8 @@ describe('resolvePostAuthDestination', () => {
         activeWorkspaceId: 'org-1',
         workspaces: [{ id: 'org-1', type: 'organization', status: 'active' }],
         memberships: [{ organizationId: 'org-1', roles: [], status: 'active' }],
+        onboardingStatus: 'role_required',
+        nextStep: 'await_role_assignment',
       }),
     );
     expect(decision).toEqual({

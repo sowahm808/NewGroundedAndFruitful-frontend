@@ -14,9 +14,9 @@ describe('registration routing', () => {
     expect(registrationDestination(result('personal_workspace_setup'), 'personal')).toBe('/onboarding/personal');
   });
 
-  it('uses the server onboarding status when nextStep is absent', () => {
-    expect(registrationDestination(result('', 'organization_required'), 'personal')).toBe('/onboarding/organization');
-    expect(registrationDestination(result('', 'profile_required'), 'organization')).toBe('/onboarding/personal');
+  it('does not infer a destination from missing nextStep or the submitted intent', () => {
+    expect(registrationDestination(result('', 'organization_required'), 'personal')).toBe('/account/recovery');
+    expect(registrationDestination(result('', 'profile_required'), 'organization')).toBe('/account/recovery');
   });
 });
 

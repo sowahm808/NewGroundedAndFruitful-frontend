@@ -330,6 +330,9 @@ export class AuthService {
       onboardingStatus: session.onboardingStatus,
       ...(session.nextStep ? { nextStep: session.nextStep } : {}),
       ...(session.registrationIntent ? { registrationIntent: session.registrationIntent } : {}),
+      ...(session.accountStateReason ? { accountStateReason: session.accountStateReason } : {}),
+      ...(session.pendingInvitation === true ? { pendingInvitation: true } : {}),
+      ...(session.supportReference ? { supportReference: session.supportReference } : {}),
       memberships: session.memberships.map((membership) => ({
         ...membership,
         roles: normalizeRoles(membership.roles),
