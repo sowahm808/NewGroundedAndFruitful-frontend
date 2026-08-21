@@ -1,42 +1,134 @@
-import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
 import { SessionUser } from '../models/domain.models';
-import { PostAuthRouteCoordinator } from './post-auth-route.service';
+import { resolvePostAuthDestination } from './post-auth-route.service';
 
-describe('PostAuthRouteCoordinator', () => {
-  let coordinator: PostAuthRouteCoordinator;
+describe('resolvePostAuthDestination', () => {
   const session = (changes: Partial<SessionUser> = {}): SessionUser => ({
     uid: 'user',
     displayName: 'Person',
     roles: [],
     disabled: false,
-    onboardingStatus: 'organization_setup_required',
+    onboardingStatus: 'complete',
     memberships: [],
-    nextStep: 'organization_setup',
     ...changes,
   });
-  beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [provideRouter([])] });
-    coordinator = TestBed.inject(PostAuthRouteCoordinator);
+  const personalOwner = (changes: Partial<SessionUser> = {}): SessionUser =>
+    session({
+      roles: ['owner'],
+      effectiveRoles: ['owner'],
+      platformRoles: [],
+      registrationIntent: 'personal',
+      nextStep: 'dashboard',
+      activeWorkspaceId: 'personal-1',
+      workspaces: [{ id: 'personal-1', type: 'personal', name: 'Personal', status: 'active', roles: ['owner'] }],
+      memberships: [
+        {
+          organizationId: 'personal-1',
+          workspaceId: 'personal-1',
+          workspaceRoles: ['owner'],
+          roles: ['owner'],
+          status: 'active',
+        },
+      ],
+      ...changes,
+    });
+
+  it('routes an absent session to login', () => {
+    expect(resolvePostAuthDestination(null)).toEqual({
+      destination: '/auth/login',
+      path: '/auth/login',
+      reason: 'unauthenticated',
+    });
   });
-  it('routes the production pre-onboarding session to organization setup despite empty roles', () => {
-    expect(coordinator.decision(session()).path).toBe('/onboarding/organization');
+
+  it('routes the supplied complete personal owner session to the established family dashboard', () => {
+    const decision = resolvePostAuthDestination(personalOwner());
+    expect(decision).toEqual({
+      destination: '/parent/children',
+      path: '/parent/children',
+      reason: 'dashboard',
+      workspaceType: 'personal',
+    });
+    expect(decision.path).not.toBe('/account/role-required');
   });
-  it('keeps the exact required organization route to prevent a loop', () => {
-    expect(coordinator.resolvePostAuthenticationRoute(session(), '/onboarding/organization')).toBeNull();
+
+  it('accepts owner from the active membership with empty platform roles and effective owner authority', () => {
+    expect(personalOwner().effectiveRoles).toContain('owner');
+    expect(resolvePostAuthDestination(personalOwner({ platformRoles: [] })).reason).toBe('dashboard');
   });
-  it('keeps personal and organization journeys separate', () => {
-    expect(coordinator.decision(session({ nextStep: 'personal_workspace_setup' })).path).toBe('/onboarding/personal');
-    expect(coordinator.decision(session()).path).not.toBe('/onboarding/personal');
+
+  it('requires activeWorkspaceId to reference the personal workspace', () => {
+    const decision = resolvePostAuthDestination(personalOwner({ activeWorkspaceId: 'somewhere-else' }));
+    expect(decision.reason).toBe('workspace-recovery');
+    expect(decision.path).toBe('/account/profile');
   });
-  it('routes only completed roleless sessions to role recovery', () => {
-    expect(coordinator.decision(session({ nextStep: undefined, onboardingStatus: 'complete' })).path).toBe(
-      '/account/role-required',
+
+  it('requires an active owner membership for a personal workspace', () => {
+    const decision = resolvePostAuthDestination(
+      personalOwner({ memberships: [{ workspaceId: 'personal-1', roles: ['parent'], status: 'active' }] }),
+    );
+    expect(decision.reason).toBe('workspace-recovery');
+  });
+
+  it('keeps personal and organization onboarding separate', () => {
+    expect(resolvePostAuthDestination(session({ nextStep: 'personal_workspace_setup' })).path).toBe(
+      '/onboarding/personal',
+    );
+    expect(resolvePostAuthDestination(session({ nextStep: 'organization_setup' })).path).toBe(
+      '/onboarding/organization',
     );
   });
-  it('routes a completed admin session to its dashboard', () => {
-    expect(
-      coordinator.decision(session({ nextStep: undefined, onboardingStatus: 'complete', roles: ['admin'] })).path,
-    ).toBe('/admin/quarters');
+
+  it('routes a completed session without a workspace to recovery rather than role-required', () => {
+    const decision = resolvePostAuthDestination(session());
+    expect(decision).toEqual({
+      destination: '/account/profile',
+      path: '/account/profile',
+      reason: 'workspace-recovery',
+      recoveryAction: 'restore-workspace',
+    });
+  });
+
+  it('preserves organization admin routing with an active admin membership', () => {
+    const decision = resolvePostAuthDestination(
+      session({
+        roles: ['admin'],
+        effectiveRoles: ['admin'],
+        activeWorkspaceId: 'org-1',
+        workspaces: [{ id: 'org-1', type: 'organization', status: 'active' }],
+        memberships: [{ organizationId: 'org-1', roles: ['admin'], status: 'active' }],
+      }),
+    );
+    expect(decision).toEqual({
+      destination: '/admin/quarters',
+      path: '/admin/quarters',
+      reason: 'dashboard',
+      workspaceType: 'organization',
+    });
+  });
+
+  it('uses role-required only for an organization membership missing a program role', () => {
+    const decision = resolvePostAuthDestination(
+      session({
+        activeWorkspaceId: 'org-1',
+        workspaces: [{ id: 'org-1', type: 'organization', status: 'active' }],
+        memberships: [{ organizationId: 'org-1', roles: [], status: 'active' }],
+      }),
+    );
+    expect(decision).toEqual({
+      destination: '/account/role-required',
+      path: '/account/role-required',
+      reason: 'role-required',
+      workspaceType: 'organization',
+    });
+  });
+
+  it('routes a disabled session before considering its workspace', () => {
+    expect(resolvePostAuthDestination(personalOwner({ disabled: true })).path).toBe('/account/disabled');
+  });
+
+  it('preserves platform administration as an explicit platform authority', () => {
+    expect(resolvePostAuthDestination(session({ roles: ['super_admin'], platformRoles: ['super_admin'] })).path).toBe(
+      '/admin/users',
+    );
   });
 });

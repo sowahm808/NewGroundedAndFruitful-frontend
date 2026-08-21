@@ -22,7 +22,7 @@ describe('backend role boundary', () => {
         'OWNER',
         'parent',
       ]),
-    ).toEqual(['child', 'parent', 'observer', 'admin', 'super_admin']);
+    ).toEqual(['owner', 'child', 'parent', 'observer', 'admin', 'super_admin']);
   });
 
   it('selects every canonical destination with deterministic privilege priority', () => {
@@ -220,12 +220,12 @@ describe('AuthService backend session bootstrap', () => {
     expect(auth.sessionSynchronizationWarning()).toContain('backend session roles');
   });
 
-  it('routes an empty-role backend session to role-required', async () => {
+  it('does not misclassify an empty-role backend session as role-required before workspace routing', async () => {
     getSession.and.returnValue(of(backendSession(false, [])));
 
     await auth.retrySession();
 
-    expect(auth.status()).toBe('role-required');
+    expect(auth.status()).toBe('authenticated');
   });
 
   it('treats organization-required and contradictory migration state as account setup', () => {

@@ -313,11 +313,21 @@ export class AuthService {
       memberships: session.memberships.map((membership) => ({
         ...membership,
         roles: normalizeRoles(membership.roles),
+        ...(membership.workspaceRoles ? { workspaceRoles: normalizeRoles(membership.workspaceRoles) } : {}),
       })),
       ...(session.activeOrganizationId ? { activeOrganizationId: session.activeOrganizationId } : {}),
       ...(session.activeWorkspaceId ? { activeWorkspaceId: session.activeWorkspaceId } : {}),
-      ...(session.activeWorkspace ? { activeWorkspace: session.activeWorkspace } : {}),
-      ...(session.workspaces ? { workspaces: session.workspaces } : {}),
+      ...(session.activeWorkspace
+        ? { activeWorkspace: { ...session.activeWorkspace, roles: normalizeRoles(session.activeWorkspace.roles) } }
+        : {}),
+      ...(session.workspaces
+        ? {
+            workspaces: session.workspaces.map((workspace) => ({
+              ...workspace,
+              roles: normalizeRoles(workspace.roles),
+            })),
+          }
+        : {}),
       ...(session.effectiveRoles ? { effectiveRoles: normalizeRoles(session.effectiveRoles) } : {}),
       ...(session.personalWorkspace ? { personalWorkspace: session.personalWorkspace } : {}),
       ...(session.elevation ? { elevation: session.elevation } : {}),
@@ -345,11 +355,7 @@ export class AuthService {
       (membershipStates.includes('pending') && !membershipStates.includes('active'))
     )
       this.currentStatus.set('pending-approval');
-    else if (
-      user.onboardingStatus === 'role_required' ||
-      (user.onboardingStatus === 'complete' && user.roles.length === 0)
-    )
-      this.currentStatus.set('role-required');
+    else if (user.onboardingStatus === 'role_required') this.currentStatus.set('role-required');
     else this.currentStatus.set('authenticated');
   }
 }

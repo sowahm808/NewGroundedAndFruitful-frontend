@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { AuthStatus, AuthService } from '../auth/auth.service';
 import { SessionUser } from '../models/domain.models';
-import { authGuard, guestGuard, onboardingGuard, roleGuard } from './auth.guards';
+import { authGuard, guestGuard, onboardingGuard, personalWorkspaceGuard, roleGuard } from './auth.guards';
 
 class AuthStub {
   state: AuthStatus = 'anonymous';
@@ -50,6 +50,7 @@ describe('authentication guards', () => {
       uid: '1',
       displayName: 'Admin',
       roles: ['super_admin'],
+      platformRoles: ['super_admin'],
       disabled: false,
       onboardingStatus: 'complete',
       memberships: [],
@@ -99,7 +100,9 @@ describe('authentication guards', () => {
       roles: ['mentor'],
       disabled: false,
       onboardingStatus: 'complete',
-      memberships: [],
+      activeWorkspaceId: 'org-1',
+      workspaces: [{ id: 'org-1', type: 'organization', status: 'active' }],
+      memberships: [{ organizationId: 'org-1', roles: ['mentor'], status: 'active' }],
     };
     result = await TestBed.runInInjectionContext(() => roleGuard(['parent'])({} as never, {} as never));
     expect(TestBed.inject(Router).serializeUrl(result as ReturnType<Router['createUrlTree']>)).toBe('/unauthorized');
@@ -113,9 +116,35 @@ describe('authentication guards', () => {
       roles: ['admin'],
       disabled: false,
       onboardingStatus: 'complete',
-      memberships: [{ roles: ['admin'], status: 'active' }],
+      activeWorkspaceId: 'org-1',
+      workspaces: [{ id: 'org-1', type: 'organization', status: 'active' }],
+      memberships: [{ organizationId: 'org-1', roles: ['admin'], status: 'active' }],
     };
     const result = await TestBed.runInInjectionContext(() => roleGuard(['super_admin'])({} as never, {} as never));
     expect(TestBed.inject(Router).serializeUrl(result as ReturnType<Router['createUrlTree']>)).toBe('/unauthorized');
+  });
+
+  it('allows a verified personal owner into family routes but denies admin and platform routes', async () => {
+    auth.state = 'authenticated';
+    auth.session = {
+      uid: '1',
+      displayName: 'Personal owner',
+      roles: ['owner'],
+      effectiveRoles: ['owner'],
+      platformRoles: [],
+      disabled: false,
+      onboardingStatus: 'complete',
+      registrationIntent: 'personal',
+      activeWorkspaceId: 'personal-1',
+      workspaces: [{ id: 'personal-1', type: 'personal', status: 'active' }],
+      memberships: [{ workspaceId: 'personal-1', workspaceRoles: ['owner'], status: 'active' }],
+    };
+
+    expect(await TestBed.runInInjectionContext(() => personalWorkspaceGuard({} as never, {} as never))).toBeTrue();
+    const router = TestBed.inject(Router);
+    for (const roles of [['admin'], ['super_admin']] as const) {
+      const denied = await TestBed.runInInjectionContext(() => roleGuard(roles)({} as never, {} as never));
+      expect(router.serializeUrl(denied as ReturnType<Router['createUrlTree']>)).toBe('/unauthorized');
+    }
   });
 });
