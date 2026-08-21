@@ -145,7 +145,6 @@ import { navigationFor as policyNavigationFor } from '../navigation/navigation-p
             <a
               [routerLink]="item.path"
               routerLinkActive="active"
-              [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
               #active="routerLinkActive"
               [attr.aria-current]="active.isActive ? 'page' : null"
               (click)="closeDrawer(false)"
