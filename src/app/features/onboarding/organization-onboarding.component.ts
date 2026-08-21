@@ -4,8 +4,13 @@ import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { ApiError } from '../../core/http/api-error';
+import { SessionUser } from '../../core/models/domain.models';
 import { GfAlert, GfPageHeader } from '../../shared/components/design-system';
-import { OrganizationOnboardingApiService } from './organization-onboarding-api.service';
+import {
+  BootstrapContractError,
+  BootstrapOrganizationResponse,
+  OrganizationOnboardingApiService,
+} from './organization-onboarding-api.service';
 import { PostAuthRouteCoordinator } from '../../core/auth/post-auth-route.service';
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -32,6 +37,10 @@ const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
           <p>{{ errorMessage(failure) }}</p>
           @if (failure.requestId) {
             <p>Support reference: {{ failure.requestId }}</p>
+          }
+          @if (bootstrapCommitted()) {
+            <button type="button" [disabled]="saving()" (click)="continueSetup()">Continue setup</button>
+            <button type="button" [disabled]="saving()" (click)="signOut()">Sign out</button>
           }
         </gf-alert>
       }
@@ -178,7 +187,9 @@ export class OrganizationOnboardingComponent {
     'UTC',
   ];
   readonly inconsistent = signal(this.auth.user()?.onboardingStatus === 'complete');
+  readonly bootstrapCommitted = signal(false);
   private retrySubmission?: { readonly fingerprint: string; readonly key: string; tokenRefreshAttempted: boolean };
+  private committedBootstrap?: BootstrapOrganizationResponse;
   readonly form = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
     slug: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(63), Validators.pattern(SLUG)]],
@@ -196,6 +207,22 @@ export class OrganizationOnboardingComponent {
   async reload(): Promise<void> {
     await this.auth.refreshSession();
   }
+  async signOut(): Promise<void> {
+    await this.auth.logout();
+    await this.router.navigateByUrl('/login', { replaceUrl: true });
+  }
+  async continueSetup(): Promise<void> {
+    if (!this.committedBootstrap || this.saving()) return;
+    this.saving.set(true);
+    this.error.set(null);
+    try {
+      await this.completeCommittedBootstrap(this.committedBootstrap, true);
+    } catch (error) {
+      this.setFailure(error, 'session_refresh_failed');
+    } finally {
+      this.saving.set(false);
+    }
+  }
   async submit(): Promise<void> {
     this.form.markAllAsTouched();
     if (this.form.invalid || this.saving()) return;
@@ -210,41 +237,74 @@ export class OrganizationOnboardingComponent {
         : { fingerprint, key: createIdempotencyKey(), tokenRefreshAttempted: false };
     this.retrySubmission = submission;
     try {
+      if (this.committedBootstrap) {
+        await this.completeCommittedBootstrap(this.committedBootstrap, true);
+        return;
+      }
       const result = await firstValueFrom(this.api.bootstrap(command, submission.key));
-      const forceTokenRefresh = result.tokenRefreshRequired && !submission.tokenRefreshAttempted;
-      // A replay of this logical submission can return the cached bootstrap response.
-      // Remember that its refresh instruction was already honored so an exact retry
-      // reloads the backend session without repeatedly force-refreshing Firebase.
-      if (forceTokenRefresh) submission.tokenRefreshAttempted = true;
-      const session = await this.auth.refreshSession(forceTokenRefresh);
-      const membership = session?.memberships.find(
-        (m) => m.status === 'active' && m.organizationId === result.organizationId,
-      );
-      const workspaces = session?.workspaces ?? [];
-      const hasWorkspace = workspaces.some(
-        (workspace) => workspace.type === 'organization' && workspace.id === result.organizationId,
-      );
-      if (
-        session?.onboardingStatus !== 'complete' ||
-        !membership ||
-        !hasWorkspace ||
-        session.activeWorkspaceId !== result.organizationId
-      )
-        throw new Error('The server did not confirm the organization workspace, membership, and active workspace.');
-      const destination = this.coordinator.decision(session);
-      if (destination.reason !== 'dashboard' || !destination.path.startsWith('/admin/'))
-        throw new Error('The server did not grant access to an organization administration dashboard.');
-      this.retrySubmission = undefined;
-      await this.router.navigateByUrl(destination.path, { replaceUrl: true });
+      this.committedBootstrap = result;
+      this.bootstrapCommitted.set(true);
+      await this.completeCommittedBootstrap(result, false, submission);
     } catch (error) {
-      this.error.set(
-        error instanceof ApiError
-          ? error
-          : new ApiError(-1, 'unexpected_error', error instanceof Error ? error.message : 'Organization setup failed.'),
-      );
+      this.setFailure(error, this.bootstrapCommitted() ? 'session_refresh_failed' : 'bootstrap_request_failed');
     } finally {
       this.saving.set(false);
     }
+  }
+
+  private async completeCommittedBootstrap(
+    result: BootstrapOrganizationResponse,
+    recovery: boolean,
+    submission = this.retrySubmission,
+  ): Promise<void> {
+    const forceTokenRefresh = (result.tokenRefreshRequired || recovery) && !submission?.tokenRefreshAttempted;
+    // A replay of this logical submission can return the cached bootstrap response.
+    // Remember that its refresh instruction was already honored so an exact retry
+    // reloads the backend session without repeatedly force-refreshing Firebase.
+    if (forceTokenRefresh && submission) submission.tokenRefreshAttempted = true;
+    const session = await this.auth.refreshSession(forceTokenRefresh);
+    console.info('Organization onboarding session refreshed', {
+      sessionPresent: Boolean(session),
+      onboardingStatus: session?.onboardingStatus,
+      workspaceCount: session?.workspaces?.length ?? 0,
+      activeMembershipCount: session?.memberships.filter((membership) => membership.status === 'active').length ?? 0,
+      activeWorkspaceIdPresent: Boolean(session?.activeWorkspaceId),
+    });
+    const membership = session?.memberships.find(
+      (m) => m.status === 'active' && m.organizationId === result.workspace.id,
+    );
+    const workspaces = session?.workspaces ?? [];
+    const hasWorkspace = workspaces.some(
+      (workspace) => workspace.type === 'organization' && workspace.id === result.workspace.id,
+    );
+    if (
+      session?.onboardingStatus !== 'complete' ||
+      !membership ||
+      !hasWorkspace ||
+      session.activeWorkspaceId !== result.workspace.id
+    )
+      throw new Error(sessionPostconditionFailure(session, result.workspace.id));
+    const destination = this.coordinator.decision(session);
+    if (destination.reason !== 'dashboard') throw new Error('The refreshed session did not resolve to a dashboard.');
+    this.retrySubmission = undefined;
+    this.committedBootstrap = undefined;
+    this.bootstrapCommitted.set(false);
+    await this.router.navigateByUrl(destination.path, { replaceUrl: true });
+  }
+
+  private setFailure(error: unknown, stage: string): void {
+    if (error instanceof BootstrapContractError) {
+      console.error('Organization bootstrap contract invalid', { stage, ...error.diagnostics });
+    }
+    const message =
+      this.bootstrapCommitted() &&
+      !(error instanceof BootstrapContractError) &&
+      !(error instanceof Error && error.message.startsWith('Session returned incomplete committed state:'))
+        ? 'Your organization was created, but we could not finish signing you in.'
+        : error instanceof Error
+          ? error.message
+          : 'Organization setup failed.';
+    this.error.set(error instanceof ApiError ? error : new ApiError(-1, 'unexpected_error', message));
   }
   errorMessage(error: ApiError): string {
     if (error.code === 'business_conflict')
@@ -285,4 +345,18 @@ function ianaTimezone(control: { value: string }): { timezone: true } | null {
   } catch {
     return { timezone: true };
   }
+}
+
+function sessionPostconditionFailure(session: SessionUser | null, workspaceId: string): string {
+  if (!session) return 'Session refresh failed: no session was returned.';
+  if (session.onboardingStatus !== 'complete') return 'Session returned incomplete committed state: onboardingStatus.';
+  if (!session.workspaces?.some((workspace) => workspace.id === workspaceId && workspace.type === 'organization'))
+    return 'Session returned incomplete committed state: workspace missing.';
+  if (
+    !session.memberships.some(
+      (membership) => membership.status === 'active' && membership.organizationId === workspaceId,
+    )
+  )
+    return 'Session returned incomplete committed state: membership missing.';
+  return 'Session returned incomplete committed state: activeWorkspaceId missing or mismatched.';
 }

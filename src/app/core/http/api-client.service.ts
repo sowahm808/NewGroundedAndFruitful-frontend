@@ -1,4 +1,11 @@
-import { HttpClient, HttpContext, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
+import {
+  HttpClient,
+  HttpContext,
+  HttpErrorResponse,
+  HttpHeaders,
+  HttpParams,
+  HttpResponse,
+} from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, map, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
@@ -46,6 +53,14 @@ export class ApiClient {
     return this.request('POST', path, body, options);
   }
 
+  postResponse<T>(path: string, body: unknown, options: ApiRequestOptions = {}): Observable<HttpResponse<T>> {
+    const url = `${this.baseUrl}/${path.replace(/^\/+/, '')}`;
+    const context = options.anonymous ? new HttpContext().set(ANONYMOUS_API_REQUEST, true) : new HttpContext();
+    return this.http
+      .post<T>(url, body, { params: options.params, headers: options.headers, context, observe: 'response' })
+      .pipe(catchError((error: unknown) => throwError(() => this.toApiError(error))));
+  }
+
   put<T>(path: string, body: unknown, options: ApiRequestOptions = {}): Observable<T> {
     return this.request('PUT', path, body, options);
   }
@@ -82,9 +97,10 @@ export class ApiClient {
       429: ['rate_limit', 'Too many requests. Please wait and try again.'],
       500: ['dependency_failure', 'A backend dependency could not complete the request.'],
     };
-    const [code, fallback] = error.status >= 500
-      ? (['dependency_failure', 'A backend dependency could not complete the request.'] as const)
-      : (errors[error.status] ?? ['unexpected_error', 'The request could not be completed.']);
+    const [code, fallback] =
+      error.status >= 500
+        ? (['dependency_failure', 'A backend dependency could not complete the request.'] as const)
+        : (errors[error.status] ?? ['unexpected_error', 'The request could not be completed.']);
     const payload = error.error as { code?: unknown; message?: unknown; details?: unknown; requestId?: unknown } | null;
     const message = typeof payload?.message === 'string' ? payload.message : fallback;
     const retryAfterSeconds = parseRetryAfter(error.headers.get('Retry-After'));
