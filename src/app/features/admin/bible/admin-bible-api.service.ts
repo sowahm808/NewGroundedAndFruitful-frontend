@@ -46,6 +46,13 @@ export interface BibleImportCreated {
   readonly id: string;
   readonly status: BibleContentStatus;
 }
+export interface CreateBibleContentImportInput {
+  readonly organizationId: string;
+  readonly quarterId: string;
+  readonly title: string;
+  readonly quizFile: File;
+  readonly answerKeyFile: File;
+}
 export interface BibleImportReview {
   readonly id: string;
   readonly contentTitle: string;
@@ -76,12 +83,13 @@ export class AdminBibleApiService {
     });
   }
 
-  createImport(title: string, quarterId: string, questionDocument: File, answerKeyDocument: File) {
+  createBibleContentImport(input: CreateBibleContentImportInput): Observable<BibleImportCreated> {
     const body = new FormData();
-    body.set('title', title);
-    body.set('quarterId', quarterId);
-    body.set('questionDocument', questionDocument);
-    body.set('answerKeyDocument', answerKeyDocument);
+    body.append('organizationId', input.organizationId);
+    body.append('quarterId', input.quarterId);
+    body.append('title', input.title.trim());
+    body.append('quizFile', input.quizFile, input.quizFile.name);
+    body.append('answerKeyFile', input.answerKeyFile, input.answerKeyFile.name);
     return this.api.postData<BibleImportCreated>('/admin/bible-content/imports', body);
   }
 

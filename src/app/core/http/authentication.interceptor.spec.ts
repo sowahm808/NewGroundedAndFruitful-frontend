@@ -29,6 +29,31 @@ describe('authenticationInterceptor', () => {
     expect(request.headers.get('Authorization')).toBe('Bearer firebase-token');
   });
 
+  it('adds authorization without transforming FormData or setting its boundary', async () => {
+    const body = new FormData();
+    body.append('title', 'Quiz');
+    let forwarded!: HttpRequest<unknown>;
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: FIREBASE_AUTH, useValue: { currentUser: { getIdToken: () => Promise.resolve('token') } } },
+      ],
+    });
+    await TestBed.runInInjectionContext(() =>
+      firstValueFrom(
+        authenticationInterceptor(
+          new HttpRequest('POST', `${environment.apiUrl}/admin/bible-content/imports`, body),
+          (request) => {
+            forwarded = request;
+            return of(new HttpResponse());
+          },
+        ),
+      ),
+    );
+    expect(forwarded.body).toBe(body);
+    expect(forwarded.headers.get('Authorization')).toBe('Bearer token');
+    expect(forwarded.headers.has('Content-Type')).toBeFalse();
+  });
+
   it('does not acquire or attach a token for an unrelated origin', async () => {
     const getIdToken = jasmine.createSpy().and.resolveTo('firebase-token');
     const request = await intercept({ currentUser: { getIdToken } } as unknown as Auth, 'https://example.invalid/data');
