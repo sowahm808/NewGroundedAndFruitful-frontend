@@ -63,13 +63,13 @@ describe('OrganizationOnboardingComponent bootstrap orchestration', () => {
   });
 
   it('prevents duplicate submission and follows refresh-required before navigating to the verified admin dashboard', async () => {
-    const response = new Subject<{ organizationId: string; tokenRefreshRequired: boolean }>();
+    const response = new Subject<ReturnType<typeof bootstrapResult>>();
     bootstrap.and.returnValue(response);
 
     const first = component.submit();
     const duplicate = component.submit();
     expect(bootstrap).toHaveBeenCalledTimes(1);
-    response.next({ organizationId: 'org-1', tokenRefreshRequired: true });
+    response.next(bootstrapResult(true));
     response.complete();
     await Promise.all([first, duplicate]);
 
@@ -82,7 +82,7 @@ describe('OrganizationOnboardingComponent bootstrap orchestration', () => {
     bootstrap.and.returnValues(
       throwError(() => new ApiError(0, 'network_error', 'offline')),
       throwError(() => new ApiError(0, 'network_error', 'offline')),
-      of({ organizationId: 'org-1', tokenRefreshRequired: false }),
+      of(bootstrapResult(false)),
     );
 
     await component.submit();
@@ -95,17 +95,17 @@ describe('OrganizationOnboardingComponent bootstrap orchestration', () => {
   });
 
   it('requires all canonical session facts and does not infer or assign roles locally', async () => {
-    bootstrap.and.returnValue(of({ organizationId: 'org-1', tokenRefreshRequired: false }));
+    bootstrap.and.returnValue(of(bootstrapResult(false)));
     refreshSession.and.resolveTo({ ...verifiedSession, activeWorkspaceId: undefined });
 
     await component.submit();
 
     expect(navigateByUrl).not.toHaveBeenCalled();
-    expect(component.error()?.message).toContain('active workspace');
+    expect(component.error()?.message).toContain('activeWorkspaceId');
   });
 
   it('reloads the server session without forcing Firebase when the bootstrap response does not require it', async () => {
-    bootstrap.and.returnValue(of({ organizationId: 'org-1', tokenRefreshRequired: false }));
+    bootstrap.and.returnValue(of(bootstrapResult(false)));
 
     await component.submit();
 
@@ -119,18 +119,18 @@ describe('OrganizationOnboardingComponent bootstrap orchestration', () => {
     { label: 'matching active workspace', session: { ...verifiedSession, activeWorkspaceId: 'org-2' } },
   ].forEach(({ label, session }) => {
     it(`does not navigate until the refreshed session confirms the ${label}`, async () => {
-      bootstrap.and.returnValue(of({ organizationId: 'org-1', tokenRefreshRequired: false }));
+      bootstrap.and.returnValue(of(bootstrapResult(false)));
       refreshSession.and.resolveTo(session);
 
       await component.submit();
 
       expect(navigateByUrl).not.toHaveBeenCalled();
-      expect(component.error()?.message).toContain('server did not confirm');
+      expect(component.error()?.message).toContain('incomplete committed state');
     });
   });
 
   it('rejects a refreshed session whose canonical route is not an admin dashboard', async () => {
-    bootstrap.and.returnValue(of({ organizationId: 'org-1', tokenRefreshRequired: false }));
+    bootstrap.and.returnValue(of(bootstrapResult(false)));
     const coordinator = TestBed.inject(PostAuthRouteCoordinator) as unknown as { decision: jasmine.Spy };
     coordinator.decision = jasmine
       .createSpy('decision')
@@ -139,11 +139,11 @@ describe('OrganizationOnboardingComponent bootstrap orchestration', () => {
     await component.submit();
 
     expect(navigateByUrl).not.toHaveBeenCalled();
-    expect(component.error()?.message).toContain('administration dashboard');
+    expect(component.error()?.message).toContain('finish signing you in');
   });
 
-  it('force-refreshes Firebase at most once when an exact bootstrap retry replays refresh-required', async () => {
-    bootstrap.and.returnValue(of({ organizationId: 'org-1', tokenRefreshRequired: true }));
+  it('recovers a committed bootstrap without a duplicate create and force-refreshes Firebase at most once', async () => {
+    bootstrap.and.returnValue(of(bootstrapResult(true)));
     refreshSession.and.returnValues(
       Promise.resolve({ ...verifiedSession, memberships: [] }),
       Promise.resolve(verifiedSession),
@@ -152,8 +152,7 @@ describe('OrganizationOnboardingComponent bootstrap orchestration', () => {
     await component.submit();
     await component.submit();
 
-    expect(bootstrap).toHaveBeenCalledTimes(2);
-    expect(bootstrap.calls.argsFor(1)[1]).toBe(bootstrap.calls.argsFor(0)[1]);
+    expect(bootstrap).toHaveBeenCalledTimes(1);
     expect(refreshSession.calls.allArgs()).toEqual([[true], [false]]);
     expect(navigateByUrl).toHaveBeenCalledOnceWith('/admin/quarters', { replaceUrl: true });
   });
@@ -166,3 +165,12 @@ describe('OrganizationOnboardingComponent bootstrap orchestration', () => {
     expect(component.errorMessage(new ApiError(403, 'account_disabled', 'forbidden'))).toContain('disabled');
   });
 });
+
+function bootstrapResult(tokenRefreshRequired: boolean) {
+  return {
+    workspace: { id: 'org-1' as const, type: 'organization' as const },
+    membership: { organizationId: 'org-1', status: 'active' as const },
+    activeWorkspaceId: 'org-1',
+    tokenRefreshRequired,
+  };
+}
