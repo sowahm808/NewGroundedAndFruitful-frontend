@@ -13,6 +13,7 @@ export const authGuard: CanActivateFn = async (_route, state) => {
   if (auth.status() === 'anonymous')
     return router.createUrlTree(['/auth/login'], { queryParams: { returnUrl: safeAttemptedUrl(state.url) } });
   if (auth.status() === 'error') return router.createUrlTree(['/account/session-error']);
+  if (auth.status() === 'authentication-error') return router.createUrlTree(['/auth/login']);
   const user = auth.user();
   if (!user) return router.createUrlTree(['/account/session-error']);
   const decision = coordinator.decision(user);
@@ -27,6 +28,7 @@ export const guestGuard: CanActivateFn = async (_route, state) => {
   await auth.initialize();
   if (auth.status() === 'anonymous') return true;
   if (auth.status() === 'error') return router.createUrlTree(['/account/session-error']);
+  if (auth.status() === 'authentication-error') return true;
   const user = auth.user();
   return user
     ? (coordinator.resolvePostAuthenticationRoute(user, state.url) ?? true)
@@ -41,6 +43,7 @@ export const onboardingGuard: CanActivateFn = async (_route, state) => {
   await auth.initialize();
   if (auth.status() === 'anonymous') return router.createUrlTree(['/auth/login']);
   if (auth.status() === 'error') return router.createUrlTree(['/account/session-error']);
+  if (auth.status() === 'authentication-error') return router.createUrlTree(['/auth/login']);
   const user = auth.user();
   if (!user) return router.createUrlTree(['/account/session-error']);
   return coordinator.resolvePostAuthenticationRoute(user, state.url) ?? true;

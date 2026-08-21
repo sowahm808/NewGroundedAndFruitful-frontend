@@ -228,6 +228,47 @@ describe('AuthService backend session bootstrap', () => {
     expect(auth.status()).toBe('authenticated');
   });
 
+  it('accepts the successful role-required response without optional identity or synchronization metadata', async () => {
+    getSession.and.returnValue(
+      of({
+        roles: [],
+        platformRoles: [],
+        disabled: false,
+        onboardingStatus: 'role_required',
+        memberships: [],
+        workspaces: [],
+        effectiveRoles: [],
+        authorization: { source: 'none', migrationRequired: false },
+      }),
+    );
+
+    const session = await auth.retrySession();
+
+    expect(session?.roles).toEqual([]);
+    expect(session?.memberships).toEqual([]);
+    expect(session?.workspaces).toEqual([]);
+    expect(auth.status()).toBe('role-required');
+    expect(auth.user()).not.toBeNull();
+  });
+
+  it('classifies 401 separately from technical session-loading failures', async () => {
+    getSession.and.returnValue(throwError(() => new ApiError(401, 'authentication_required', 'expired')));
+    await expectAsync(auth.retrySession()).toBeRejectedWith(jasmine.objectContaining({ kind: 'authentication' }));
+    expect(auth.status()).toBe('authentication-error');
+
+    for (const status of [0, 500, 503]) {
+      getSession.and.returnValue(throwError(() => new ApiError(status, 'dependency_failure', 'unavailable')));
+      await expectAsync(auth.retrySession()).toBeRejected();
+      expect(auth.status()).toBe('error');
+    }
+  });
+
+  it('classifies malformed HTTP-success data as a technical session failure', async () => {
+    getSession.and.returnValue(of({ data: { onboardingStatus: 'role_required' } }));
+    await expectAsync(auth.retrySession()).toBeRejectedWith(jasmine.objectContaining({ kind: 'unexpected' }));
+    expect(auth.status()).toBe('error');
+  });
+
   it('treats organization-required and contradictory migration state as account setup', () => {
     const session = backendSession(false).data;
     auth.restore({ ...session, onboardingStatus: 'organization_required' });

@@ -32,6 +32,17 @@ describe('authentication guards', () => {
     );
   });
 
+  it('routes expired authentication to login and technical bootstrap failure to session-error', async () => {
+    const router = TestBed.inject(Router);
+    auth.state = 'authentication-error';
+    let result = await TestBed.runInInjectionContext(() => authGuard({} as never, { url: '/admin' } as never));
+    expect(router.serializeUrl(result as ReturnType<Router['createUrlTree']>)).toBe('/auth/login');
+
+    auth.state = 'error';
+    result = await TestBed.runInInjectionContext(() => authGuard({} as never, { url: '/admin' } as never));
+    expect(router.serializeUrl(result as ReturnType<Router['createUrlTree']>)).toBe('/account/session-error');
+  });
+
   it('does not evaluate roles while backend session initialization is pending', async () => {
     auth.state = 'loading-session';
     let finishInitialization: (() => void) | undefined;

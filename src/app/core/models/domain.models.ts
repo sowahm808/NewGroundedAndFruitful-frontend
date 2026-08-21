@@ -69,7 +69,8 @@ export interface ClaimSynchronization {
   readonly tokenRefreshRequired: boolean;
 }
 export interface SessionData extends SessionUser {
-  readonly claimSynchronization: ClaimSynchronization;
+  /** Optional while older session producers roll out claim synchronization metadata. */
+  readonly claimSynchronization?: ClaimSynchronization;
 }
 export interface ApiResponse<T> {
   readonly data: T;

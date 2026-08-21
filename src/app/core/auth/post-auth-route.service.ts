@@ -12,7 +12,7 @@ export type PostAuthReason =
   | 'workspace-recovery'
   | 'dashboard'
   | 'role-required'
-  | 'invalid-onboarding-state';
+  | 'account-state-recovery';
 
 export interface PostAuthDecision {
   /** Canonical destination; `path` is retained for existing Angular callers. */
@@ -20,7 +20,7 @@ export interface PostAuthDecision {
   readonly path: string;
   readonly reason: PostAuthReason;
   readonly workspaceType?: WorkspaceType;
-  readonly recoveryAction?: 'select-workspace' | 'restore-workspace' | 'retry-session';
+  readonly recoveryAction?: 'select-workspace' | 'restore-workspace' | 'contact-support';
 }
 
 const organizationRoles: readonly UserRole[] = ['child', 'parent', 'mentor', 'observer', 'admin'];
@@ -52,11 +52,11 @@ function decidePostAuthDestination(session: SessionUser | null | undefined): Int
     session.onboardingStatus === 'migration_required'
   )
     return { path: '/onboarding/organization', reason: 'organization-setup', workspaceType: 'organization' };
-  if (session.onboardingStatus !== 'complete') {
-    if (session.onboardingStatus === 'pending_approval')
-      return { path: '/account/pending', reason: 'workspace-recovery', recoveryAction: 'restore-workspace' };
-    return { path: '/account/session-error', reason: 'invalid-onboarding-state', recoveryAction: 'retry-session' };
-  }
+  if (session.onboardingStatus === 'role_required') return resolveRoleRequiredDestination(session);
+  if (session.onboardingStatus === 'pending_approval')
+    return { path: '/account/pending', reason: 'workspace-recovery', recoveryAction: 'restore-workspace' };
+  if (session.onboardingStatus !== 'complete')
+    return { path: '/account/role-required', reason: 'account-state-recovery', recoveryAction: 'contact-support' };
 
   // Platform administration is independent of a workspace and must remain an explicit backend authority.
   if (session.platformRoles?.includes('super_admin')) return { path: '/admin/users', reason: 'dashboard' };
@@ -104,6 +104,17 @@ function decidePostAuthDestination(session: SessionUser | null | undefined): Int
   return dashboard
     ? { path: dashboard, reason: 'dashboard', workspaceType: 'organization' }
     : { path: '/account/role-required', reason: 'role-required', workspaceType: 'organization' };
+}
+
+/** Resolves an incomplete account exclusively from backend-provided intent and membership state. */
+function resolveRoleRequiredDestination(session: SessionUser): InternalPostAuthDecision {
+  if (session.memberships.some((membership) => membership.status === 'pending'))
+    return { path: '/account/pending', reason: 'workspace-recovery', recoveryAction: 'restore-workspace' };
+  if (session.registrationIntent === 'personal')
+    return { path: '/onboarding/personal', reason: 'personal-setup', workspaceType: 'personal' };
+  if (session.registrationIntent === 'organization')
+    return { path: '/onboarding/organization', reason: 'organization-setup', workspaceType: 'organization' };
+  return { path: '/account/role-required', reason: 'role-required', recoveryAction: 'contact-support' };
 }
 
 function membershipReferencesWorkspace(membership: SessionMembership, workspaceId: string): boolean {

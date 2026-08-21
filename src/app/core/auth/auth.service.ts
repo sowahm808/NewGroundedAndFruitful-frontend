@@ -34,6 +34,7 @@ export type AuthStatus =
   | 'role-required'
   | 'pending-approval'
   | 'disabled'
+  | 'authentication-error'
   | 'error';
 
 export class SessionBootstrapError extends Error {
@@ -263,30 +264,33 @@ export class AuthService {
         return session;
       })
       .catch((error: unknown) => {
+        const failure = classifySessionError(error);
         if (attempt === this.bootstrapAttempt) {
           this.current.set(null);
-          this.currentStatus.set('error');
+          this.currentStatus.set(failure.kind === 'authentication' ? 'authentication-error' : 'error');
           this.currentError.set(
             'Your account was verified, but its application session could not be loaded. Try again.',
           );
           this.bootstrap = undefined;
         }
-        throw classifySessionError(error);
+        throw failure;
       });
     this.bootstrap = { uid: firebaseUser.uid, promise };
     return promise;
   }
 
   private async loadSession(): Promise<SessionUser> {
-    const response = await firstValueFrom(this.api.get<ApiResponse<SessionData>>('/auth/session'));
-    let session = response.data;
+    const response = await firstValueFrom(this.api.get<ApiResponse<SessionData> | SessionData>('/auth/session'));
+    let session = sessionBody(response);
 
-    if (session.claimSynchronization.tokenRefreshRequired && !this.synchronizationRefreshAttempted) {
+    if (session.claimSynchronization?.tokenRefreshRequired && !this.synchronizationRefreshAttempted) {
       this.synchronizationRefreshAttempted = true;
       await this.firebaseAuth.currentUser?.getIdToken(true);
-      const refreshedResponse = await firstValueFrom(this.api.get<ApiResponse<SessionData>>('/auth/session'));
-      session = refreshedResponse.data;
-      if (session.claimSynchronization.tokenRefreshRequired) {
+      const refreshedResponse = await firstValueFrom(
+        this.api.get<ApiResponse<SessionData> | SessionData>('/auth/session'),
+      );
+      session = sessionBody(refreshedResponse);
+      if (session.claimSynchronization?.tokenRefreshRequired) {
         this.synchronizationWarning.set(
           'Firebase claims remain pending synchronization; backend session roles are in use.',
         );
@@ -294,14 +298,14 @@ export class AuthService {
         // A later refresh-required response represents a new synchronization event.
         this.synchronizationRefreshAttempted = false;
       }
-    } else if (!session.claimSynchronization.tokenRefreshRequired) {
+    } else if (!session.claimSynchronization?.tokenRefreshRequired) {
       this.synchronizationRefreshAttempted = false;
     }
 
     return {
-      uid: session.uid,
+      uid: session.uid ?? this.firebaseAuth.currentUser?.uid ?? '',
       email: session.email,
-      displayName: session.displayName,
+      displayName: session.displayName ?? this.firebaseAuth.currentUser?.displayName ?? '',
       // Effective roles are calculated by the server. Never rebuild them from a selected membership.
       roles: normalizeRoles(session.effectiveRoles ?? session.roles),
       // Platform roles remain a separate authority dimension and are never inferred from memberships.
@@ -360,7 +364,22 @@ export class AuthService {
   }
 }
 
+function sessionBody(response: ApiResponse<SessionData> | SessionData): SessionData {
+  const candidate = 'data' in response ? response.data : response;
+  if (
+    !candidate ||
+    typeof candidate !== 'object' ||
+    !Array.isArray(candidate.roles) ||
+    !Array.isArray(candidate.memberships) ||
+    typeof candidate.disabled !== 'boolean' ||
+    typeof candidate.onboardingStatus !== 'string'
+  )
+    throw new SessionBootstrapError('unexpected');
+  return candidate;
+}
+
 function classifySessionError(error: unknown): SessionBootstrapError {
+  if (error instanceof SessionBootstrapError) return error;
   if (!(error instanceof ApiError)) return new SessionBootstrapError('unexpected');
   if (error.status === 0) return new SessionBootstrapError('network', error.requestId);
   if (error.status === 401) return new SessionBootstrapError('authentication', error.requestId);
