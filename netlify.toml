@@ -14,6 +14,9 @@
 [[headers]]
   for = "/*"
   [headers.values]
+    # Firebase's documented popup flow retains an opener. The application does not use
+    # COEP, SharedArrayBuffer, or crossOriginIsolated, so this is the narrow compatible policy.
+    Cross-Origin-Opener-Policy = "same-origin-allow-popups"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"

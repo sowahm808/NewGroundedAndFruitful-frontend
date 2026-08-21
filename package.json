@@ -7,11 +7,12 @@
   },
   "scripts": {
     "start": "ng serve",
-    "build": "ng build",
+    "build": "ng build && node scripts/inject-build-info.mjs",
     "lint": "ng lint",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "test": "ng test --watch=false",
     "test:contract": "node scripts/verify-backend-openapi.mjs",
+    "test:headers": "node scripts/verify-netlify-headers.mjs",
     "e2e": "playwright test",
     "emulators": "firebase emulators:start"
   },
