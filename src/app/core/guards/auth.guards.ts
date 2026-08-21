@@ -8,13 +8,13 @@ import { ActiveOrganizationService } from '../organizations/active-organization.
 export const authGuard: CanActivateFn = async (_route, state) => {
   const auth = inject(AuthService);
   const router = inject(Router);
+  const coordinator = inject(PostAuthRouteCoordinator);
   await auth.initialize();
   if (auth.status() === 'anonymous')
     return router.createUrlTree(['/auth/login'], { queryParams: { returnUrl: safeAttemptedUrl(state.url) } });
   if (auth.status() === 'error') return router.createUrlTree(['/account/session-error']);
   const user = auth.user();
   if (!user) return router.createUrlTree(['/account/session-error']);
-  const coordinator = inject(PostAuthRouteCoordinator);
   const decision = coordinator.decision(user);
   if (decision.reason === 'dashboard') return true;
   return coordinator.resolvePostAuthenticationRoute(user, state.url) ?? true;
@@ -22,13 +22,14 @@ export const authGuard: CanActivateFn = async (_route, state) => {
 
 export const guestGuard: CanActivateFn = async (_route, state) => {
   const auth = inject(AuthService);
+  const router = inject(Router);
+  const coordinator = inject(PostAuthRouteCoordinator);
   await auth.initialize();
   if (auth.status() === 'anonymous') return true;
-  const router = inject(Router);
   if (auth.status() === 'error') return router.createUrlTree(['/account/session-error']);
   const user = auth.user();
   return user
-    ? (inject(PostAuthRouteCoordinator).resolvePostAuthenticationRoute(user, state.url) ?? true)
+    ? (coordinator.resolvePostAuthenticationRoute(user, state.url) ?? true)
     : router.createUrlTree(['/account/session-error']);
 };
 
@@ -36,12 +37,13 @@ export const guestGuard: CanActivateFn = async (_route, state) => {
 export const onboardingGuard: CanActivateFn = async (_route, state) => {
   const auth = inject(AuthService);
   const router = inject(Router);
+  const coordinator = inject(PostAuthRouteCoordinator);
   await auth.initialize();
   if (auth.status() === 'anonymous') return router.createUrlTree(['/auth/login']);
   if (auth.status() === 'error') return router.createUrlTree(['/account/session-error']);
   const user = auth.user();
   if (!user) return router.createUrlTree(['/account/session-error']);
-  return inject(PostAuthRouteCoordinator).resolvePostAuthenticationRoute(user, state.url) ?? true;
+  return coordinator.resolvePostAuthenticationRoute(user, state.url) ?? true;
 };
 
 export const organizationSetupGuard = onboardingGuard;
@@ -51,10 +53,11 @@ export const roleGuard =
   async () => {
     const auth = inject(AuthService);
     const router = inject(Router);
+    const coordinator = inject(PostAuthRouteCoordinator);
     await auth.initialize();
     const user = auth.user();
     if (!user) return router.createUrlTree(['/auth/login']);
-    const onboarding = inject(PostAuthRouteCoordinator).decision(user);
+    const onboarding = coordinator.decision(user);
     if (onboarding.reason !== 'dashboard' && onboarding.reason !== 'role-required')
       return router.parseUrl(onboarding.path);
     return (

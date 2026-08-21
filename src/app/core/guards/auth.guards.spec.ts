@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { AuthStatus, AuthService } from '../auth/auth.service';
 import { SessionUser } from '../models/domain.models';
-import { authGuard, roleGuard } from './auth.guards';
+import { authGuard, guestGuard, onboardingGuard, roleGuard } from './auth.guards';
 
 class AuthStub {
   state: AuthStatus = 'anonymous';
@@ -56,6 +56,34 @@ describe('authentication guards', () => {
     };
     finishInitialization?.();
     expect(await result).toBeTrue();
+  });
+
+  it('captures every guard dependency before asynchronous initialization completes', async () => {
+    auth.state = 'authenticated';
+    auth.session = {
+      uid: '1',
+      displayName: 'Organization owner',
+      roles: [],
+      disabled: false,
+      onboardingStatus: 'organization_setup_required',
+      nextStep: 'organization_setup',
+      memberships: [],
+    };
+    auth.initialize = () => new Promise<void>((resolve) => setTimeout(resolve));
+
+    const guardedRoutes = TestBed.runInInjectionContext(() => [
+      authGuard({} as never, { url: '/parent' } as never),
+      guestGuard({} as never, { url: '/auth/login' } as never),
+      onboardingGuard({} as never, { url: '/onboarding/organization' } as never),
+      roleGuard(['parent'])({} as never, {} as never),
+    ]);
+    const results = await Promise.all(guardedRoutes);
+
+    const router = TestBed.inject(Router);
+    expect(router.serializeUrl(results[0] as ReturnType<Router['createUrlTree']>)).toBe('/onboarding/organization');
+    expect(router.serializeUrl(results[1] as ReturnType<Router['createUrlTree']>)).toBe('/onboarding/organization');
+    expect(results[2]).toBeTrue();
+    expect(router.serializeUrl(results[3] as ReturnType<Router['createUrlTree']>)).toBe('/onboarding/organization');
   });
 
   it('redirects a role-less account separately and a wrong role to unauthorized', async () => {
