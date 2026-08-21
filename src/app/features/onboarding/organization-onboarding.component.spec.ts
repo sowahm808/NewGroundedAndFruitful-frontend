@@ -104,6 +104,22 @@ describe('OrganizationOnboardingComponent bootstrap orchestration', () => {
     expect(component.error()?.message).toContain('active workspace');
   });
 
+  it('force-refreshes Firebase at most once when an exact bootstrap retry replays refresh-required', async () => {
+    bootstrap.and.returnValue(of({ organizationId: 'org-1', tokenRefreshRequired: true }));
+    refreshSession.and.returnValues(
+      Promise.resolve({ ...verifiedSession, memberships: [] }),
+      Promise.resolve(verifiedSession),
+    );
+
+    await component.submit();
+    await component.submit();
+
+    expect(bootstrap).toHaveBeenCalledTimes(2);
+    expect(bootstrap.calls.argsFor(1)[1]).toBe(bootstrap.calls.argsFor(0)[1]);
+    expect(refreshSession.calls.allArgs()).toEqual([[true], [false]]);
+    expect(navigateByUrl).toHaveBeenCalledOnceWith('/admin/quarters', { replaceUrl: true });
+  });
+
   it('maps stable error codes without treating every forbidden response as ineligible', () => {
     expect(component.errorMessage(new ApiError(403, 'role_required', 'forbidden'))).toContain('not eligible');
     expect(component.errorMessage(new ApiError(403, 'relationship_forbidden', 'Policy denied'))).toBe('Policy denied');
