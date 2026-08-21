@@ -20,9 +20,12 @@ export interface SessionUser {
   readonly email?: string;
   readonly displayName: string;
   readonly roles: readonly UserRole[];
+  /** Platform-scoped roles are reported independently from organization memberships. */
+  readonly platformRoles?: readonly UserRole[];
   readonly disabled: boolean;
   readonly onboardingStatus: OnboardingStatus;
   readonly memberships: readonly SessionMembership[];
+  readonly activeOrganizationId?: string;
   readonly authorization?: { readonly source: string; readonly migrationRequired: boolean };
 }
 export interface ClaimSynchronization {

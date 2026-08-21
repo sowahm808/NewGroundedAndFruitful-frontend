@@ -1,6 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { AuthService } from '../auth/auth.service';
-import { SessionMembership } from '../models/domain.models';
+import { SessionMembership, UserRole } from '../models/domain.models';
 
 const STORAGE_KEY = 'gf.activeOrganizationId';
 
@@ -8,15 +8,22 @@ const STORAGE_KEY = 'gf.activeOrganizationId';
 @Injectable({ providedIn: 'root' })
 export class ActiveOrganizationService {
   private readonly auth = inject(AuthService);
-  private readonly selectedId = signal(readStoredId());
+  private readonly selectedId = signal<string | null>(null);
   readonly memberships = computed(() => this.auth.user()?.memberships.filter((m) => m.status === 'active') ?? []);
   readonly activeMembership = computed<SessionMembership | null>(() => {
     const memberships = this.memberships();
+    const selected = this.selectedId() ?? readStoredId() ?? this.auth.user()?.activeOrganizationId;
+    if (selected) return memberships.find((membership) => membership.organizationId === selected) ?? null;
     if (memberships.length === 1 && memberships[0].organizationId) return memberships[0];
-    return memberships.find((membership) => membership.organizationId === this.selectedId()) ?? null;
+    return null;
   });
   readonly organizationId = computed(() => this.activeMembership()?.organizationId ?? null);
   readonly requiresSelection = computed(() => this.memberships().length > 1 && !this.activeMembership());
+  readonly roles = computed(() => this.activeMembership()?.roles ?? []);
+
+  hasRole(role: UserRole): boolean {
+    return this.auth.roles().includes(role) && this.roles().includes(role);
+  }
 
   constructor() {
     effect(() => {

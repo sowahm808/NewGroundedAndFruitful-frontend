@@ -24,6 +24,7 @@ export interface NavigationItem {
   readonly path: string;
   readonly exact?: boolean;
   readonly requiredRoles: readonly UserRole[];
+  readonly authority?: 'platform' | 'organization';
 }
 
 const NAVIGATION: readonly NavigationItem[] = [
@@ -46,10 +47,10 @@ const NAVIGATION: readonly NavigationItem[] = [
   { label: 'Reading', path: '/mentor/reading', requiredRoles: ['mentor'] },
   { label: 'Encouragement', path: '/mentor/encouragement', requiredRoles: ['mentor'] },
   { label: 'Observations', path: '/observer/observations', requiredRoles: ['observer'] },
-  { label: 'Users', path: '/admin/users', requiredRoles: ['admin', 'super_admin'] },
-  { label: 'Organizations', path: '/admin/organizations', requiredRoles: ['admin', 'super_admin'] },
-  { label: 'Memberships', path: '/admin/memberships', requiredRoles: ['admin', 'super_admin'] },
-  { label: 'Roles', path: '/admin/roles', requiredRoles: ['admin', 'super_admin'] },
+  { label: 'Users', path: '/admin/users', requiredRoles: ['super_admin'], authority: 'platform' },
+  { label: 'Organizations', path: '/admin/organizations', requiredRoles: ['super_admin'], authority: 'platform' },
+  { label: 'Memberships', path: '/admin/memberships', requiredRoles: ['super_admin'], authority: 'platform' },
+  { label: 'Roles', path: '/admin/roles', requiredRoles: ['super_admin'], authority: 'platform' },
   { label: 'Participants', path: '/admin/participants', requiredRoles: ['admin', 'super_admin'] },
   { label: 'Teams', path: '/admin/teams', requiredRoles: ['admin', 'super_admin'] },
   { label: 'Assignments', path: '/admin/assignments', requiredRoles: ['admin', 'super_admin'] },
@@ -63,8 +64,13 @@ const NAVIGATION: readonly NavigationItem[] = [
   { label: 'Point rules', path: '/admin/points', requiredRoles: ['admin', 'super_admin'] },
   { label: 'Reports', path: '/admin/reports', requiredRoles: ['admin', 'super_admin'] },
   { label: 'Awards', path: '/admin/awards', requiredRoles: ['admin', 'super_admin'] },
-  { label: 'Audit', path: '/admin/audit', requiredRoles: ['admin', 'super_admin'] },
+  { label: 'Audit', path: '/admin/audit', requiredRoles: ['super_admin'], authority: 'platform' },
 ];
+
+for (const item of NAVIGATION) {
+  if (item.path.startsWith('/admin/') && !item.authority)
+    (item as { authority: 'organization' }).authority = 'organization';
+}
 
 @Component({
   selector: 'gf-app-shell',
@@ -541,9 +547,7 @@ export class AppShellComponent {
   readonly utilityOpen = signal(false);
   readonly loggingOut = signal(false);
   readonly logoutError = signal<string | null>(null);
-  readonly links = computed(() =>
-    NAVIGATION.filter((item) => item.requiredRoles.some((role) => this.auth.roles().includes(role))),
-  );
+  readonly links = computed(() => navigationFor(this.auth.roles(), this.organizations.roles()));
   readonly initials = computed(() => initialsFor(this.auth.user()?.displayName ?? ''));
   readonly roleLabel = computed(() => this.auth.roles().map(formatRole).join(', '));
   readonly homePath = computed(() => this.links()[0]?.path ?? '/account/profile');
@@ -661,6 +665,16 @@ export class AppShellComponent {
   private setPageScrollLocked(locked: boolean): void {
     this.document.body.classList.toggle('drawer-scroll-lock', locked);
   }
+}
+
+export function navigationFor(
+  effectiveRoles: readonly UserRole[],
+  activeOrganizationRoles: readonly UserRole[],
+): readonly NavigationItem[] {
+  return NAVIGATION.filter((item) => {
+    if (!item.requiredRoles.some((role) => effectiveRoles.includes(role))) return false;
+    return item.authority !== 'organization' || activeOrganizationRoles.includes('admin');
+  });
 }
 
 export function initialsFor(name: string): string {

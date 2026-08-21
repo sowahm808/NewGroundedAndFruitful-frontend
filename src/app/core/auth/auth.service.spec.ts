@@ -29,7 +29,7 @@ describe('backend role boundary', () => {
     expect(roleDestination(['parent'])).toBe('/parent/children');
     expect(roleDestination(['mentor'])).toBe('/mentor/teams');
     expect(roleDestination(['observer'])).toBe('/observer/observations');
-    expect(roleDestination(['admin'])).toBe('/admin/users');
+    expect(roleDestination(['admin'])).toBe('/admin/quarters');
     expect(roleDestination(['super_admin'])).toBe('/admin/users');
     expect(roleDestination(['child', 'parent', 'mentor'])).toBe('/mentor/teams');
     expect(roleDestination([])).toBeNull();
@@ -46,6 +46,7 @@ describe('AuthService backend session bootstrap', () => {
       email: 'admin@example.com',
       displayName: 'Admin User',
       roles,
+      platformRoles: roles.includes('super_admin') ? ['super_admin'] : [],
       disabled: false,
       onboardingStatus: 'complete',
       memberships: [],
@@ -84,6 +85,7 @@ describe('AuthService backend session bootstrap', () => {
       email: 'admin@example.com',
       displayName: 'Admin User',
       roles: ['super_admin'],
+      platformRoles: ['super_admin'],
       disabled: false,
       onboardingStatus: 'complete',
       memberships: [],
@@ -100,6 +102,36 @@ describe('AuthService backend session bootstrap', () => {
     expect(getIdToken).toHaveBeenCalledOnceWith(true);
     expect(getSession).toHaveBeenCalledTimes(2);
     expect(auth.user()?.roles).toEqual(['super_admin']);
+  });
+
+  it('refreshes at most once while the same synchronization event remains pending', async () => {
+    getSession.and.returnValue(of(backendSession(true)));
+
+    await auth.retrySession();
+    await auth.retrySession();
+
+    expect(getIdToken).toHaveBeenCalledTimes(1);
+    expect(getSession).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps effective, platform, and membership roles separate', async () => {
+    const response = backendSession(false, ['super_admin', 'admin']);
+    getSession.and.returnValue(
+      of({
+        data: {
+          ...response.data,
+          platformRoles: ['super_admin'],
+          activeOrganizationId: 'organization-a',
+          memberships: [{ organizationId: 'organization-a', roles: ['admin'], status: 'active' }],
+        },
+      }),
+    );
+
+    await auth.retrySession();
+
+    expect(auth.roles()).toEqual(['admin', 'super_admin']);
+    expect(auth.platformRoles()).toEqual(['super_admin']);
+    expect(auth.user()?.memberships[0].roles).toEqual(['admin']);
   });
 
   it('does not loop or discard backend roles when synchronization is still pending', async () => {
