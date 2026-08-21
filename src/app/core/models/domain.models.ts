@@ -1,4 +1,4 @@
-export type UserRole = 'child' | 'parent' | 'mentor' | 'observer' | 'admin' | 'super_admin';
+export type UserRole = 'owner' | 'child' | 'parent' | 'mentor' | 'observer' | 'admin' | 'super_admin';
 export type MembershipState = 'active' | 'pending' | 'suspended' | 'deleted';
 export type RegistrationIntent = 'personal' | 'organization';
 export interface RegistrationIntentResponse {
@@ -11,6 +11,8 @@ export interface SessionMembership {
   readonly id?: string;
   readonly organizationId?: string;
   readonly organizationName?: string;
+  readonly workspaceId?: string;
+  readonly workspaceRoles?: readonly UserRole[];
   readonly roles?: readonly UserRole[];
   readonly status?: MembershipState;
 }
@@ -41,8 +43,8 @@ export interface SessionUser {
   /** Stable identifier for the workspace selected by the backend session. */
   readonly activeWorkspaceId?: string;
   /** The backend-selected workspace. It is context only; effective roles remain authoritative. */
-  readonly activeWorkspace?: { readonly type: WorkspaceType; readonly id: string; readonly name?: string };
-  readonly workspaces?: readonly { readonly type: WorkspaceType; readonly id: string; readonly name?: string }[];
+  readonly activeWorkspace?: SessionWorkspace;
+  readonly workspaces?: readonly SessionWorkspace[];
   /** The backend-calculated authority. It is never derived from memberships in the browser. */
   readonly effectiveRoles?: readonly UserRole[];
   readonly personalWorkspace?: { readonly id: string; readonly displayName?: string; readonly setupComplete?: boolean };
@@ -54,6 +56,13 @@ export interface SessionUser {
     readonly canEnd?: boolean;
   };
   readonly authorization?: { readonly source: string; readonly migrationRequired: boolean };
+}
+export interface SessionWorkspace {
+  readonly type: WorkspaceType;
+  readonly id: string;
+  readonly name?: string;
+  readonly status?: MembershipState;
+  readonly roles?: readonly UserRole[];
 }
 export interface ClaimSynchronization {
   readonly status: 'synchronized' | 'refresh_required' | 'failed';

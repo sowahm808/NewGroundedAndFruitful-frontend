@@ -5,6 +5,7 @@ import {
   onboardingGuard,
   organizationRoleGuard,
   organizationSetupGuard,
+  personalWorkspaceGuard,
   roleGuard,
 } from './core/guards/auth.guards';
 import { AppShellComponent } from './core/layout/app-shell.component';
@@ -87,7 +88,7 @@ export const routes: Routes = [
   {
     path: 'parent',
     component: AppShellComponent,
-    canActivate: [authGuard, roleGuard(['parent'])],
+    canActivate: [authGuard, personalWorkspaceGuard],
     children: [
       {
         path: 'children/:childId',

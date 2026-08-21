@@ -4,7 +4,7 @@ import { ActivatedRoute, Router, RouterLink, UrlTree } from '@angular/router';
 import { FirebaseError } from 'firebase/app';
 import { AuthService, SessionBootstrapError } from '../../core/auth/auth.service';
 import { SessionUser } from '../../core/models/domain.models';
-import { roleCanAccessPath, roleDestination } from '../../core/auth/role.utilities';
+import { roleCanAccessPath } from '../../core/auth/role.utilities';
 import { PostAuthRouteCoordinator } from '../../core/auth/post-auth-route.service';
 import { GfButton, GfCard } from '../../shared/components/design-system';
 
@@ -87,7 +87,7 @@ export class LoginComponent {
     if (decision.reason !== 'dashboard') return this.router.navigateByUrl(decision.path);
     const returnUrl = safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'), this.router, user.roles);
     if (returnUrl) return this.router.navigateByUrl(returnUrl);
-    return this.router.navigateByUrl(roleDestination(user.roles) ?? '/account/role-required');
+    return this.router.navigateByUrl(decision.path);
   }
 }
 

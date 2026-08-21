@@ -1,7 +1,8 @@
 import { UserRole } from '../models/domain.models';
 
-const canonicalRoles: readonly UserRole[] = ['child', 'parent', 'mentor', 'observer', 'admin', 'super_admin'];
+const canonicalRoles: readonly UserRole[] = ['owner', 'child', 'parent', 'mentor', 'observer', 'admin', 'super_admin'];
 const aliases: Readonly<Record<string, UserRole>> = {
+  owner: 'owner',
   child: 'child',
   participant: 'child',
   parent: 'parent',
@@ -41,7 +42,7 @@ export function roleCanAccessPath(roles: readonly UserRole[], path: string): boo
   const segment = path.split(/[?#]/, 1)[0].split('/')[1];
   if (segment === 'admin') return roles.includes('admin') || roles.includes('super_admin');
   if (segment === 'mentor') return roles.includes('mentor');
-  if (segment === 'parent') return roles.includes('parent');
+  if (segment === 'parent') return roles.includes('parent') || roles.includes('owner');
   if (segment === 'observer') return roles.includes('observer');
   if (segment === 'child') return roles.includes('child');
   return true;

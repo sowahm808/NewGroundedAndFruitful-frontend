@@ -76,6 +76,22 @@ export const organizationRoleGuard =
     return organizations.hasRole(role) || router.createUrlTree(['/unauthorized']);
   };
 
+/** Allows the family area to program parents or to the verified owner of the active personal workspace. */
+export const personalWorkspaceGuard: CanActivateFn = async () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  const coordinator = inject(PostAuthRouteCoordinator);
+  await auth.initialize();
+  const user = auth.user();
+  if (!user) return router.createUrlTree(['/auth/login']);
+  const decision = coordinator.decision(user);
+  return (
+    auth.hasRole(['parent']) ||
+    (decision.reason === 'dashboard' && decision.workspaceType === 'personal') ||
+    router.createUrlTree(['/unauthorized'])
+  );
+};
+
 export function safeAttemptedUrl(url: string): string {
   const rejected = ['/account/role-required', '/unauthorized', '/login', '/auth/'];
   // eslint-disable-next-line no-control-regex -- URLs containing control bytes are deliberately rejected.
