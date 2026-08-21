@@ -1,8 +1,10 @@
-import { ChangeDetectionStrategy, Component, ElementRef, ViewChild, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, ViewChild, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { ApiError } from '../../../core/http/api-error';
+import { ActiveOrganizationService } from '../../../core/organizations/active-organization.service';
 import { GfAlert, GfPageHeader } from '../../../shared/components/design-system';
 import { AdminQuartersApiService, DEFAULT_QUARTER_SORT, Quarter } from '../quarters/admin-quarters-api.service';
 import { AdminBibleApiService } from './admin-bible-api.service';
@@ -18,6 +20,13 @@ import { AdminBibleApiService } from './admin-bible-api.service';
     @if (error(); as failure) {
       <gf-alert title="The quiz could not be uploaded"
         ><p>{{ failure.message }}</p></gf-alert
+      >
+    }
+    @if (!organizationId()) {
+      <gf-alert title="Organization required"
+        ><p>
+          Select an organization before uploading Bible content. Use the workspace selector in the header.
+        </p></gf-alert
       >
     }
     @if (submitted() && form.invalid) {
@@ -40,14 +49,21 @@ import { AdminBibleApiService } from './admin-bible-api.service';
       </div>
     }
     <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
-      <label for="content-title">Content title</label
-      ><input id="content-title" formControlName="title" maxlength="160" /> <label for="quarter">Quarter</label
-      ><select id="quarter" formControlName="quarterId" [disabled]="quartersLoading()">
+      <label for="content-title">Content title</label>
+      <input id="content-title" formControlName="title" maxlength="160" />
+      @if (fieldError('title'); as message) {
+        <p class="field-error" role="alert">{{ message }}</p>
+      }
+      <label for="quarter">Quarter</label>
+      <select id="quarter" formControlName="quarterId" [disabled]="quartersLoading()">
         <option value="">Select a quarter</option>
         @for (quarter of quarters(); track quarter.id) {
           <option [value]="quarter.id">{{ quarter.name }}</option>
         }
       </select>
+      @if (fieldError('quarterId'); as message) {
+        <p class="field-error" role="alert">{{ message }}</p>
+      }
       @if (quartersLoading()) {
         <p class="quarter-status" role="status">Loading quarters…</p>
       } @else if (quartersError()) {
@@ -74,6 +90,9 @@ import { AdminBibleApiService } from './admin-bible-api.service';
             <button type="button" (click)="removeQuestion()">Remove</button>
           </p>
         }
+        @if (fieldError('quizFile'); as message) {
+          <p class="field-error" role="alert">{{ message }}</p>
+        }
       </section>
       <section class="file-field">
         <label for="answer-key-document">Answer-key document</label>
@@ -91,6 +110,9 @@ import { AdminBibleApiService } from './admin-bible-api.service';
             <button type="button" (click)="removeAnswer()">Remove</button>
           </p>
         }
+        @if (fieldError('answerKeyFile'); as message) {
+          <p class="field-error" role="alert">{{ message }}</p>
+        }
       </section>
       @if (sameFile()) {
         <p class="field-error" role="alert">Choose two different documents.</p>
@@ -102,6 +124,7 @@ import { AdminBibleApiService } from './admin-bible-api.service';
           type="submit"
           [disabled]="
             uploading() ||
+            !organizationId() ||
             quartersLoading() ||
             form.invalid ||
             !questionDocument() ||
@@ -203,11 +226,13 @@ export class AdminBibleImportComponent {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(AdminBibleApiService);
   private readonly quartersApi = inject(AdminQuartersApiService);
+  private readonly organizations = inject(ActiveOrganizationService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   @ViewChild('questionInput') private questionInput?: ElementRef<HTMLInputElement>;
   @ViewChild('answerInput') private answerInput?: ElementRef<HTMLInputElement>;
   readonly form = this.fb.nonNullable.group({
-    title: ['', [Validators.required, Validators.maxLength(160)]],
+    title: ['', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(160)]],
     quarterId: ['', Validators.required],
   });
   readonly quarters = signal<readonly Quarter[]>([]);
@@ -219,10 +244,20 @@ export class AdminBibleImportComponent {
   readonly submitted = signal(false);
   readonly sameFile = signal(false);
   readonly error = signal<ApiError | null>(null);
+  readonly fieldErrors = signal<Readonly<Record<string, readonly string[]>>>({});
+  readonly organizationId = this.organizations.organizationId;
   readonly announcement = signal('');
   private quarterLoadSequence = 0;
   constructor() {
-    this.loadQuarters();
+    if (this.organizationId()) this.loadQuarters();
+    else this.quartersLoading.set(false);
+    this.organizations.workspaceChanged$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.form.controls.quarterId.setValue('');
+      this.quarters.set([]);
+      this.fieldErrors.set({});
+      if (this.organizationId()) this.loadQuarters();
+      else this.quartersLoading.set(false);
+    });
   }
   /** Loads every tenant-scoped page; the API remains authoritative for workspace eligibility. */
   loadQuarters() {
@@ -251,11 +286,11 @@ export class AdminBibleImportComponent {
     });
   }
   selectQuestion(event: Event) {
-    this.questionDocument.set((event.target as HTMLInputElement).files?.[0] ?? null);
+    this.questionDocument.set(this.validDocx((event.target as HTMLInputElement).files?.[0] ?? null, 'quizFile'));
     this.checkFiles();
   }
   selectAnswer(event: Event) {
-    this.answerKeyDocument.set((event.target as HTMLInputElement).files?.[0] ?? null);
+    this.answerKeyDocument.set(this.validDocx((event.target as HTMLInputElement).files?.[0] ?? null, 'answerKeyFile'));
     this.checkFiles();
   }
   removeQuestion() {
@@ -279,13 +314,31 @@ export class AdminBibleImportComponent {
     this.checkFiles();
     const question = this.questionDocument(),
       answer = this.answerKeyDocument();
-    if (this.form.invalid || !question || !answer || this.sameFile() || this.uploading()) return;
+    const organizationId = this.organizationId();
+    const quarterIsCurrent = this.quarters().some((quarter) => quarter.id === this.form.controls.quarterId.value);
+    if (
+      !organizationId ||
+      this.form.invalid ||
+      !quarterIsCurrent ||
+      !question ||
+      !answer ||
+      this.sameFile() ||
+      this.uploading()
+    )
+      return;
     const value = this.form.getRawValue();
     this.uploading.set(true);
     this.error.set(null);
+    this.fieldErrors.set({});
     this.announcement.set('Uploading Bible quiz.');
     this.api
-      .createImport(value.title.trim(), value.quarterId, question, answer)
+      .createBibleContentImport({
+        organizationId,
+        quarterId: value.quarterId,
+        title: value.title,
+        quizFile: question,
+        answerKeyFile: answer,
+      })
       .pipe(finalize(() => this.uploading.set(false)))
       .subscribe({
         next: (created) => {
@@ -294,9 +347,27 @@ export class AdminBibleImportComponent {
         },
         error: (error: ApiError) => {
           this.error.set(error);
+          this.fieldErrors.set(error.fieldErrors ?? {});
           this.announcement.set('The Bible quiz could not be uploaded.');
         },
       });
+  }
+  fieldError(field: string): string | null {
+    return this.fieldErrors()[field]?.[0] ?? null;
+  }
+  private validDocx(file: File | null, field: 'quizFile' | 'answerKeyFile'): File | null {
+    if (!file) return null;
+    const mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    if (!file.name.toLowerCase().endsWith('.docx') || (file.type !== '' && file.type !== mime)) {
+      this.fieldErrors.update((errors) => ({ ...errors, [field]: ['Choose a DOCX document.'] }));
+      return null;
+    }
+    this.fieldErrors.update((errors) => {
+      const next = { ...errors };
+      delete next[field];
+      return next;
+    });
+    return file;
   }
   fileSize(bytes: number) {
     return bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;

@@ -101,7 +101,19 @@ export class ApiClient {
       error.status >= 500
         ? (['dependency_failure', 'A backend dependency could not complete the request.'] as const)
         : (errors[error.status] ?? ['unexpected_error', 'The request could not be completed.']);
-    const payload = error.error as { code?: unknown; message?: unknown; details?: unknown; requestId?: unknown } | null;
+    const raw = error.error as {
+      error?: unknown;
+      code?: unknown;
+      message?: unknown;
+      details?: unknown;
+      requestId?: unknown;
+    } | null;
+    const payload = (raw?.error && typeof raw.error === 'object' ? raw.error : raw) as {
+      code?: unknown;
+      message?: unknown;
+      details?: unknown;
+      requestId?: unknown;
+    } | null;
     const message = typeof payload?.message === 'string' ? payload.message : fallback;
     const retryAfterSeconds = parseRetryAfter(error.headers.get('Retry-After'));
 

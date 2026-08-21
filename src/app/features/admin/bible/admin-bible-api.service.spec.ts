@@ -27,16 +27,32 @@ describe('AdminBibleApiService', () => {
     expect(result).toEqual(payload);
   });
 
-  it('uses distinct backend multipart fields for the two documents', () => {
-    const question = new File(['questions'], 'questions.docx');
-    const answer = new File(['answers'], 'answers.docx');
-    service.createImport('Autumn quiz', 'q1', question, answer).subscribe();
+  it('sends exactly the canonical multipart contract with native files and no manual content type', () => {
+    const question = new File(['questions'], 'questions.docx', {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+    const answer = new File(['answers'], 'answers.docx', {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+    service
+      .createBibleContentImport({
+        organizationId: 'org-1',
+        quarterId: 'q1',
+        title: '  Autumn quiz  ',
+        quizFile: question,
+        answerKeyFile: answer,
+      })
+      .subscribe();
     const request = http.expectOne((candidate) => candidate.url.endsWith('/admin/bible-content/imports'));
     const body = request.request.body as FormData;
+    expect([...body.keys()]).toEqual(['organizationId', 'quarterId', 'title', 'quizFile', 'answerKeyFile']);
+    expect(body.get('organizationId')).toBe('org-1');
     expect(body.get('title')).toBe('Autumn quiz');
     expect(body.get('quarterId')).toBe('q1');
-    expect(body.get('questionDocument')).toBe(question);
-    expect(body.get('answerKeyDocument')).toBe(answer);
+    expect(body.get('quizFile')).toBe(question);
+    expect(body.get('answerKeyFile')).toBe(answer);
+    expect(body.get('quizFile')).toEqual(jasmine.any(File));
+    expect(request.request.headers.has('Content-Type')).toBeFalse();
     request.flush({ data: { id: 'import-1', status: 'uploaded' } });
   });
 });

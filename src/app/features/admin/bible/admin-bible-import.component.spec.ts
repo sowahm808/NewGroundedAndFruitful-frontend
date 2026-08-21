@@ -1,7 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { ApiError } from '../../../core/http/api-error';
+import { ActiveOrganizationService } from '../../../core/organizations/active-organization.service';
 import { AdminQuartersApiService, QuarterList, QuarterQuery } from '../quarters/admin-quarters-api.service';
 import { AdminBibleApiService } from './admin-bible-api.service';
 import { AdminBibleImportComponent } from './admin-bible-import.component';
@@ -12,6 +14,8 @@ describe('AdminBibleImportComponent', () => {
   let quarterResponses: Observable<QuarterList>[];
   let quarterQueries: QuarterQuery[];
   let createImport: jasmine.Spy;
+  let organizationId: ReturnType<typeof signal<string | null>>;
+  let workspaceChanges: Subject<void>;
 
   const autumn = {
     id: 'quarter-autumn',
@@ -31,6 +35,8 @@ describe('AdminBibleImportComponent', () => {
   beforeEach(async () => {
     quarterResponses = [of(page())];
     quarterQueries = [];
+    organizationId = signal<string | null>('organization-1');
+    workspaceChanges = new Subject<void>();
     createImport = jasmine.createSpy('createImport').and.returnValue(of({ id: 'import-1', status: 'uploaded' }));
     await TestBed.configureTestingModule({
       imports: [AdminBibleImportComponent],
@@ -47,7 +53,8 @@ describe('AdminBibleImportComponent', () => {
             },
           },
         },
-        { provide: AdminBibleApiService, useValue: { createImport } },
+        { provide: AdminBibleApiService, useValue: { createBibleContentImport: createImport } },
+        { provide: ActiveOrganizationService, useValue: { organizationId, workspaceChanged$: workspaceChanges } },
       ],
     }).compileComponents();
     fixture = TestBed.createComponent(AdminBibleImportComponent);
@@ -102,7 +109,13 @@ describe('AdminBibleImportComponent', () => {
     component.selectAnswer({ target: { files: [answer] } } as unknown as Event);
     expect(component.form.controls.quarterId.value).toBe(autumn.id);
     component.submit();
-    expect(createImport).toHaveBeenCalledOnceWith('Updated quiz title', autumn.id, question, answer);
+    expect(createImport).toHaveBeenCalledOnceWith({
+      organizationId: 'organization-1',
+      quarterId: autumn.id,
+      title: 'Updated quiz title',
+      quizFile: question,
+      answerKeyFile: answer,
+    });
   });
 
   it('keeps upload disabled until a quarter and both documents are selected', () => {
@@ -113,5 +126,44 @@ describe('AdminBibleImportComponent', () => {
     component.form.controls.quarterId.setValue(autumn.id);
     fixture.detectChanges();
     expect(upload.disabled).toBeTrue();
+  });
+
+  it('blocks upload without authoritative organization context', () => {
+    organizationId.set(null);
+    workspaceChanges.next();
+    component.form.setValue({ title: 'Autumn quiz', quarterId: autumn.id });
+    component.selectQuestion({ target: { files: [new File(['q'], 'q.docx')] } } as unknown as Event);
+    component.selectAnswer({ target: { files: [new File(['a'], 'a.docx')] } } as unknown as Event);
+    component.submit();
+    fixture.detectChanges();
+    expect(createImport).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('Select an organization before uploading Bible content.');
+  });
+
+  it('clears the selected quarter and reloads after an organization change', () => {
+    quarterResponses = [of(page([{ ...autumn, id: 'quarter-new' }]))];
+    component.form.controls.quarterId.setValue(autumn.id);
+    organizationId.set('organization-2');
+    workspaceChanges.next();
+    expect(component.form.controls.quarterId.value).toBe('');
+    expect(component.quarters().map((quarter) => quarter.id)).toEqual(['quarter-new']);
+  });
+
+  it('maps backend field errors beside their canonical controls and prevents duplicate submission', () => {
+    const pending = new Subject<{ id: string; status: 'uploaded' }>();
+    createImport.and.returnValue(pending);
+    component.form.setValue({ title: 'Autumn quiz', quarterId: autumn.id });
+    component.selectQuestion({ target: { files: [new File(['q'], 'q.docx')] } } as unknown as Event);
+    component.selectAnswer({ target: { files: [new File(['a'], 'a.docx')] } } as unknown as Event);
+    component.submit();
+    component.submit();
+    expect(createImport).toHaveBeenCalledTimes(1);
+    pending.error(
+      new ApiError(422, 'validation_error', 'Invalid import', {
+        fields: { quizFile: ['Question document is invalid.'] },
+      }),
+    );
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Question document is invalid.');
   });
 });
