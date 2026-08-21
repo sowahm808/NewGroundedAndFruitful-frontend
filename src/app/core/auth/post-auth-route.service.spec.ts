@@ -15,6 +15,9 @@ describe('resolvePostAuthDestination', () => {
     session({
       roles: ['owner'],
       effectiveRoles: ['owner'],
+      workspaceRoles: ['owner'],
+      personas: ['parent'],
+      capabilities: ['parent.children.read'],
       platformRoles: [],
       registrationIntent: 'personal',
       nextStep: 'dashboard',
@@ -96,9 +99,13 @@ describe('resolvePostAuthDestination', () => {
     expect(decision.path).not.toBe('/account/role-required');
   });
 
-  it('accepts owner from the active membership with empty platform roles and effective owner authority', () => {
+  it('accepts server-issued parent capability independently from workspace ownership', () => {
     expect(personalOwner().effectiveRoles).toContain('owner');
     expect(resolvePostAuthDestination(personalOwner({ platformRoles: [] })).reason).toBe('dashboard');
+  });
+
+  it('does not manufacture a parent experience from personal intent and ownership', () => {
+    expect(resolvePostAuthDestination(personalOwner({ personas: [], capabilities: [] })).path).toBe('/account/profile');
   });
 
   it('requires activeWorkspaceId to reference the personal workspace', () => {
@@ -107,9 +114,9 @@ describe('resolvePostAuthDestination', () => {
     expect(decision.path).toBe('/account/profile');
   });
 
-  it('requires an active owner membership for a personal workspace', () => {
+  it('requires an active membership for a personal workspace without requiring ownership', () => {
     const decision = resolvePostAuthDestination(
-      personalOwner({ memberships: [{ workspaceId: 'personal-1', roles: ['parent'], status: 'active' }] }),
+      personalOwner({ memberships: [{ workspaceId: 'personal-1', personas: ['parent'], status: 'pending' }] }),
     );
     expect(decision.reason).toBe('workspace-recovery');
   });

@@ -24,12 +24,24 @@ export class ActiveOrganizationService {
   readonly workspaces = computed<readonly WorkspaceOption[]>(() => {
     const user = this.auth.user();
     if (!user) return [];
+    if (user.workspaces?.length) {
+      return user.workspaces
+        .filter((workspace) => workspace.status !== 'deleted')
+        .map((workspace) => ({
+          id: workspace.id,
+          type: workspace.type,
+          name: workspace.type === 'personal' ? workspace.name || 'Personal' : workspace.name || 'Unnamed organization',
+          membership: this.memberships().find(
+            (membership) => membership.workspaceId === workspace.id || membership.organizationId === workspace.id,
+          ),
+        }));
+    }
     const personal = user.personalWorkspace
       ? [
           {
             id: user.personalWorkspace.id,
             type: 'personal' as const,
-            name: user.personalWorkspace.displayName || user.displayName,
+            name: user.personalWorkspace.displayName || 'Personal',
           },
         ]
       : [];
@@ -61,7 +73,7 @@ export class ActiveOrganizationService {
   );
   readonly workspaceId = computed(() => this.activeWorkspace()?.id ?? null);
   readonly requiresSelection = computed(() => this.workspaces().length > 1 && !this.activeWorkspace());
-  readonly roles = computed(() => this.activeMembership()?.roles ?? []);
+  readonly roles = computed(() => this.activeMembership()?.workspaceRoles ?? this.activeMembership()?.roles ?? []);
 
   constructor() {
     effect(() => {

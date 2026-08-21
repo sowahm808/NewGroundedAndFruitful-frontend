@@ -135,7 +135,7 @@ describe('authentication guards', () => {
     expect(TestBed.inject(Router).serializeUrl(result as ReturnType<Router['createUrlTree']>)).toBe('/unauthorized');
   });
 
-  it('allows a verified personal owner into family routes but denies admin and platform routes', async () => {
+  it('allows a verified parent persona into family routes but denies admin and platform routes', async () => {
     auth.state = 'authenticated';
     auth.session = {
       uid: '1',
@@ -143,6 +143,9 @@ describe('authentication guards', () => {
       roles: ['owner'],
       effectiveRoles: ['owner'],
       platformRoles: [],
+      workspaceRoles: ['owner'],
+      personas: ['parent'],
+      capabilities: ['parent.children.read'],
       disabled: false,
       onboardingStatus: 'complete',
       registrationIntent: 'personal',
