@@ -38,6 +38,8 @@ export interface SessionUser {
   readonly registrationIntent?: RegistrationIntent;
   readonly memberships: readonly SessionMembership[];
   readonly activeOrganizationId?: string;
+  /** Stable identifier for the workspace selected by the backend session. */
+  readonly activeWorkspaceId?: string;
   /** The backend-selected workspace. It is context only; effective roles remain authoritative. */
   readonly activeWorkspace?: { readonly type: WorkspaceType; readonly id: string; readonly name?: string };
   readonly workspaces?: readonly { readonly type: WorkspaceType; readonly id: string; readonly name?: string }[];

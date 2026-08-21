@@ -4,7 +4,6 @@ import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { ApiError } from '../../core/http/api-error';
-import { ActiveOrganizationService } from '../../core/organizations/active-organization.service';
 import { GfAlert, GfPageHeader } from '../../shared/components/design-system';
 import { OrganizationOnboardingApiService } from './organization-onboarding-api.service';
 import { PostAuthRouteCoordinator } from '../../core/auth/post-auth-route.service';
@@ -165,7 +164,6 @@ export class OrganizationOnboardingComponent {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(OrganizationOnboardingApiService);
   private readonly auth = inject(AuthService);
-  private readonly context = inject(ActiveOrganizationService);
   private readonly router = inject(Router);
   private readonly coordinator = inject(PostAuthRouteCoordinator);
   readonly saving = signal(false);
@@ -180,6 +178,7 @@ export class OrganizationOnboardingComponent {
     'UTC',
   ];
   readonly inconsistent = signal(this.auth.user()?.onboardingStatus === 'complete');
+  private retrySubmission?: { readonly fingerprint: string; readonly key: string };
   readonly form = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
     slug: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(63), Validators.pattern(SLUG)]],
@@ -203,35 +202,33 @@ export class OrganizationOnboardingComponent {
     this.saving.set(true);
     this.error.set(null);
     const value = this.form.getRawValue();
+    const command = { name: value.name.trim(), slug: value.slug.trim(), timezone: value.timezone.trim() };
+    const fingerprint = JSON.stringify(command);
+    const idempotencyKey =
+      this.retrySubmission?.fingerprint === fingerprint ? this.retrySubmission.key : createIdempotencyKey();
+    this.retrySubmission = { fingerprint, key: idempotencyKey };
     try {
-      const result = await firstValueFrom(
-        this.api.bootstrap({ name: value.name.trim(), slug: value.slug.trim(), timezone: value.timezone.trim() }),
-      );
+      const result = await firstValueFrom(this.api.bootstrap(command, idempotencyKey));
       const session = await this.auth.refreshSession(result.tokenRefreshRequired);
       const membership = session?.memberships.find(
         (m) => m.status === 'active' && m.organizationId === result.organizationId,
       );
-      const roles = session?.effectiveRoles ?? session?.roles ?? [];
       const workspaces = session?.workspaces ?? [];
-      const hasWorkspace =
-        workspaces.some((workspace) => workspace.type === 'organization' && workspace.id === result.organizationId) ||
-        !!membership;
+      const hasWorkspace = workspaces.some(
+        (workspace) => workspace.type === 'organization' && workspace.id === result.organizationId,
+      );
       if (
         session?.onboardingStatus !== 'complete' ||
         !membership ||
         !hasWorkspace ||
-        !roles.some((role) => role === 'admin' || role === 'super_admin')
+        session.activeWorkspaceId !== result.organizationId
       )
-        throw new Error('Canonical membership was not confirmed.');
-      if (
-        (!session.activeWorkspace || session.activeWorkspace.id !== result.organizationId) &&
-        !(await this.context.selectWorkspace('organization', result.organizationId))
-      )
-        throw new Error('The organization workspace could not be selected.');
-      const confirmed = this.auth.user();
-      if (!confirmed) throw new Error('The refreshed session was lost.');
-      const target = this.coordinator.resolvePostAuthenticationRoute(confirmed, this.router.url);
-      if (target) await this.router.navigateByUrl(target, { replaceUrl: true });
+        throw new Error('The server did not confirm the organization workspace, membership, and active workspace.');
+      const destination = this.coordinator.decision(session);
+      if (destination.reason !== 'dashboard' || !destination.path.startsWith('/admin/'))
+        throw new Error('The server did not grant access to an organization administration dashboard.');
+      this.retrySubmission = undefined;
+      await this.router.navigateByUrl(destination.path, { replaceUrl: true });
     } catch (error) {
       this.error.set(
         error instanceof ApiError
@@ -243,15 +240,23 @@ export class OrganizationOnboardingComponent {
     }
   }
   errorMessage(error: ApiError): string {
-    if (error.status === 409) return 'That organization name or slug is already in use. Choose another and try again.';
-    if (error.status === 422) return 'The organization details are invalid. Check the timezone and highlighted fields.';
-    if (error.status === 403) return 'This account is not eligible to create an organization.';
+    if (error.code === 'business_conflict')
+      return 'That organization name or slug is already in use, or setup was already completed.';
+    if (error.code === 'validation_error')
+      return 'The organization details are invalid. Check the timezone and highlighted fields.';
+    if (error.code === 'approval_pending') return 'Your account is still awaiting approval to create an organization.';
+    if (error.code === 'account_disabled') return 'This account is disabled and cannot create an organization.';
+    if (error.code === 'role_required') return 'This account is not eligible to create an organization.';
     return error.message;
   }
 
   backendError(name: 'name' | 'slug' | 'timezone'): string | null {
     return this.error()?.fieldErrors?.[name]?.[0] ?? null;
   }
+}
+
+function createIdempotencyKey(): string {
+  return globalThis.crypto.randomUUID();
 }
 
 export function toSlug(value: string): string {
