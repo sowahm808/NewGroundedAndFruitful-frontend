@@ -1,5 +1,12 @@
 import { Routes } from '@angular/router';
-import { authGuard, organizationRoleGuard, organizationSetupGuard, roleGuard } from './core/guards/auth.guards';
+import {
+  authGuard,
+  guestGuard,
+  onboardingGuard,
+  organizationRoleGuard,
+  organizationSetupGuard,
+  roleGuard,
+} from './core/guards/auth.guards';
 import { AppShellComponent } from './core/layout/app-shell.component';
 export const routes: Routes = [
   {
@@ -8,9 +15,25 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./features/onboarding/organization-onboarding.component').then((m) => m.OrganizationOnboardingComponent),
   },
-  { path: 'auth/login', loadComponent: () => import('./features/auth/login.component').then((m) => m.LoginComponent) },
+  {
+    path: 'onboarding/account-type',
+    canActivate: [onboardingGuard],
+    loadComponent: () => import('./features/onboarding/account-type.component').then((m) => m.AccountTypeComponent),
+  },
+  {
+    path: 'onboarding/personal',
+    canActivate: [onboardingGuard],
+    loadComponent: () =>
+      import('./features/onboarding/personal-onboarding.component').then((m) => m.PersonalOnboardingComponent),
+  },
+  {
+    path: 'auth/login',
+    canActivate: [guestGuard],
+    loadComponent: () => import('./features/auth/login.component').then((m) => m.LoginComponent),
+  },
   {
     path: 'auth/create-account',
+    canActivate: [guestGuard],
     loadComponent: () => import('./features/auth/create-account.component').then((m) => m.CreateAccountComponent),
   },
   {

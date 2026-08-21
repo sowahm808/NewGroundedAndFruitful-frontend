@@ -1,7 +1,8 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { UserRole } from '../models/domain.models';
 import { AuthService } from '../auth/auth.service';
+import { PostAuthRouteCoordinator } from '../auth/post-auth-route.service';
+import { UserRole } from '../models/domain.models';
 import { ActiveOrganizationService } from '../organizations/active-organization.service';
 
 export const authGuard: CanActivateFn = async (_route, state) => {
@@ -10,34 +11,58 @@ export const authGuard: CanActivateFn = async (_route, state) => {
   await auth.initialize();
   if (auth.status() === 'anonymous')
     return router.createUrlTree(['/auth/login'], { queryParams: { returnUrl: safeAttemptedUrl(state.url) } });
-  if (auth.status() === 'organization-required') return router.createUrlTree(['/onboarding/organization']);
-  if (auth.status() === 'role-required') return router.createUrlTree(['/account/role-required']);
-  if (auth.status() === 'pending-approval') return router.createUrlTree(['/account/pending']);
-  if (auth.status() === 'disabled') return router.createUrlTree(['/account/disabled']);
   if (auth.status() === 'error') return router.createUrlTree(['/account/session-error']);
-  return auth.status() === 'authenticated';
+  const user = auth.user();
+  if (!user) return router.createUrlTree(['/account/session-error']);
+  const coordinator = inject(PostAuthRouteCoordinator);
+  const decision = coordinator.decision(user);
+  if (decision.reason === 'dashboard') return true;
+  return coordinator.resolvePostAuthenticationRoute(user, state.url) ?? true;
 };
-export const organizationSetupGuard: CanActivateFn = async () => {
+
+export const guestGuard: CanActivateFn = async (_route, state) => {
+  const auth = inject(AuthService);
+  await auth.initialize();
+  if (auth.status() === 'anonymous') return true;
+  const router = inject(Router);
+  if (auth.status() === 'error') return router.createUrlTree(['/account/session-error']);
+  const user = auth.user();
+  return user
+    ? (inject(PostAuthRouteCoordinator).resolvePostAuthenticationRoute(user, state.url) ?? true)
+    : router.createUrlTree(['/account/session-error']);
+};
+
+/** Allows only the exact onboarding journey selected by the authoritative session. */
+export const onboardingGuard: CanActivateFn = async (_route, state) => {
   const auth = inject(AuthService);
   const router = inject(Router);
   await auth.initialize();
   if (auth.status() === 'anonymous') return router.createUrlTree(['/auth/login']);
   if (auth.status() === 'error') return router.createUrlTree(['/account/session-error']);
-  if (auth.status() === 'disabled') return router.createUrlTree(['/account/disabled']);
-  if (auth.status() === 'authenticated') return router.createUrlTree([dashboardFor(auth.roles())]);
-  return auth.status() === 'organization-required';
+  const user = auth.user();
+  if (!user) return router.createUrlTree(['/account/session-error']);
+  return inject(PostAuthRouteCoordinator).resolvePostAuthenticationRoute(user, state.url) ?? true;
 };
+
+export const organizationSetupGuard = onboardingGuard;
+
 export const roleGuard =
   (roles: readonly UserRole[]): CanActivateFn =>
   async () => {
     const auth = inject(AuthService);
     const router = inject(Router);
     await auth.initialize();
-    if (auth.status() === 'role-required') return router.createUrlTree(['/account/role-required']);
-    return auth.hasRole(roles) || router.createUrlTree(['/unauthorized']);
+    const user = auth.user();
+    if (!user) return router.createUrlTree(['/auth/login']);
+    const onboarding = inject(PostAuthRouteCoordinator).decision(user);
+    if (onboarding.reason !== 'dashboard' && onboarding.reason !== 'role-required')
+      return router.parseUrl(onboarding.path);
+    return (
+      auth.hasRole(roles) ||
+      router.createUrlTree([onboarding.reason === 'role-required' ? '/account/role-required' : '/unauthorized'])
+    );
   };
 
-/** Organization operations require both an effective role and that role on the active membership. */
 export const organizationRoleGuard =
   (role: UserRole): CanActivateFn =>
   async () => {
@@ -58,13 +83,4 @@ export function safeAttemptedUrl(url: string): string {
     return '/';
   }
   return !rejected.some((path) => url === path || url.startsWith(path)) ? url : '/';
-}
-
-function dashboardFor(roles: readonly UserRole[]): string {
-  if (roles.includes('super_admin')) return '/admin/users';
-  if (roles.includes('admin')) return '/admin/quarters';
-  if (roles.includes('mentor')) return '/mentor/teams';
-  if (roles.includes('observer')) return '/observer/observations';
-  if (roles.includes('parent')) return '/parent/children';
-  return '/child/today';
 }

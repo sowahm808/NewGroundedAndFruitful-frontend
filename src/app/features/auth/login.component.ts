@@ -5,6 +5,7 @@ import { FirebaseError } from 'firebase/app';
 import { AuthService, SessionBootstrapError } from '../../core/auth/auth.service';
 import { SessionUser } from '../../core/models/domain.models';
 import { roleCanAccessPath, roleDestination } from '../../core/auth/role.utilities';
+import { PostAuthRouteCoordinator } from '../../core/auth/post-auth-route.service';
 import { GfButton, GfCard } from '../../shared/components/design-system';
 
 @Component({
@@ -44,6 +45,7 @@ export class LoginComponent {
   readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly coordinator = inject(PostAuthRouteCoordinator);
   readonly message = signal('');
   readonly busy = signal(false);
   readonly form = new FormGroup({
@@ -81,10 +83,8 @@ export class LoginComponent {
   }
 
   private routeUser(user: SessionUser): Promise<boolean> {
-    if (this.auth.status() === 'organization-required') return this.router.navigateByUrl('/onboarding/organization');
-    if (this.auth.status() === 'pending-approval') return this.router.navigateByUrl('/account/pending');
-    if (this.auth.status() === 'disabled') return this.router.navigateByUrl('/account/disabled');
-    if (this.auth.status() === 'role-required') return this.router.navigateByUrl('/account/role-required');
+    const decision = this.coordinator.decision(user);
+    if (decision.reason !== 'dashboard') return this.router.navigateByUrl(decision.path);
     const returnUrl = safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'), this.router, user.roles);
     if (returnUrl) return this.router.navigateByUrl(returnUrl);
     return this.router.navigateByUrl(roleDestination(user.roles) ?? '/account/role-required');

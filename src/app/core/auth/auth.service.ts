@@ -65,6 +65,7 @@ export class AuthService {
   /** Prevents repeated forced refreshes while the backend reports the same pending synchronization state. */
   private synchronizationRefreshAttempted = false;
   private pendingRegistrationUser?: User;
+  private registrationIntentSubmission?: { key: string; promise: Promise<RegistrationResult> };
 
   readonly status = this.currentStatus.asReadonly();
   readonly user = this.current.asReadonly();
@@ -135,6 +136,25 @@ export class AuthService {
   }
 
   private async completeRegistration(user: User, intent: RegistrationIntent): Promise<RegistrationResult> {
+    const key = `${user.uid}:${intent}`;
+    if (this.registrationIntentSubmission?.key === key) return this.registrationIntentSubmission.promise;
+    const promise = this.submitRegistrationIntent(user, intent);
+    this.registrationIntentSubmission = { key, promise };
+    try {
+      return await promise;
+    } catch (error) {
+      this.registrationIntentSubmission = undefined;
+      throw error;
+    }
+  }
+
+  async completeRegistrationIntent(intent: RegistrationIntent): Promise<RegistrationResult> {
+    const user = this.firebaseAuth.currentUser;
+    if (!user) throw new Error('An authenticated Firebase user is required.');
+    return this.completeRegistration(user, intent);
+  }
+
+  private async submitRegistrationIntent(user: User, intent: RegistrationIntent): Promise<RegistrationResult> {
     const authenticatedUser = await this.waitForAuthenticatedUser(user.uid);
     // Acquire a current token before constructing the request. The central interceptor remains
     // solely responsible for placing it in the Authorization header.
@@ -278,17 +298,21 @@ export class AuthService {
       email: session.email,
       displayName: session.displayName,
       // Effective roles are calculated by the server. Never rebuild them from a selected membership.
-      roles: normalizeRoles(session.roles),
+      roles: normalizeRoles(session.effectiveRoles ?? session.roles),
       // Platform roles remain a separate authority dimension and are never inferred from memberships.
       platformRoles: normalizeRoles(session.platformRoles),
       disabled: session.disabled,
       onboardingStatus: session.onboardingStatus,
+      ...(session.nextStep ? { nextStep: session.nextStep } : {}),
+      ...(session.registrationIntent ? { registrationIntent: session.registrationIntent } : {}),
       memberships: session.memberships.map((membership) => ({
         ...membership,
         roles: normalizeRoles(membership.roles),
       })),
       ...(session.activeOrganizationId ? { activeOrganizationId: session.activeOrganizationId } : {}),
       ...(session.activeWorkspace ? { activeWorkspace: session.activeWorkspace } : {}),
+      ...(session.workspaces ? { workspaces: session.workspaces } : {}),
+      ...(session.effectiveRoles ? { effectiveRoles: normalizeRoles(session.effectiveRoles) } : {}),
       ...(session.personalWorkspace ? { personalWorkspace: session.personalWorkspace } : {}),
       ...(session.elevation ? { elevation: session.elevation } : {}),
       ...(session.authorization ? { authorization: session.authorization } : {}),
@@ -301,6 +325,8 @@ export class AuthService {
     if (!user) this.currentStatus.set('anonymous');
     else if (user.disabled || membershipStates.includes('suspended')) this.currentStatus.set('disabled');
     else if (
+      user.nextStep === 'organization_setup' ||
+      user.onboardingStatus === 'organization_setup_required' ||
       user.onboardingStatus === 'organization_required' ||
       user.onboardingStatus === 'migration_required' ||
       (user.onboardingStatus === 'complete' &&
@@ -313,7 +339,10 @@ export class AuthService {
       (membershipStates.includes('pending') && !membershipStates.includes('active'))
     )
       this.currentStatus.set('pending-approval');
-    else if (user.onboardingStatus === 'role_required' || user.roles.length === 0)
+    else if (
+      user.onboardingStatus === 'role_required' ||
+      (user.onboardingStatus === 'complete' && user.roles.length === 0)
+    )
       this.currentStatus.set('role-required');
     else this.currentStatus.set('authenticated');
   }

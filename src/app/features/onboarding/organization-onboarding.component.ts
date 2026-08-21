@@ -7,6 +7,7 @@ import { ApiError } from '../../core/http/api-error';
 import { ActiveOrganizationService } from '../../core/organizations/active-organization.service';
 import { GfAlert, GfPageHeader } from '../../shared/components/design-system';
 import { OrganizationOnboardingApiService } from './organization-onboarding-api.service';
+import { PostAuthRouteCoordinator } from '../../core/auth/post-auth-route.service';
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -50,6 +51,9 @@ const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
         @if (invalid('name')) {
           <p class="field-error">Enter a name between 2 and 120 characters.</p>
         }
+        @if (backendError('name'); as message) {
+          <p class="field-error">{{ message }}</p>
+        }
 
         <label for="organization-slug">Organization slug</label>
         <input
@@ -63,6 +67,9 @@ const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
         @if (invalid('slug')) {
           <p class="field-error">Enter a valid slug between 2 and 63 characters.</p>
         }
+        @if (backendError('slug'); as message) {
+          <p class="field-error">{{ message }}</p>
+        }
 
         <label for="organization-timezone">Timezone</label>
         <input id="organization-timezone" formControlName="timezone" list="common-timezones" autocomplete="off" />
@@ -73,6 +80,9 @@ const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
         </datalist>
         @if (invalid('timezone')) {
           <p class="field-error">Enter a supported IANA timezone, such as America/New_York.</p>
+        }
+        @if (backendError('timezone'); as message) {
+          <p class="field-error">{{ message }}</p>
         }
         <label class="confirm"
           ><input type="checkbox" formControlName="timezoneConfirmed" /> I confirm this timezone is correct.</label
@@ -157,6 +167,7 @@ export class OrganizationOnboardingComponent {
   private readonly auth = inject(AuthService);
   private readonly context = inject(ActiveOrganizationService);
   private readonly router = inject(Router);
+  private readonly coordinator = inject(PostAuthRouteCoordinator);
   readonly saving = signal(false);
   readonly error = signal<ApiError | null>(null);
   readonly slugEdited = signal(false);
@@ -200,9 +211,27 @@ export class OrganizationOnboardingComponent {
       const membership = session?.memberships.find(
         (m) => m.status === 'active' && m.organizationId === result.organizationId,
       );
-      if (!membership || !this.context.select(result.organizationId))
+      const roles = session?.effectiveRoles ?? session?.roles ?? [];
+      const workspaces = session?.workspaces ?? [];
+      const hasWorkspace =
+        workspaces.some((workspace) => workspace.type === 'organization' && workspace.id === result.organizationId) ||
+        !!membership;
+      if (
+        session?.onboardingStatus !== 'complete' ||
+        !membership ||
+        !hasWorkspace ||
+        !roles.some((role) => role === 'admin' || role === 'super_admin')
+      )
         throw new Error('Canonical membership was not confirmed.');
-      await this.router.navigateByUrl(result.nextStep || '/admin/quarters', { replaceUrl: true });
+      if (
+        (!session.activeWorkspace || session.activeWorkspace.id !== result.organizationId) &&
+        !(await this.context.selectWorkspace('organization', result.organizationId))
+      )
+        throw new Error('The organization workspace could not be selected.');
+      const confirmed = this.auth.user();
+      if (!confirmed) throw new Error('The refreshed session was lost.');
+      const target = this.coordinator.resolvePostAuthenticationRoute(confirmed, this.router.url);
+      if (target) await this.router.navigateByUrl(target, { replaceUrl: true });
     } catch (error) {
       this.error.set(
         error instanceof ApiError
@@ -218,6 +247,10 @@ export class OrganizationOnboardingComponent {
     if (error.status === 422) return 'The organization details are invalid. Check the timezone and highlighted fields.';
     if (error.status === 403) return 'This account is not eligible to create an organization.';
     return error.message;
+  }
+
+  backendError(name: 'name' | 'slug' | 'timezone'): string | null {
+    return this.error()?.fieldErrors?.[name]?.[0] ?? null;
   }
 }
 
