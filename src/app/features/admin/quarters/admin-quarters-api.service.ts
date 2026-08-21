@@ -5,6 +5,8 @@ import { ApiClient } from '../../../core/http/api-client.service';
 export type QuarterStatus = 'draft' | 'active' | 'closed' | 'archived';
 export type QuarterAction = 'edit' | 'activate' | 'close' | 'archive';
 export type QuarterSort = '-updatedAt' | 'name' | 'startsOn';
+/** The backend-documented default used by every unfiltered quarter picker/list. */
+export const DEFAULT_QUARTER_SORT: QuarterSort = '-updatedAt';
 
 export interface QuarterOrganization {
   readonly id: string;

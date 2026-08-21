@@ -4,7 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { ApiError } from '../../../core/http/api-error';
 import { GfAlert, GfPageHeader } from '../../../shared/components/design-system';
-import { AdminQuartersApiService, Quarter } from '../quarters/admin-quarters-api.service';
+import { AdminQuartersApiService, DEFAULT_QUARTER_SORT, Quarter } from '../quarters/admin-quarters-api.service';
 import { AdminBibleApiService } from './admin-bible-api.service';
 
 @Component({
@@ -42,12 +42,22 @@ import { AdminBibleApiService } from './admin-bible-api.service';
     <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
       <label for="content-title">Content title</label
       ><input id="content-title" formControlName="title" maxlength="160" /> <label for="quarter">Quarter</label
-      ><select id="quarter" formControlName="quarterId">
+      ><select id="quarter" formControlName="quarterId" [disabled]="quartersLoading()">
         <option value="">Select a quarter</option>
         @for (quarter of quarters(); track quarter.id) {
           <option [value]="quarter.id">{{ quarter.name }}</option>
         }
       </select>
+      @if (quartersLoading()) {
+        <p class="quarter-status" role="status">Loading quarters…</p>
+      } @else if (quartersError()) {
+        <div class="quarter-error" role="alert">
+          <span>Quarters could not be loaded.</span>
+          <button type="button" (click)="loadQuarters()">Retry</button>
+        </div>
+      } @else if (quarters().length === 0) {
+        <p class="quarter-status" role="status">No quarters are available.</p>
+      }
       <section class="file-field">
         <label for="question-document">Question document</label>
         <p>The child-facing questions and answer choices.</p>
@@ -87,7 +97,18 @@ import { AdminBibleApiService } from './admin-bible-api.service';
       }
       <div class="actions">
         <a routerLink="/admin/bible">Cancel</a
-        ><button class="primary" type="submit" [disabled]="uploading()">
+        ><button
+          class="primary"
+          type="submit"
+          [disabled]="
+            uploading() ||
+            quartersLoading() ||
+            form.invalid ||
+            !questionDocument() ||
+            !answerKeyDocument() ||
+            sameFile()
+          "
+        >
           {{ uploading() ? 'Uploading…' : 'Upload for review' }}
         </button>
       </div>
@@ -152,6 +173,16 @@ import { AdminBibleApiService } from './admin-bible-api.service';
       .error-summary {
         color: #8b1e1e;
       }
+      .quarter-status {
+        color: var(--muted);
+        margin: 0;
+      }
+      .quarter-error {
+        color: #8b1e1e;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
       .error-summary {
         border-left: 4px solid #8b1e1e;
         padding: 1rem;
@@ -180,6 +211,8 @@ export class AdminBibleImportComponent {
     quarterId: ['', Validators.required],
   });
   readonly quarters = signal<readonly Quarter[]>([]);
+  readonly quartersLoading = signal(true);
+  readonly quartersError = signal(false);
   readonly questionDocument = signal<File | null>(null);
   readonly answerKeyDocument = signal<File | null>(null);
   readonly uploading = signal(false);
@@ -187,10 +220,34 @@ export class AdminBibleImportComponent {
   readonly sameFile = signal(false);
   readonly error = signal<ApiError | null>(null);
   readonly announcement = signal('');
+  private quarterLoadSequence = 0;
   constructor() {
-    this.quartersApi.list({ page: 1, pageSize: 100, sort: 'startsOn' }).subscribe({
-      next: (result) => this.quarters.set(result.items),
-      error: (error: ApiError) => this.error.set(error),
+    this.loadQuarters();
+  }
+  /** Loads every tenant-scoped page; the API remains authoritative for workspace eligibility. */
+  loadQuarters() {
+    const sequence = ++this.quarterLoadSequence;
+    this.quartersLoading.set(true);
+    this.quartersError.set(false);
+    this.loadQuarterPage(sequence, 1, []);
+  }
+  private loadQuarterPage(sequence: number, page: number, loaded: readonly Quarter[]) {
+    this.quartersApi.list({ page, pageSize: 100, sort: DEFAULT_QUARTER_SORT }).subscribe({
+      next: (result) => {
+        if (sequence !== this.quarterLoadSequence) return;
+        const quarters = [...loaded, ...result.items];
+        if (page < result.pagination.totalPages) {
+          this.loadQuarterPage(sequence, page + 1, quarters);
+          return;
+        }
+        this.quarters.set(quarters);
+        this.quartersLoading.set(false);
+      },
+      error: () => {
+        if (sequence !== this.quarterLoadSequence) return;
+        this.quartersLoading.set(false);
+        this.quartersError.set(true);
+      },
     });
   }
   selectQuestion(event: Event) {
