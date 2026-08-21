@@ -41,6 +41,7 @@ describe('AdminBibleApiService', () => {
         title: '  Autumn quiz  ',
         quizFile: question,
         answerKeyFile: answer,
+        idempotencyKey: 'logical-import-1',
       })
       .subscribe();
     const request = http.expectOne((candidate) => candidate.url.endsWith('/admin/bible-content/imports'));
@@ -53,6 +54,7 @@ describe('AdminBibleApiService', () => {
     expect(body.get('answerKeyFile')).toBe(answer);
     expect(body.get('quizFile')).toEqual(jasmine.any(File));
     expect(request.request.headers.has('Content-Type')).toBeFalse();
+    expect(request.request.headers.get('Idempotency-Key')).toBe('logical-import-1');
     request.flush({ data: { id: 'import-1', status: 'uploaded' } });
   });
 });

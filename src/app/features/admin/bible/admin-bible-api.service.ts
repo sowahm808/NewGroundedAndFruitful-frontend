@@ -52,6 +52,8 @@ export interface CreateBibleContentImportInput {
   readonly title: string;
   readonly quizFile: File;
   readonly answerKeyFile: File;
+  /** Caller-owned key which must be reused when retrying the same logical upload. */
+  readonly idempotencyKey: string;
 }
 export interface BibleImportReview {
   readonly id: string;
@@ -90,7 +92,9 @@ export class AdminBibleApiService {
     body.append('title', input.title.trim());
     body.append('quizFile', input.quizFile, input.quizFile.name);
     body.append('answerKeyFile', input.answerKeyFile, input.answerKeyFile.name);
-    return this.api.postData<BibleImportCreated>('/admin/bible-content/imports', body);
+    return this.api.postData<BibleImportCreated>('/admin/bible-content/imports', body, {
+      headers: { 'Idempotency-Key': input.idempotencyKey },
+    });
   }
 
   getImport(id: string) {
