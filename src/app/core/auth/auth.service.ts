@@ -25,6 +25,17 @@ import { ApiClient } from '../http/api-client.service';
 import { ApiError } from '../http/api-error';
 import { normalizeRoles } from './role.utilities';
 
+function normalizeStrings(values: readonly string[] | undefined): readonly string[] {
+  return [...new Set((values ?? []).filter((value): value is string => typeof value === 'string' && value.length > 0))];
+}
+
+function normalizePersonas(values: SessionData['personas']): NonNullable<SessionData['personas']> {
+  return normalizeStrings(values).filter(
+    (value): value is NonNullable<SessionData['personas']>[number] =>
+      value === 'child' || value === 'parent' || value === 'mentor' || value === 'observer',
+  );
+}
+
 export type AuthStatus =
   | 'initializing'
   | 'anonymous'
@@ -73,6 +84,8 @@ export class AuthService {
   readonly authenticated = computed(() => this.current() !== null && this.currentStatus() !== 'anonymous');
   readonly roles = computed(() => this.current()?.roles ?? []);
   readonly platformRoles = computed(() => this.current()?.platformRoles ?? []);
+  readonly personas = computed(() => this.current()?.personas ?? []);
+  readonly capabilities = computed(() => this.current()?.capabilities ?? []);
   readonly sessionReady = computed(() => !['initializing', 'loading-session'].includes(this.currentStatus()));
   readonly sessionError = this.currentError.asReadonly();
   readonly sessionSynchronizationWarning = this.synchronizationWarning.asReadonly();
@@ -310,6 +323,9 @@ export class AuthService {
       roles: normalizeRoles(session.effectiveRoles ?? session.roles),
       // Platform roles remain a separate authority dimension and are never inferred from memberships.
       platformRoles: normalizeRoles(session.platformRoles),
+      ...(session.personas ? { personas: normalizePersonas(session.personas) } : {}),
+      ...(session.capabilities ? { capabilities: normalizeStrings(session.capabilities) } : {}),
+      ...(session.workspaceRoles ? { workspaceRoles: normalizeRoles(session.workspaceRoles) } : {}),
       disabled: session.disabled,
       onboardingStatus: session.onboardingStatus,
       ...(session.nextStep ? { nextStep: session.nextStep } : {}),
@@ -318,6 +334,8 @@ export class AuthService {
         ...membership,
         roles: normalizeRoles(membership.roles),
         ...(membership.workspaceRoles ? { workspaceRoles: normalizeRoles(membership.workspaceRoles) } : {}),
+        ...(membership.personas ? { personas: normalizePersonas(membership.personas) } : {}),
+        ...(membership.capabilities ? { capabilities: normalizeStrings(membership.capabilities) } : {}),
       })),
       ...(session.activeOrganizationId ? { activeOrganizationId: session.activeOrganizationId } : {}),
       ...(session.activeWorkspaceId ? { activeWorkspaceId: session.activeWorkspaceId } : {}),

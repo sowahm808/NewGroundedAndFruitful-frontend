@@ -84,8 +84,7 @@ function decidePostAuthDestination(session: SessionUser | null | undefined): Int
     };
 
   if (activeWorkspace.type === 'personal') {
-    const membershipRoles = [...(activeMembership.workspaceRoles ?? []), ...(activeMembership.roles ?? [])];
-    if (session.registrationIntent === 'personal' && membershipRoles.includes('owner'))
+    if (session.personas?.includes('parent') && session.capabilities?.includes('parent.children.read'))
       return { path: '/parent/children', reason: 'dashboard', workspaceType: 'personal' };
     return {
       path: '/account/profile',

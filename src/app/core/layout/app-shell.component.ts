@@ -18,59 +18,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../auth/auth.service';
 import { UserRole } from '../models/domain.models';
 import { ActiveOrganizationService } from '../organizations/active-organization.service';
-
-export interface NavigationItem {
-  readonly label: string;
-  readonly path: string;
-  readonly exact?: boolean;
-  readonly requiredRoles: readonly UserRole[];
-  readonly authority?: 'platform' | 'organization';
-}
-
-const NAVIGATION: readonly NavigationItem[] = [
-  { label: 'Today', path: '/child/today', requiredRoles: ['child'] },
-  { label: 'Character', path: '/child/character', requiredRoles: ['child'] },
-  { label: 'Bible', path: '/child/bible', requiredRoles: ['child'] },
-  { label: 'Reading', path: '/child/reading', requiredRoles: ['child'] },
-  { label: 'Project', path: '/child/project', requiredRoles: ['child'] },
-  { label: 'Team', path: '/child/team', requiredRoles: ['child'] },
-  { label: 'Children', path: '/parent/children', requiredRoles: ['parent'] },
-  { label: 'Participation', path: '/parent/participation', requiredRoles: ['parent'] },
-  { label: 'Character', path: '/parent/character', requiredRoles: ['parent'] },
-  { label: 'Observations', path: '/parent/observations', requiredRoles: ['parent'] },
-  { label: 'Family', path: '/parent/family', requiredRoles: ['parent'] },
-  { label: 'Support', path: '/parent/academic-support', requiredRoles: ['parent'] },
-  { label: 'Reports', path: '/parent/reports', requiredRoles: ['parent'] },
-  { label: 'Notifications', path: '/parent/notifications', requiredRoles: ['parent'] },
-  { label: 'Teams', path: '/mentor/teams', requiredRoles: ['mentor'] },
-  { label: 'Projects', path: '/mentor/projects', requiredRoles: ['mentor'] },
-  { label: 'Reading', path: '/mentor/reading', requiredRoles: ['mentor'] },
-  { label: 'Encouragement', path: '/mentor/encouragement', requiredRoles: ['mentor'] },
-  { label: 'Observations', path: '/observer/observations', requiredRoles: ['observer'] },
-  { label: 'Users', path: '/admin/users', requiredRoles: ['super_admin'], authority: 'platform' },
-  { label: 'Organizations', path: '/admin/organizations', requiredRoles: ['super_admin'], authority: 'platform' },
-  { label: 'Memberships', path: '/admin/memberships', requiredRoles: ['super_admin'], authority: 'platform' },
-  { label: 'Roles', path: '/admin/roles', requiredRoles: ['super_admin'], authority: 'platform' },
-  { label: 'Participants', path: '/admin/participants', requiredRoles: ['admin', 'super_admin'] },
-  { label: 'Teams', path: '/admin/teams', requiredRoles: ['admin', 'super_admin'] },
-  { label: 'Assignments', path: '/admin/assignments', requiredRoles: ['admin', 'super_admin'] },
-  { label: 'Quarters', path: '/admin/quarters', requiredRoles: ['admin', 'super_admin'] },
-  { label: 'Character', path: '/admin/character', requiredRoles: ['admin', 'super_admin'] },
-  { label: 'Bible', path: '/admin/bible', requiredRoles: ['admin', 'super_admin'] },
-  { label: 'Family activities', path: '/admin/family', requiredRoles: ['admin', 'super_admin'] },
-  { label: 'Books', path: '/admin/books', requiredRoles: ['admin', 'super_admin'] },
-  { label: 'Projects', path: '/admin/projects', requiredRoles: ['admin', 'super_admin'] },
-  { label: 'Surveys', path: '/admin/surveys', requiredRoles: ['admin', 'super_admin'] },
-  { label: 'Point rules', path: '/admin/points', requiredRoles: ['admin', 'super_admin'] },
-  { label: 'Reports', path: '/admin/reports', requiredRoles: ['admin', 'super_admin'] },
-  { label: 'Awards', path: '/admin/awards', requiredRoles: ['admin', 'super_admin'] },
-  { label: 'Audit', path: '/admin/audit', requiredRoles: ['super_admin'], authority: 'platform' },
-];
-
-for (const item of NAVIGATION) {
-  if (item.path.startsWith('/admin/') && !item.authority)
-    (item as { authority: 'organization' }).authority = 'organization';
-}
+import { navigationFor as policyNavigationFor } from '../navigation/navigation-policy';
 
 @Component({
   selector: 'gf-app-shell',
@@ -112,15 +60,13 @@ for (const item of NAVIGATION) {
               <option value="" disabled>Select workspace</option>
               @for (workspace of organizations.workspaces(); track workspace.type + workspace.id) {
                 <option [value]="workspace.type + ':' + workspace.id">
-                  {{ workspace.type === 'personal' ? 'Personal — ' : 'Organization — ' }}{{ workspace.name }}
+                  {{ workspace.type === 'personal' ? 'Personal' : workspace.name }}
                 </option>
               }
             </select></label
           >
         } @else if (organizations.activeWorkspace(); as workspace) {
-          <span class="current-organization"
-            >{{ workspace.type === 'personal' ? 'Personal' : 'Organization' }} — {{ workspace.name }}</span
-          >
+          <span class="current-organization">{{ workspace.type === 'personal' ? 'Personal' : workspace.name }}</span>
         }
         <div class="utility">
           <button
@@ -589,9 +535,27 @@ export class AppShellComponent {
   readonly utilityOpen = signal(false);
   readonly loggingOut = signal(false);
   readonly logoutError = signal<string | null>(null);
-  readonly links = computed(() => navigationFor(this.auth.roles(), this.organizations.roles()));
+  readonly links = computed(() =>
+    policyNavigationFor({
+      workspaceType: this.organizations.activeWorkspace()?.type,
+      membership: this.organizations.activeMembership(),
+      personas: this.auth.personas(),
+      capabilities: this.auth.capabilities(),
+    }).map((item) => ({ ...item, path: item.route, requiredRoles: [] })),
+  );
   readonly initials = computed(() => initialsFor(this.auth.user()?.displayName ?? ''));
-  readonly roleLabel = computed(() => this.auth.roles().map(formatRole).join(', '));
+  readonly roleLabel = computed(() => {
+    const experiences = this.auth
+      .personas()
+      .map((persona) => (persona === 'parent' ? 'Parent/Guardian' : formatRole(persona)));
+    const access = this.organizations.roles().map(formatRole);
+    return [
+      experiences.length ? `Experience: ${experiences.join(', ')}` : '',
+      access.length ? `Workspace access: ${access.join(', ')}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  });
   readonly homePath = computed(() => this.links()[0]?.path ?? '/account/profile');
 
   @ViewChild('menuButton') private menuButton?: ElementRef<HTMLButtonElement>;
@@ -728,16 +692,6 @@ export class AppShellComponent {
   private setPageScrollLocked(locked: boolean): void {
     this.document.body.classList.toggle('drawer-scroll-lock', locked);
   }
-}
-
-export function navigationFor(
-  effectiveRoles: readonly UserRole[],
-  activeOrganizationRoles: readonly UserRole[],
-): readonly NavigationItem[] {
-  return NAVIGATION.filter((item) => {
-    if (!item.requiredRoles.some((role) => effectiveRoles.includes(role))) return false;
-    return item.authority !== 'organization' || activeOrganizationRoles.includes('admin');
-  });
 }
 
 export function initialsFor(name: string): string {

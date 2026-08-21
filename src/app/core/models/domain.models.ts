@@ -1,4 +1,7 @@
 export type UserRole = 'owner' | 'child' | 'parent' | 'mentor' | 'observer' | 'admin' | 'super_admin';
+export type ProductPersona = 'child' | 'parent' | 'mentor' | 'observer';
+/** Opaque, backend-issued authority. New capabilities do not require a frontend release. */
+export type Capability = string;
 export type MembershipState = 'active' | 'pending' | 'suspended' | 'deleted';
 export type RegistrationIntent = 'personal' | 'organization';
 export interface RegistrationIntentResponse {
@@ -13,6 +16,8 @@ export interface SessionMembership {
   readonly organizationName?: string;
   readonly workspaceId?: string;
   readonly workspaceRoles?: readonly UserRole[];
+  readonly personas?: readonly ProductPersona[];
+  readonly capabilities?: readonly Capability[];
   readonly roles?: readonly UserRole[];
   readonly status?: MembershipState;
 }
@@ -34,6 +39,12 @@ export interface SessionUser {
   readonly roles: readonly UserRole[];
   /** Platform-scoped roles are reported independently from organization memberships. */
   readonly platformRoles?: readonly UserRole[];
+  /** Product journeys are independent from workspace governance roles. */
+  readonly personas?: readonly ProductPersona[];
+  /** Server-derived permissions for the selected workspace. */
+  readonly capabilities?: readonly Capability[];
+  /** Governance authority for the selected workspace (for example, owner or admin). */
+  readonly workspaceRoles?: readonly UserRole[];
   readonly disabled: boolean;
   readonly onboardingStatus: OnboardingStatus;
   readonly nextStep?: string;

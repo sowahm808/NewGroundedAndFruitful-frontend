@@ -2,8 +2,9 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
 import { PostAuthRouteCoordinator } from '../auth/post-auth-route.service';
-import { UserRole } from '../models/domain.models';
+import { Capability, UserRole } from '../models/domain.models';
 import { ActiveOrganizationService } from '../organizations/active-organization.service';
+import { hasCapabilities } from '../navigation/navigation-policy';
 
 export const authGuard: CanActivateFn = async (_route, state) => {
   const auth = inject(AuthService);
@@ -79,18 +80,35 @@ export const organizationRoleGuard =
     return organizations.hasRole(role) || router.createUrlTree(['/unauthorized']);
   };
 
-/** Allows the family area to program parents or to the verified owner of the active personal workspace. */
+export const capabilityGuard =
+  (required: readonly Capability[]): CanActivateFn =>
+  async () => {
+    const auth = inject(AuthService);
+    const organizations = inject(ActiveOrganizationService);
+    const router = inject(Router);
+    await auth.initialize();
+    const membership = organizations.activeMembership();
+    return (
+      (membership?.status === 'active' && hasCapabilities(auth.capabilities(), required)) ||
+      router.createUrlTree(['/unauthorized'])
+    );
+  };
+
+/** Establishes parent experience eligibility; child access is enforced by relationship-scoped APIs. */
 export const personalWorkspaceGuard: CanActivateFn = async () => {
   const auth = inject(AuthService);
   const router = inject(Router);
-  const coordinator = inject(PostAuthRouteCoordinator);
   await auth.initialize();
   const user = auth.user();
   if (!user) return router.createUrlTree(['/auth/login']);
-  const decision = coordinator.decision(user);
+  const workspace = user.workspaces?.find((item) => item.id === user.activeWorkspaceId);
+  const membership = user.memberships.find(
+    (item) => item.workspaceId === user.activeWorkspaceId || item.organizationId === user.activeWorkspaceId,
+  );
   return (
-    auth.hasRole(['parent']) ||
-    (decision.reason === 'dashboard' && decision.workspaceType === 'personal') ||
+    (user.personas?.includes('parent') &&
+      membership?.status === 'active' &&
+      (workspace?.type === 'personal' || workspace?.type === 'organization')) ||
     router.createUrlTree(['/unauthorized'])
   );
 };

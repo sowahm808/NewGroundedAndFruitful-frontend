@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import {
   authGuard,
+  capabilityGuard,
   guestGuard,
   onboardingGuard,
   organizationRoleGuard,
@@ -65,6 +66,7 @@ export const routes: Routes = [
       },
       {
         path: 'character',
+        canActivate: [capabilityGuard(['parent.children.read'])],
         loadComponent: () => import('./features/child/character.component').then((m) => m.CharacterComponent),
       },
       { path: 'bible', loadComponent: () => import('./features/child/bible.component').then((m) => m.BibleComponent) },
@@ -92,11 +94,13 @@ export const routes: Routes = [
     children: [
       {
         path: 'children/:childId',
+        canActivate: [capabilityGuard(['parent.children.read'])],
         loadComponent: () =>
           import('./features/parent/children/parent-child-detail.component').then((m) => m.ParentChildDetailComponent),
       },
       {
         path: 'children',
+        canActivate: [capabilityGuard(['parent.children.read'])],
         loadComponent: () =>
           import('./features/parent/children/parent-children.component').then((m) => m.ParentChildrenComponent),
       },
@@ -107,6 +111,7 @@ export const routes: Routes = [
       },
       {
         path: 'observations',
+        canActivate: [capabilityGuard(['parent.observations.create'])],
         loadComponent: () =>
           import('./features/parent/observations/parent-observations.component').then(
             (m) => m.ParentObservationsComponent,
@@ -114,11 +119,13 @@ export const routes: Routes = [
       },
       {
         path: 'family',
+        canActivate: [capabilityGuard(['family.activities.read'])],
         loadComponent: () =>
           import('./features/parent/family/parent-family.component').then((m) => m.ParentFamilyComponent),
       },
       {
         path: 'academic-support',
+        canActivate: [capabilityGuard(['support.requests.create'])],
         loadComponent: () =>
           import('./features/parent/academic-support/parent-academic-support.component').then(
             (m) => m.ParentAcademicSupportComponent,
@@ -126,6 +133,7 @@ export const routes: Routes = [
       },
       {
         path: 'participation',
+        canActivate: [capabilityGuard(['parent.children.read'])],
         loadComponent: () =>
           import('./features/parent/participation/parent-participation.component').then(
             (m) => m.ParentParticipationComponent,
@@ -133,6 +141,7 @@ export const routes: Routes = [
       },
       {
         path: 'notifications',
+        canActivate: [capabilityGuard(['parent.notifications.read'])],
         loadComponent: () =>
           import('./features/parent/notifications/parent-notifications.component').then(
             (m) => m.ParentNotificationsComponent,
@@ -140,6 +149,7 @@ export const routes: Routes = [
       },
       {
         path: 'reports',
+        canActivate: [capabilityGuard(['parent.reports.read'])],
         loadComponent: () =>
           import('./features/parent/reports/parent-reports.component').then((m) => m.ParentReportsComponent),
       },
