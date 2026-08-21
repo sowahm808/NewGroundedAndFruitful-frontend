@@ -4,7 +4,7 @@ import { provideRouter } from '@angular/router';
 import { Observable, Subject, of, throwError } from 'rxjs';
 import { ApiError } from '../../../core/http/api-error';
 import { ActiveOrganizationService } from '../../../core/organizations/active-organization.service';
-import { AdminQuartersApiService, QuarterList, QuarterQuery } from '../quarters/admin-quarters-api.service';
+import { AdminQuartersApiService, Quarter, QuarterList, QuarterQuery } from '../quarters/admin-quarters-api.service';
 import { AdminBibleApiService } from './admin-bible-api.service';
 import { AdminBibleImportComponent } from './admin-bible-import.component';
 
@@ -21,10 +21,15 @@ describe('AdminBibleImportComponent', () => {
   const autumn = {
     id: 'quarter-autumn',
     name: 'Autumn 2026',
-    startsOn: '2026-09-01',
-    endsOn: '2026-11-30',
-    status: 'active' as const,
-    updatedAt: '2026-08-20T12:00:00Z',
+    description: null,
+    startDate: '2026-09-01' as Quarter['startDate'],
+    endDate: '2026-11-30' as Quarter['endDate'],
+    status: 'open' as const,
+    workspaceId: 'organization-1',
+    workspaceName: 'Workspace',
+    statusLabel: 'Open',
+    updatedAt: new Date('2026-08-20T12:00:00Z'),
+    updatedAtIso: '2026-08-20T12:00:00Z',
     version: 1,
     allowedActions: [],
   };
