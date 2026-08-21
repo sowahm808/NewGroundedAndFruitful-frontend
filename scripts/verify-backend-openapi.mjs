@@ -15,6 +15,7 @@ const document = source.startsWith('https://')
 const operations = [
   ['post', '/auth/child-token'],
   ['get', '/auth/session'],
+  ['post', '/onboarding/personal'],
   ['post', '/onboarding/organization'],
   ['get', '/admin/organizations'],
   ['get', '/admin/memberships'],
