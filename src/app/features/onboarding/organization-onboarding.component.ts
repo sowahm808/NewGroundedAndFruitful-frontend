@@ -178,7 +178,7 @@ export class OrganizationOnboardingComponent {
     'UTC',
   ];
   readonly inconsistent = signal(this.auth.user()?.onboardingStatus === 'complete');
-  private retrySubmission?: { readonly fingerprint: string; readonly key: string };
+  private retrySubmission?: { readonly fingerprint: string; readonly key: string; tokenRefreshAttempted: boolean };
   readonly form = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
     slug: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(63), Validators.pattern(SLUG)]],
@@ -204,12 +204,19 @@ export class OrganizationOnboardingComponent {
     const value = this.form.getRawValue();
     const command = { name: value.name.trim(), slug: value.slug.trim(), timezone: value.timezone.trim() };
     const fingerprint = JSON.stringify(command);
-    const idempotencyKey =
-      this.retrySubmission?.fingerprint === fingerprint ? this.retrySubmission.key : createIdempotencyKey();
-    this.retrySubmission = { fingerprint, key: idempotencyKey };
+    const submission =
+      this.retrySubmission?.fingerprint === fingerprint
+        ? this.retrySubmission
+        : { fingerprint, key: createIdempotencyKey(), tokenRefreshAttempted: false };
+    this.retrySubmission = submission;
     try {
-      const result = await firstValueFrom(this.api.bootstrap(command, idempotencyKey));
-      const session = await this.auth.refreshSession(result.tokenRefreshRequired);
+      const result = await firstValueFrom(this.api.bootstrap(command, submission.key));
+      const forceTokenRefresh = result.tokenRefreshRequired && !submission.tokenRefreshAttempted;
+      // A replay of this logical submission can return the cached bootstrap response.
+      // Remember that its refresh instruction was already honored so an exact retry
+      // reloads the backend session without repeatedly force-refreshing Firebase.
+      if (forceTokenRefresh) submission.tokenRefreshAttempted = true;
+      const session = await this.auth.refreshSession(forceTokenRefresh);
       const membership = session?.memberships.find(
         (m) => m.status === 'active' && m.organizationId === result.organizationId,
       );
