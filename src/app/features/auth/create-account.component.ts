@@ -2,9 +2,9 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { FirebaseError } from 'firebase/app';
-import { AuthService } from '../../core/auth/auth.service';
-import { roleDestination } from '../../core/auth/role.utilities';
-import { SessionUser } from '../../core/models/domain.models';
+import { AuthService, RegistrationResult } from '../../core/auth/auth.service';
+import { ApiError } from '../../core/http/api-error';
+import { RegistrationIntent } from '../../core/models/domain.models';
 import { GfButton, GfCard } from '../../shared/components/design-system';
 
 @Component({
@@ -86,22 +86,43 @@ export class CreateAccountComponent {
   async google(): Promise<void> {
     if (!this.busy()) await this.run(() => this.auth.signInWithGoogle(this.intent()));
   }
-  private async run(operation: () => Promise<SessionUser>): Promise<void> {
+  private async run(operation: () => Promise<RegistrationResult>): Promise<void> {
     this.busy.set(true);
     this.message.set('');
     try {
-      const user = await operation();
-      if (this.auth.status() === 'organization-required') await this.router.navigateByUrl('/onboarding/organization');
-      else if (user.onboardingStatus === 'profile_required') await this.router.navigateByUrl('/account/profile');
-      else await this.router.navigateByUrl(roleDestination(user.roles) ?? '/account/role-required');
+      const result = await operation();
+      await this.router.navigateByUrl(registrationDestination(result, this.intent()));
     } catch (error) {
-      this.message.set(
-        error instanceof FirebaseError && error.code === 'auth/email-already-in-use'
-          ? 'An account already uses this email. Try signing in instead.'
-          : 'We could not create your account. Please try again.',
-      );
+      this.message.set(registrationErrorMessage(error));
     } finally {
       this.busy.set(false);
     }
   }
+}
+
+export function registrationDestination(result: RegistrationResult, intent: RegistrationIntent): string {
+  const step = result.intentResult.nextStep;
+  if (step === '/onboarding/organization' || step === 'organization_setup') return '/onboarding/organization';
+  if (step === '/account/profile' || step === '/onboarding/personal' || step === 'personal_workspace_setup')
+    return '/account/profile';
+  if (result.intentResult.onboardingStatus === 'organization_required') return '/onboarding/organization';
+  if (result.intentResult.onboardingStatus === 'profile_required') return '/account/profile';
+  // The selected intent is only a routing fallback; it never assigns authority or completes onboarding.
+  if (intent === 'organization') return '/onboarding/organization';
+  if (intent === 'personal') return '/account/profile';
+  return '/account/role-required';
+}
+
+export function registrationErrorMessage(error: unknown): string {
+  if (error instanceof FirebaseError && error.code === 'auth/email-already-in-use')
+    return 'An account already uses this email. Try signing in instead.';
+  if (!(error instanceof ApiError)) return 'We could not create your account. Please try again.';
+  if (error.status === 401) return 'Your authentication token could not be verified. Please retry or sign in again.';
+  if (error.status === 403) return 'This account is disabled or is not eligible to register.';
+  if (error.status === 409)
+    return 'This account already has a conflicting registration state. Please retry or sign in.';
+  if (error.status === 422) return 'Choose a valid personal or organization account type.';
+  return error.status === 0
+    ? 'The service could not be reached. Check your connection and retry.'
+    : 'The registration service could not complete your request. Please retry.';
 }

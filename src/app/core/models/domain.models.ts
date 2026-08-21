@@ -1,6 +1,11 @@
 export type UserRole = 'child' | 'parent' | 'mentor' | 'observer' | 'admin' | 'super_admin';
 export type MembershipState = 'active' | 'pending' | 'suspended' | 'deleted';
 export type RegistrationIntent = 'personal' | 'organization';
+export interface RegistrationIntentResponse {
+  readonly intent: RegistrationIntent;
+  readonly nextStep?: string;
+  readonly onboardingStatus?: OnboardingStatus;
+}
 export type WorkspaceType = 'personal' | 'organization';
 export interface SessionMembership {
   readonly id?: string;

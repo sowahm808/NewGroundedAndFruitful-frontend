@@ -13,7 +13,14 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { FIREBASE_AUTH } from './firebase-auth.token';
-import { ApiResponse, RegistrationIntent, SessionData, SessionUser, UserRole } from '../models/domain.models';
+import {
+  ApiResponse,
+  RegistrationIntent,
+  RegistrationIntentResponse,
+  SessionData,
+  SessionUser,
+  UserRole,
+} from '../models/domain.models';
 import { ApiClient } from '../http/api-client.service';
 import { ApiError } from '../http/api-error';
 import { normalizeRoles } from './role.utilities';
@@ -39,6 +46,11 @@ export class SessionBootstrapError extends Error {
   }
 }
 
+export interface RegistrationResult {
+  readonly intentResult: RegistrationIntentResponse;
+  readonly session: SessionUser;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly firebaseAuth = inject(FIREBASE_AUTH);
@@ -52,6 +64,7 @@ export class AuthService {
   private bootstrapAttempt = 0;
   /** Prevents repeated forced refreshes while the backend reports the same pending synchronization state. */
   private synchronizationRefreshAttempted = false;
+  private pendingRegistrationUser?: User;
 
   readonly status = this.currentStatus.asReadonly();
   readonly user = this.current.asReadonly();
@@ -97,22 +110,56 @@ export class AuthService {
     email: string,
     password: string,
     intent: RegistrationIntent,
-  ): Promise<SessionUser> {
-    const credential = await createUserWithEmailAndPassword(this.firebaseAuth, email, password);
-    await updateProfile(credential.user, { displayName });
-    await this.recordRegistrationIntent(intent);
-    return this.reloadBackendSession(credential.user);
+  ): Promise<RegistrationResult> {
+    let user = this.pendingRegistrationUser;
+    if (!user || user.email?.toLowerCase() !== email.trim().toLowerCase()) {
+      const credential = await createUserWithEmailAndPassword(this.firebaseAuth, email, password);
+      user = credential.user;
+      this.pendingRegistrationUser = user;
+      await updateProfile(user, { displayName });
+    }
+    return this.completeRegistration(user, intent);
   }
 
-  async signInWithGoogle(intent?: RegistrationIntent): Promise<SessionUser> {
-    const credential = await signInWithPopup(this.firebaseAuth, new GoogleAuthProvider());
-    if (intent) await this.recordRegistrationIntent(intent);
-    return this.loadBackendSession(credential.user);
+  signInWithGoogle(): Promise<SessionUser>;
+  signInWithGoogle(intent: RegistrationIntent): Promise<RegistrationResult>;
+  async signInWithGoogle(intent?: RegistrationIntent): Promise<SessionUser | RegistrationResult> {
+    let user = this.pendingRegistrationUser;
+    if (!user) {
+      const credential = await signInWithPopup(this.firebaseAuth, new GoogleAuthProvider());
+      user = credential.user;
+      this.pendingRegistrationUser = user;
+    }
+    if (intent) return this.completeRegistration(user, intent);
+    return this.loadBackendSession(user);
   }
 
-  private async recordRegistrationIntent(intent: RegistrationIntent): Promise<void> {
+  private async completeRegistration(user: User, intent: RegistrationIntent): Promise<RegistrationResult> {
+    const authenticatedUser = await this.waitForAuthenticatedUser(user.uid);
+    // Acquire a current token before constructing the request. The central interceptor remains
+    // solely responsible for placing it in the Authorization header.
+    await authenticatedUser.getIdToken(false);
+    const intentResult = await this.recordRegistrationIntent(intent);
+    const session = await this.reloadBackendSession(authenticatedUser);
+    this.pendingRegistrationUser = undefined;
+    return { intentResult, session };
+  }
+
+  private async waitForAuthenticatedUser(expectedUid: string): Promise<User> {
+    await this.firebaseAuth.authStateReady();
+    const currentUser = this.firebaseAuth.currentUser;
+    if (!currentUser || currentUser.uid !== expectedUid)
+      throw new Error('The newly created Firebase user is not active.');
+    return currentUser;
+  }
+
+  private async recordRegistrationIntent(intent: RegistrationIntent): Promise<RegistrationIntentResponse> {
     // Identity has already been verified by Firebase. Roles/capabilities are deliberately absent.
-    await firstValueFrom(this.api.postData('/auth/registration-intent', { intent }));
+    return firstValueFrom(
+      this.api.postData<RegistrationIntentResponse>('/auth/registration-intent', { intent } satisfies {
+        intent: RegistrationIntent;
+      }),
+    );
   }
 
   private reloadBackendSession(user: User): Promise<SessionUser> {
