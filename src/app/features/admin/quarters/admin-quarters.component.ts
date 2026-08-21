@@ -21,8 +21,8 @@ const PAGE_SIZE = 20;
 type LoadResult = { sequence: number; data?: QuarterList; error?: ApiError };
 
 function dateRange(control: AbstractControl): ValidationErrors | null {
-  const start = control.get('startsOn')?.value as string;
-  const end = control.get('endsOn')?.value as string;
+  const start = control.get('startDate')?.value as string;
+  const end = control.get('endDate')?.value as string;
   return start && end && start > end ? { dateRange: true } : null;
 }
 
@@ -102,19 +102,32 @@ function dateRange(control: AbstractControl): ValidationErrors | null {
                   <td>
                     <strong>{{ q.name }}</strong>
                   </td>
-                  <td>{{ dateOnly(q.startsOn) }} – {{ dateOnly(q.endsOn) }}</td>
                   <td>
-                    <gf-badge>{{ label(q.status) }}</gf-badge>
+                    <span [attr.aria-label]="dateRangeLabel(q)"
+                      >{{ dateOnly(q.startDate) }} – {{ dateOnly(q.endDate) }}</span
+                    >
                   </td>
-                  <td>{{ q.organization?.name || '—' }}</td>
-                  <td>{{ q.updatedAt | date: 'medium' }}</td>
+                  <td>
+                    <gf-badge
+                      ><span class="status-text">{{ q.statusLabel }}</span></gf-badge
+                    >
+                  </td>
+                  <td>{{ q.workspaceName }}</td>
+                  <td>
+                    <time [attr.datetime]="q.updatedAtIso">{{ q.updatedAt | date: 'medium' }}</time>
+                  </td>
                   <td>
                     <div class="actions">
                       @for (a of q.allowedActions; track a) {
                         @if (a === 'edit') {
-                          <button type="button" (click)="openEdit(q)">Edit</button>
+                          <button type="button" [attr.aria-label]="'Edit ' + q.name" (click)="openEdit(q)">Edit</button>
                         } @else {
-                          <button type="button" [disabled]="mutating()" (click)="beginAction(q, a)">
+                          <button
+                            type="button"
+                            [attr.aria-label]="label(a) + ' ' + q.name"
+                            [disabled]="mutating()"
+                            (click)="beginAction(q, a)"
+                          >
                             {{ label(a) }}
                           </button>
                         }
@@ -133,25 +146,32 @@ function dateRange(control: AbstractControl): ValidationErrors | null {
               <dl>
                 <div>
                   <dt>Date range</dt>
-                  <dd>{{ dateOnly(q.startsOn) }} – {{ dateOnly(q.endsOn) }}</dd>
+                  <dd>
+                    <span [attr.aria-label]="dateRangeLabel(q)"
+                      >{{ dateOnly(q.startDate) }} – {{ dateOnly(q.endDate) }}</span
+                    >
+                  </dd>
                 </div>
                 <div>
                   <dt>Status</dt>
-                  <dd>{{ label(q.status) }}</dd>
+                  <dd>{{ q.statusLabel }}</dd>
                 </div>
                 <div>
                   <dt>Workspace</dt>
-                  <dd>{{ q.organization?.name || '—' }}</dd>
+                  <dd>{{ q.workspaceName }}</dd>
                 </div>
                 <div>
                   <dt>Last updated</dt>
-                  <dd>{{ q.updatedAt | date: 'medium' }}</dd>
+                  <dd>
+                    <time [attr.datetime]="q.updatedAtIso">{{ q.updatedAt | date: 'medium' }}</time>
+                  </dd>
                 </div>
               </dl>
               <div class="actions">
                 @for (a of q.allowedActions; track a) {
                   <button
                     type="button"
+                    [attr.aria-label]="label(a) + ' ' + q.name"
                     [disabled]="mutating()"
                     (click)="a === 'edit' ? openEdit(q) : beginAction(q, a)"
                   >
@@ -221,12 +241,12 @@ function dateRange(control: AbstractControl): ValidationErrors | null {
           @if (invalid('name')) {
             <p class="field-error">Enter a name of 120 characters or fewer.</p>
           }
-          <label for="starts-on">Start date</label><input id="starts-on" type="date" formControlName="startsOn" />
-          @if (invalid('startsOn')) {
+          <label for="starts-on">Start date</label><input id="starts-on" type="date" formControlName="startDate" />
+          @if (invalid('startDate')) {
             <p class="field-error">Enter a valid start date.</p>
           }
-          <label for="ends-on">End date</label><input id="ends-on" type="date" formControlName="endsOn" />
-          @if (invalid('endsOn')) {
+          <label for="ends-on">End date</label><input id="ends-on" type="date" formControlName="endDate" />
+          @if (invalid('endDate')) {
             <p class="field-error">Enter a valid end date.</p>
           }
           @if (quarterForm.hasError('dateRange')) {
@@ -428,11 +448,19 @@ export class AdminQuartersComponent {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   readonly organizations = inject(ActiveOrganizationService);
-  readonly statuses: readonly QuarterStatus[] = ['draft', 'active', 'closed', 'archived'];
+  readonly statuses: readonly QuarterStatus[] = [
+    'draft',
+    'scheduled',
+    'open',
+    'checkpoint',
+    'closed',
+    'recognition',
+    'archived',
+  ];
   readonly sorts: readonly { value: QuarterSort; label: string }[] = [
     { value: '-updatedAt', label: 'Recently updated' },
     { value: 'name', label: 'Name A–Z' },
-    { value: 'startsOn', label: 'Start date' },
+    { value: 'startDate', label: 'Start date' },
   ];
   readonly skeletons = [1, 2, 3, 4];
   readonly filters = this.fb.nonNullable.group({
@@ -444,8 +472,8 @@ export class AdminQuartersComponent {
     {
       organizationId: ['', Validators.required],
       name: ['', [Validators.required, Validators.maxLength(120)]],
-      startsOn: ['', Validators.required],
-      endsOn: ['', Validators.required],
+      startDate: ['', Validators.required],
+      endDate: ['', Validators.required],
     },
     { validators: dateRange },
   );
@@ -461,7 +489,7 @@ export class AdminQuartersComponent {
   readonly conflict = signal(false);
   readonly notice = signal('');
   readonly filtered = computed(() => !!this.query.status || !!this.query.search);
-  readonly canManage = computed(() => this.auth.hasRole(['admin', 'super_admin']));
+  readonly canManage = computed(() => this.auth.capabilities().includes('admin.quarters.manage'));
   readonly rangeStart = computed(() => {
     const p = this.result()?.pagination;
     return !p || p.total === 0 ? 0 : (p.page - 1) * p.pageSize + 1;
@@ -531,10 +559,10 @@ export class AdminQuartersComponent {
   openEdit(q: Quarter) {
     this.editing.set(q);
     this.quarterForm.setValue({
-      organizationId: q.organization?.id ?? '',
+      organizationId: q.workspaceId,
       name: q.name,
-      startsOn: q.startsOn,
-      endsOn: q.endsOn,
+      startDate: q.startDate,
+      endDate: q.endDate,
     });
     this.resetMutation();
   }
@@ -550,7 +578,7 @@ export class AdminQuartersComponent {
     if (this.quarterForm.invalid || this.mutating()) return;
     const record = this.editing()!;
     const value = this.quarterForm.getRawValue();
-    const body = { name: value.name.trim(), startsOn: value.startsOn, endsOn: value.endsOn };
+    const body = { name: value.name.trim(), startDate: value.startDate, endDate: value.endDate };
     if (!body.name) {
       this.quarterForm.controls.name.setErrors({ required: true });
       return;
@@ -617,6 +645,18 @@ export class AdminQuartersComponent {
   }
   label(v: string) {
     return v.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+  }
+  dateRangeLabel(q: Quarter) {
+    const long = (value: string) => {
+      const [year, month, day] = value.split('-').map(Number);
+      return new Intl.DateTimeFormat(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'UTC',
+      }).format(new Date(Date.UTC(year, month - 1, day)));
+    };
+    return `${long(q.startDate)} through ${long(q.endDate)}`;
   }
   impact(a: string) {
     return a === 'close'

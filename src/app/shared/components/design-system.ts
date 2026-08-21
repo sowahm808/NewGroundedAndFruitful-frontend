@@ -57,7 +57,7 @@ export class GfCard {}
 @Component({
   selector: 'gf-badge',
   standalone: true,
-  template: `<span><ng-content /></span>`,
+  template: `<span><ng-content></ng-content></span>`,
   styles: [
     `
       span {
@@ -68,6 +68,15 @@ export class GfCard {}
         padding: 0.3rem 0.7rem;
         font-weight: 700;
         font-size: 0.8rem;
+        line-height: 1.25;
+      }
+      @media (forced-colors: active) {
+        span {
+          border: 1px solid CanvasText;
+          background: Canvas;
+          color: CanvasText;
+          forced-color-adjust: auto;
+        }
       }
     `,
   ],
