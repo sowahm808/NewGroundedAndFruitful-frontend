@@ -196,7 +196,12 @@ export class AuthService {
 
   /** Reloads the canonical backend session, optionally forcing a Firebase token first. */
   async refreshSession(forceToken = false): Promise<SessionUser | null> {
-    if (forceToken) await this.firebaseAuth.currentUser?.getIdToken(true);
+    if (forceToken) {
+      // The caller has already honored the server's synchronization instruction. Mark
+      // it before reloading so loadSession cannot force-refresh a second time.
+      this.synchronizationRefreshAttempted = true;
+      await this.firebaseAuth.currentUser?.getIdToken(true);
+    }
     return this.retrySession();
   }
 
@@ -310,6 +315,7 @@ export class AuthService {
         roles: normalizeRoles(membership.roles),
       })),
       ...(session.activeOrganizationId ? { activeOrganizationId: session.activeOrganizationId } : {}),
+      ...(session.activeWorkspaceId ? { activeWorkspaceId: session.activeWorkspaceId } : {}),
       ...(session.activeWorkspace ? { activeWorkspace: session.activeWorkspace } : {}),
       ...(session.workspaces ? { workspaces: session.workspaces } : {}),
       ...(session.effectiveRoles ? { effectiveRoles: normalizeRoles(session.effectiveRoles) } : {}),

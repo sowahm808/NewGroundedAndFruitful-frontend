@@ -17,7 +17,9 @@ export interface BootstrapOrganizationResponse {
 @Injectable({ providedIn: 'root' })
 export class OrganizationOnboardingApiService {
   private readonly api = inject(ApiClient);
-  bootstrap(body: BootstrapOrganizationRequest): Observable<BootstrapOrganizationResponse> {
-    return this.api.postData<BootstrapOrganizationResponse>('/onboarding/organization', body);
+  bootstrap(body: BootstrapOrganizationRequest, idempotencyKey: string): Observable<BootstrapOrganizationResponse> {
+    return this.api.postData<BootstrapOrganizationResponse>('/onboarding/organization', body, {
+      headers: { 'Idempotency-Key': idempotencyKey },
+    });
   }
 }

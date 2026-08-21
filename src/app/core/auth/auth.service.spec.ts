@@ -169,6 +169,15 @@ describe('AuthService backend session bootstrap', () => {
     expect(auth.user()?.roles).toEqual(['super_admin']);
   });
 
+  it('does not force the token twice when a mutation already requested a forced refresh', async () => {
+    getSession.and.returnValue(of(backendSession(true)));
+
+    await auth.refreshSession(true);
+
+    expect(getIdToken).toHaveBeenCalledOnceWith(true);
+    expect(getSession).toHaveBeenCalledTimes(1);
+  });
+
   it('refreshes at most once while the same synchronization event remains pending', async () => {
     getSession.and.returnValue(of(backendSession(true)));
 

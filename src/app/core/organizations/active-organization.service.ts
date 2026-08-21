@@ -49,6 +49,8 @@ export class ActiveOrganizationService {
     const choices = this.workspaces();
     const selected = this.auth.user()?.activeWorkspace;
     if (selected) return choices.find((w) => w.id === selected.id && w.type === selected.type) ?? null;
+    const selectedId = this.auth.user()?.activeWorkspaceId;
+    if (selectedId) return choices.find((workspace) => workspace.id === selectedId) ?? null;
     const legacyId = this.auth.user()?.activeOrganizationId;
     if (legacyId) return choices.find((w) => w.type === 'organization' && w.id === legacyId) ?? null;
     return choices.length === 1 ? choices[0] : null;
