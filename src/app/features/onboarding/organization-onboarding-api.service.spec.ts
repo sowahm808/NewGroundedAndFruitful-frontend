@@ -13,6 +13,7 @@ describe('OrganizationOnboardingApiService', () => {
     api.bootstrap(body, 'logical-submission-key').subscribe();
 
     const request = http.expectOne((candidate) => candidate.url.endsWith('/onboarding/organization'));
+    expect(request.request.url).not.toContain('/admin/organizations');
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual(body);
     expect(Object.keys(request.request.body)).toEqual(['name', 'slug', 'timezone']);

@@ -104,6 +104,44 @@ describe('OrganizationOnboardingComponent bootstrap orchestration', () => {
     expect(component.error()?.message).toContain('active workspace');
   });
 
+  it('reloads the server session without forcing Firebase when the bootstrap response does not require it', async () => {
+    bootstrap.and.returnValue(of({ organizationId: 'org-1', tokenRefreshRequired: false }));
+
+    await component.submit();
+
+    expect(refreshSession).toHaveBeenCalledOnceWith(false);
+    expect(navigateByUrl).toHaveBeenCalledOnceWith('/admin/quarters', { replaceUrl: true });
+  });
+
+  [
+    { label: 'organization workspace', session: { ...verifiedSession, workspaces: [] } },
+    { label: 'active membership', session: { ...verifiedSession, memberships: [] } },
+    { label: 'matching active workspace', session: { ...verifiedSession, activeWorkspaceId: 'org-2' } },
+  ].forEach(({ label, session }) => {
+    it(`does not navigate until the refreshed session confirms the ${label}`, async () => {
+      bootstrap.and.returnValue(of({ organizationId: 'org-1', tokenRefreshRequired: false }));
+      refreshSession.and.resolveTo(session);
+
+      await component.submit();
+
+      expect(navigateByUrl).not.toHaveBeenCalled();
+      expect(component.error()?.message).toContain('server did not confirm');
+    });
+  });
+
+  it('rejects a refreshed session whose canonical route is not an admin dashboard', async () => {
+    bootstrap.and.returnValue(of({ organizationId: 'org-1', tokenRefreshRequired: false }));
+    const coordinator = TestBed.inject(PostAuthRouteCoordinator) as unknown as { decision: jasmine.Spy };
+    coordinator.decision = jasmine
+      .createSpy('decision')
+      .and.returnValue({ path: '/account/role-required', reason: 'role-required' });
+
+    await component.submit();
+
+    expect(navigateByUrl).not.toHaveBeenCalled();
+    expect(component.error()?.message).toContain('administration dashboard');
+  });
+
   it('force-refreshes Firebase at most once when an exact bootstrap retry replays refresh-required', async () => {
     bootstrap.and.returnValue(of({ organizationId: 'org-1', tokenRefreshRequired: true }));
     refreshSession.and.returnValues(
@@ -124,5 +162,7 @@ describe('OrganizationOnboardingComponent bootstrap orchestration', () => {
     expect(component.errorMessage(new ApiError(403, 'role_required', 'forbidden'))).toContain('not eligible');
     expect(component.errorMessage(new ApiError(403, 'relationship_forbidden', 'Policy denied'))).toBe('Policy denied');
     expect(component.errorMessage(new ApiError(403, 'approval_pending', 'forbidden'))).toContain('awaiting approval');
+    expect(component.errorMessage(new ApiError(409, 'business_conflict', 'conflict'))).toContain('already in use');
+    expect(component.errorMessage(new ApiError(403, 'account_disabled', 'forbidden'))).toContain('disabled');
   });
 });
