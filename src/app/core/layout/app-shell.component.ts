@@ -101,18 +101,26 @@ for (const item of NAVIGATION) {
           <span class="brand-name">Grounded <b>&amp; Fruitful</b></span>
         </a>
         <span class="toolbar-spacer"></span>
-        @if (organizations.memberships().length > 1) {
+        @if (organizations.workspaces().length > 1) {
           <label class="organization-context"
-            ><span>Organization</span
-            ><select [value]="organizations.organizationId() || ''" (change)="selectOrganization($event)">
-              <option value="" disabled>Select organization</option>
-              @for (membership of organizations.memberships(); track membership.id) {
-                <option [value]="membership.organizationId">{{ membership.organizationName }}</option>
+            ><span>Workspace</span
+            ><select
+              [value]="workspaceValue()"
+              [disabled]="organizations.switching()"
+              (change)="selectWorkspace($event)"
+            >
+              <option value="" disabled>Select workspace</option>
+              @for (workspace of organizations.workspaces(); track workspace.type + workspace.id) {
+                <option [value]="workspace.type + ':' + workspace.id">
+                  {{ workspace.type === 'personal' ? 'Personal — ' : 'Organization — ' }}{{ workspace.name }}
+                </option>
               }
             </select></label
           >
-        } @else if (organizations.activeMembership(); as membership) {
-          <span class="current-organization">{{ membership.organizationName }}</span>
+        } @else if (organizations.activeWorkspace(); as workspace) {
+          <span class="current-organization"
+            >{{ workspace.type === 'personal' ? 'Personal' : 'Organization' }} — {{ workspace.name }}</span
+          >
         }
         <div class="utility">
           <button
@@ -152,6 +160,19 @@ for (const item of NAVIGATION) {
           }
         </div>
       </header>
+      @if (activeElevation(); as elevation) {
+        <aside class="elevation-banner" role="status">
+          <strong>Temporary administrative access active</strong>
+          <span>Scope: {{ elevation.scope }}</span>
+          @if (elevation.reason) {
+            <span>Reason: {{ elevation.reason }}</span>
+          }
+          <span>Expires: {{ elevation.expiresAt }}</span>
+          @if (elevation.canEnd) {
+            <button type="button" (click)="endElevation()">End access</button>
+          }
+        </aside>
+      }
 
       @if (mobile() && drawerOpen()) {
         <button class="backdrop" type="button" aria-label="Close navigation" (click)="closeDrawer()"></button>
@@ -222,6 +243,19 @@ for (const item of NAVIGATION) {
         align-items: center;
         gap: 0.75rem;
         box-shadow: 0 2px 12px #0002;
+      }
+      .elevation-banner {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.6rem 1.25rem;
+        padding: 0.75rem 1rem;
+        color: #3d2a00;
+        background: #fff0bd;
+        border-bottom: 1px solid #d5a72d;
+      }
+      .elevation-banner button {
+        margin-left: auto;
       }
       .brand {
         display: flex;
@@ -538,6 +572,14 @@ for (const item of NAVIGATION) {
 export class AppShellComponent {
   readonly auth = inject(AuthService);
   readonly organizations = inject(ActiveOrganizationService);
+  readonly workspaceValue = computed(() => {
+    const workspace = this.organizations.activeWorkspace();
+    return workspace ? `${workspace.type}:${workspace.id}` : '';
+  });
+  readonly activeElevation = computed(() => {
+    const elevation = this.auth.user()?.elevation;
+    return elevation?.active && Date.parse(elevation.expiresAt) > Date.now() ? elevation : null;
+  });
   private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
   private readonly breakpoint = inject(BreakpointObserver);
@@ -556,6 +598,12 @@ export class AppShellComponent {
   @ViewChild('profileButton') private profileButton?: ElementRef<HTMLButtonElement>;
 
   constructor() {
+    const elevation = this.auth.user()?.elevation;
+    if (elevation?.active) {
+      const delay = Math.max(0, Date.parse(elevation.expiresAt) - Date.now());
+      const timer = window.setTimeout(() => void this.expireElevation(), Math.min(delay + 50, 2_147_000_000));
+      this.destroyRef.onDestroy(() => window.clearTimeout(timer));
+    }
     this.destroyRef.onDestroy(() => this.setPageScrollLocked(false));
     this.breakpoint
       .observe('(max-width: 959px)')
@@ -652,9 +700,24 @@ export class AppShellComponent {
       this.loggingOut.set(false);
     }
   }
-  selectOrganization(event: Event): void {
-    const value = (event.target as HTMLSelectElement).value;
-    this.organizations.select(value);
+  async selectWorkspace(event: Event): Promise<void> {
+    const [type, ...id] = (event.target as HTMLSelectElement).value.split(':');
+    if ((type !== 'personal' && type !== 'organization') || !id.length) return;
+    const changed = await this.organizations.selectWorkspace(type, id.join(':'));
+    if (changed) {
+      // Re-run guards/components so every workspace-scoped page discards cached data.
+      const url = this.router.url;
+      await this.router.navigateByUrl('/', { skipLocationChange: true });
+      await this.router.navigateByUrl(url, { replaceUrl: true });
+    }
+  }
+  async endElevation(): Promise<void> {
+    await this.auth.endElevation();
+    await this.router.navigateByUrl(this.router.url, { replaceUrl: true });
+  }
+  private async expireElevation(): Promise<void> {
+    await this.auth.refreshSession();
+    await this.router.navigateByUrl(this.router.url, { replaceUrl: true });
   }
   private menuItems(): HTMLElement[] {
     return Array.from(this.document.querySelectorAll<HTMLElement>('#profile-menu [role="menuitem"]:not([disabled])'));

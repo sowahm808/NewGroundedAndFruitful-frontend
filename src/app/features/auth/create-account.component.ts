@@ -15,7 +15,32 @@ import { GfButton, GfCard } from '../../shared/components/design-system';
     ><gf-card>
       <p class="eyebrow">Join the journey</p>
       <h1>Create your account</h1>
-      <p>Set up an adult account for your family or program.</p>
+      <h2>How will you use Grounded &amp; Fruitful?</h2>
+      <fieldset class="account-types">
+        <legend class="visually-hidden">Account type</legend>
+        <label
+          ><input
+            type="radio"
+            name="intent"
+            value="personal"
+            [checked]="intent() === 'personal'"
+            (change)="intent.set('personal')"
+          />
+          <span><strong>Personal</strong><small>Manage your family’s growth journey privately.</small></span>
+        </label>
+        <label
+          ><input
+            type="radio"
+            name="intent"
+            value="organization"
+            [checked]="intent() === 'organization'"
+            (change)="intent.set('organization')"
+          />
+          <span
+            ><strong>Organization</strong><small>Set up a program for families, teams and administrators.</small></span
+          >
+        </label>
+      </fieldset>
       <form [formGroup]="form" (ngSubmit)="submit()">
         <label>Full name<input formControlName="name" autocomplete="name" /></label>
         <label>Email address<input type="email" formControlName="email" autocomplete="email" /></label>
@@ -41,6 +66,7 @@ export class CreateAccountComponent {
   private readonly router = inject(Router);
   readonly busy = signal(false);
   readonly message = signal('');
+  readonly intent = signal<'personal' | 'organization'>('personal');
   readonly form = new FormGroup({
     name: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.minLength(2)] }),
     email: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.email] }),
@@ -53,18 +79,21 @@ export class CreateAccountComponent {
         this.form.controls.name.value,
         this.form.controls.email.value,
         this.form.controls.password.value,
+        this.intent(),
       ),
     );
   }
   async google(): Promise<void> {
-    if (!this.busy()) await this.run(() => this.auth.signInWithGoogle());
+    if (!this.busy()) await this.run(() => this.auth.signInWithGoogle(this.intent()));
   }
   private async run(operation: () => Promise<SessionUser>): Promise<void> {
     this.busy.set(true);
     this.message.set('');
     try {
       const user = await operation();
-      await this.router.navigateByUrl(roleDestination(user.roles) ?? '/account/role-required');
+      if (this.auth.status() === 'organization-required') await this.router.navigateByUrl('/onboarding/organization');
+      else if (user.onboardingStatus === 'profile_required') await this.router.navigateByUrl('/account/profile');
+      else await this.router.navigateByUrl(roleDestination(user.roles) ?? '/account/role-required');
     } catch (error) {
       this.message.set(
         error instanceof FirebaseError && error.code === 'auth/email-already-in-use'

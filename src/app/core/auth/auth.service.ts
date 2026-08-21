@@ -13,7 +13,7 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { FIREBASE_AUTH } from './firebase-auth.token';
-import { ApiResponse, SessionData, SessionUser, UserRole } from '../models/domain.models';
+import { ApiResponse, RegistrationIntent, SessionData, SessionUser, UserRole } from '../models/domain.models';
 import { ApiClient } from '../http/api-client.service';
 import { ApiError } from '../http/api-error';
 import { normalizeRoles } from './role.utilities';
@@ -92,15 +92,32 @@ export class AuthService {
     return this.loadBackendSession(credential.user);
   }
 
-  async createAccount(displayName: string, email: string, password: string): Promise<SessionUser> {
+  async createAccount(
+    displayName: string,
+    email: string,
+    password: string,
+    intent: RegistrationIntent,
+  ): Promise<SessionUser> {
     const credential = await createUserWithEmailAndPassword(this.firebaseAuth, email, password);
     await updateProfile(credential.user, { displayName });
+    await this.recordRegistrationIntent(intent);
+    return this.reloadBackendSession(credential.user);
+  }
+
+  async signInWithGoogle(intent?: RegistrationIntent): Promise<SessionUser> {
+    const credential = await signInWithPopup(this.firebaseAuth, new GoogleAuthProvider());
+    if (intent) await this.recordRegistrationIntent(intent);
     return this.loadBackendSession(credential.user);
   }
 
-  async signInWithGoogle(): Promise<SessionUser> {
-    const credential = await signInWithPopup(this.firebaseAuth, new GoogleAuthProvider());
-    return this.loadBackendSession(credential.user);
+  private async recordRegistrationIntent(intent: RegistrationIntent): Promise<void> {
+    // Identity has already been verified by Firebase. Roles/capabilities are deliberately absent.
+    await firstValueFrom(this.api.postData('/auth/registration-intent', { intent }));
+  }
+
+  private reloadBackendSession(user: User): Promise<SessionUser> {
+    this.bootstrap = undefined;
+    return this.loadBackendSession(user);
   }
 
   async retrySession(): Promise<SessionUser | null> {
@@ -114,6 +131,11 @@ export class AuthService {
   async refreshSession(forceToken = false): Promise<SessionUser | null> {
     if (forceToken) await this.firebaseAuth.currentUser?.getIdToken(true);
     return this.retrySession();
+  }
+
+  async endElevation(): Promise<SessionUser | null> {
+    await firstValueFrom(this.api.postData('/auth/elevation/end', {}));
+    return this.refreshSession();
   }
 
   /** Applies an already backend-verified session in isolated tests. */
@@ -219,6 +241,9 @@ export class AuthService {
         roles: normalizeRoles(membership.roles),
       })),
       ...(session.activeOrganizationId ? { activeOrganizationId: session.activeOrganizationId } : {}),
+      ...(session.activeWorkspace ? { activeWorkspace: session.activeWorkspace } : {}),
+      ...(session.personalWorkspace ? { personalWorkspace: session.personalWorkspace } : {}),
+      ...(session.elevation ? { elevation: session.elevation } : {}),
       ...(session.authorization ? { authorization: session.authorization } : {}),
     };
   }
