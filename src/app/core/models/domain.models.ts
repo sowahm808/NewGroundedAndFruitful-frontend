@@ -4,9 +4,19 @@ export type ProductPersona = 'child' | 'parent' | 'mentor' | 'observer';
 export type Capability = string;
 export type MembershipState = 'active' | 'pending' | 'suspended' | 'deleted';
 export type RegistrationIntent = 'personal' | 'organization';
+export type AccountNextStep =
+  | 'choose_account_type'
+  | 'personal_workspace_setup'
+  | 'organization_setup'
+  | 'accept_invitation'
+  | 'await_role_assignment'
+  | 'account_recovery'
+  | 'dashboard';
+export type AccountStateReason =
+  'registration_intent_missing' | 'organization_role_not_assigned' | 'legacy_account_unclassified';
 export interface RegistrationIntentResponse {
   readonly intent: RegistrationIntent;
-  readonly nextStep?: string;
+  readonly nextStep?: AccountNextStep;
   readonly onboardingStatus?: OnboardingStatus;
 }
 export type WorkspaceType = 'personal' | 'organization';
@@ -31,6 +41,8 @@ export type OnboardingStatus =
   | 'consent_required'
   | 'profile_required'
   | 'role_required'
+  | 'invitation_required'
+  | 'account_recovery_required'
   | 'pending_approval';
 export interface SessionUser {
   readonly uid: string;
@@ -47,8 +59,12 @@ export interface SessionUser {
   readonly workspaceRoles?: readonly UserRole[];
   readonly disabled: boolean;
   readonly onboardingStatus: OnboardingStatus;
-  readonly nextStep?: string;
+  readonly nextStep?: AccountNextStep;
   readonly registrationIntent?: RegistrationIntent;
+  readonly accountStateReason?: AccountStateReason;
+  readonly pendingInvitation?: boolean;
+  /** Opaque backend-issued reference suitable for a support request. */
+  readonly supportReference?: string;
   readonly memberships: readonly SessionMembership[];
   readonly activeOrganizationId?: string;
   /** Stable identifier for the workspace selected by the backend session. */

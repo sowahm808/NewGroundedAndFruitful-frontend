@@ -105,15 +105,11 @@ export class CreateAccountComponent {
 
 export function registrationDestination(result: RegistrationResult, intent: RegistrationIntent): string {
   const step = result.intentResult.nextStep;
-  if (step === '/onboarding/organization' || step === 'organization_setup') return '/onboarding/organization';
-  if (step === '/account/profile' || step === '/onboarding/personal' || step === 'personal_workspace_setup')
-    return '/onboarding/personal';
-  if (result.intentResult.onboardingStatus === 'organization_required') return '/onboarding/organization';
-  if (result.intentResult.onboardingStatus === 'profile_required') return '/onboarding/personal';
-  // The selected intent is only a routing fallback; it never assigns authority or completes onboarding.
-  if (intent === 'organization') return '/onboarding/organization';
-  if (intent === 'personal') return '/onboarding/personal';
-  return '/account/role-required';
+  if (step === 'organization_setup') return '/onboarding/organization';
+  if (step === 'personal_workspace_setup') return '/onboarding/personal';
+  // Never infer provisioning from the submitted choice; the persisted backend projection must confirm it.
+  void intent;
+  return '/account/recovery';
 }
 
 export function registrationErrorMessage(error: unknown): string {

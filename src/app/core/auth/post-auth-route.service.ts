@@ -9,6 +9,7 @@ export type PostAuthReason =
   | 'registration-intent'
   | 'personal-setup'
   | 'organization-setup'
+  | 'invitation'
   | 'workspace-recovery'
   | 'dashboard'
   | 'role-required'
@@ -37,26 +38,29 @@ function decidePostAuthDestination(session: SessionUser | null | undefined): Int
   if (!session) return { path: '/auth/login', reason: 'unauthenticated' };
   if (session.disabled || session.memberships.some((membership) => membership.status === 'suspended'))
     return { path: '/account/disabled', reason: 'disabled' };
-  if (session.nextStep === 'registration_intent' || session.onboardingStatus === 'registration_intent_required')
-    return { path: '/onboarding/account-type', reason: 'registration-intent' };
-  if (
-    session.nextStep === 'personal_workspace_setup' ||
-    session.onboardingStatus === 'personal_workspace_required' ||
-    session.onboardingStatus === 'profile_required'
-  )
-    return { path: '/onboarding/personal', reason: 'personal-setup', workspaceType: 'personal' };
-  if (
-    session.nextStep === 'organization_setup' ||
-    session.onboardingStatus === 'organization_setup_required' ||
-    session.onboardingStatus === 'organization_required' ||
-    session.onboardingStatus === 'migration_required'
-  )
-    return { path: '/onboarding/organization', reason: 'organization-setup', workspaceType: 'organization' };
-  if (session.onboardingStatus === 'role_required') return resolveRoleRequiredDestination(session);
-  if (session.onboardingStatus === 'pending_approval')
-    return { path: '/account/pending', reason: 'workspace-recovery', recoveryAction: 'restore-workspace' };
+  // nextStep is the backend's canonical account-state projection. Do not reconstruct it from
+  // empty role, membership, or workspace arrays: those shapes are inherently ambiguous.
+  switch (session.nextStep) {
+    case 'choose_account_type':
+      return { path: '/onboarding/account-type', reason: 'registration-intent' };
+    case 'personal_workspace_setup':
+      return { path: '/onboarding/personal', reason: 'personal-setup', workspaceType: 'personal' };
+    case 'organization_setup':
+      return { path: '/onboarding/organization', reason: 'organization-setup', workspaceType: 'organization' };
+    case 'accept_invitation':
+      return { path: '/account/invitation', reason: 'invitation' };
+    case 'await_role_assignment':
+      return { path: '/account/role-required', reason: 'role-required', workspaceType: 'organization' };
+    case 'account_recovery':
+      return { path: '/account/recovery', reason: 'account-state-recovery', recoveryAction: 'contact-support' };
+    case 'dashboard':
+      break;
+    default:
+      return { path: '/account/recovery', reason: 'account-state-recovery', recoveryAction: 'contact-support' };
+  }
+
   if (session.onboardingStatus !== 'complete')
-    return { path: '/account/role-required', reason: 'account-state-recovery', recoveryAction: 'contact-support' };
+    return { path: '/account/recovery', reason: 'account-state-recovery', recoveryAction: 'contact-support' };
 
   // Platform administration is independent of a workspace and must remain an explicit backend authority.
   if (session.platformRoles?.includes('super_admin')) return { path: '/admin/users', reason: 'dashboard' };
@@ -103,17 +107,6 @@ function decidePostAuthDestination(session: SessionUser | null | undefined): Int
   return dashboard
     ? { path: dashboard, reason: 'dashboard', workspaceType: 'organization' }
     : { path: '/account/role-required', reason: 'role-required', workspaceType: 'organization' };
-}
-
-/** Resolves an incomplete account exclusively from backend-provided intent and membership state. */
-function resolveRoleRequiredDestination(session: SessionUser): InternalPostAuthDecision {
-  if (session.memberships.some((membership) => membership.status === 'pending'))
-    return { path: '/account/pending', reason: 'workspace-recovery', recoveryAction: 'restore-workspace' };
-  if (session.registrationIntent === 'personal')
-    return { path: '/onboarding/personal', reason: 'personal-setup', workspaceType: 'personal' };
-  if (session.registrationIntent === 'organization')
-    return { path: '/onboarding/organization', reason: 'organization-setup', workspaceType: 'organization' };
-  return { path: '/account/role-required', reason: 'role-required', recoveryAction: 'contact-support' };
 }
 
 function membershipReferencesWorkspace(membership: SessionMembership, workspaceId: string): boolean {

@@ -7,26 +7,24 @@ import { GfPageHeader } from '../../shared/components/design-system';
 @Component({
   standalone: true,
   imports: [GfPageHeader],
-  template: `<gf-page-header title="Your organization access is pending" eyebrow="Account status"
-    ><p>Your account is active, but an organization administrator still needs to assign your program access.</p>
-    <button type="button" [disabled]="checking() || signingOut()" (click)="checkAgain()">
+  template: `<gf-page-header title="Accept your invitation" eyebrow="Account setup">
+    <p>Your verified sign-in has an invitation ready for secure acceptance.</p>
+    <p>Continue through the invitation link you received. Invitation details are not exposed in this session.</p>
+    <button type="button" [disabled]="checking()" (click)="checkAgain()">
       {{ checking() ? 'Checking…' : 'Check again' }}
     </button>
-    <button type="button" [disabled]="checking() || signingOut()" (click)="signOut()">
-      {{ signingOut() ? 'Signing out…' : 'Sign out' }}
-    </button></gf-page-header
-  >`,
+    <button type="button" [disabled]="checking()" (click)="signOut()">Sign out</button>
+  </gf-page-header>`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class RoleRequiredComponent {
+export class InvitationRequiredComponent {
   private readonly auth = inject(AuthService);
   private readonly coordinator = inject(PostAuthRouteCoordinator);
   private readonly router = inject(Router);
-  readonly signingOut = signal(false);
   readonly checking = signal(false);
 
   async checkAgain(): Promise<void> {
-    if (this.checking() || this.signingOut()) return;
+    if (this.checking()) return;
     this.checking.set(true);
     try {
       const session = await this.auth.retrySession();
@@ -40,8 +38,6 @@ export class RoleRequiredComponent {
   }
 
   async signOut(): Promise<void> {
-    if (this.signingOut()) return;
-    this.signingOut.set(true);
     await this.auth.logout();
     await this.router.navigateByUrl('/auth/login');
   }
