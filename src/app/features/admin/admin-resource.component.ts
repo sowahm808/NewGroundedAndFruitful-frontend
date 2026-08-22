@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { ApiError } from '../../core/http/api-error';
@@ -58,7 +58,7 @@ export interface AdminResourceDefinition {
         <button type="button" (click)="load()">Try again</button>
       </gf-alert>
     } @else if (!page()?.items?.length) {
-      <gf-empty-state title="No records found" message="Try another allowlisted status filter." />
+      <gf-empty-state [title]="emptyTitle()" message="Try another allowlisted status filter." />
     } @else {
       <p class="result-count" aria-live="polite">Showing {{ rangeStart() }}–{{ rangeEnd() }} of {{ page()!.total }}</p>
       <div class="records">
@@ -282,7 +282,7 @@ export interface AdminResourceDefinition {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AdminResourceComponent {
+export class AdminResourceComponent implements OnInit {
   readonly definition = input.required<AdminResourceDefinition>();
   private readonly api = inject(AdminApiService);
   readonly page = signal<AdminPage | null>(null);
@@ -302,9 +302,16 @@ export class AdminResourceComponent {
   readonly rangeEnd = computed(() =>
     Math.min(this.page()?.total ?? 0, (this.page()?.page ?? 1) * (this.page()?.pageSize ?? 25)),
   );
+  readonly emptyTitle = computed(() =>
+    this.definition().resource === 'participants' ? 'No participants have been enrolled.' : 'No records found',
+  );
 
-  constructor() {
-    queueMicrotask(() => this.load());
+  ngOnInit(): void {
+    // Required signal inputs are guaranteed to be bound before Angular invokes
+    // lifecycle hooks. Do not move this request back to a field initializer,
+    // constructor, or independently queued microtask: each can run before the
+    // routed wrapper has supplied `definition` and will raise NG0950.
+    this.load();
   }
   load(page = 1): void {
     this.loading.set(true);
