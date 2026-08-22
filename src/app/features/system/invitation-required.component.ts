@@ -39,6 +39,5 @@ export class InvitationRequiredComponent {
 
   async signOut(): Promise<void> {
     await this.auth.logout();
-    await this.router.navigateByUrl('/auth/login');
   }
 }

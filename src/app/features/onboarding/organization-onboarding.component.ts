@@ -209,7 +209,6 @@ export class OrganizationOnboardingComponent {
   }
   async signOut(): Promise<void> {
     await this.auth.logout();
-    await this.router.navigateByUrl('/login', { replaceUrl: true });
   }
   async continueSetup(): Promise<void> {
     if (!this.committedBootstrap || this.saving()) return;

@@ -90,24 +90,26 @@ describe('authenticationInterceptor', () => {
     expect(forwarded).toBeFalse();
   });
 
-  it('force-refreshes once after 401 and retries with the fresh token', async () => {
+  it('leaves 401 recovery to the authentication lifecycle coordinator', async () => {
     const getIdToken = jasmine.createSpy().and.callFake((force?: boolean) => Promise.resolve(force ? 'fresh' : 'old'));
     const authorizations: (string | null)[] = [];
     TestBed.configureTestingModule({
       providers: [{ provide: FIREBASE_AUTH, useValue: { currentUser: { getIdToken } } }],
     });
-    await TestBed.runInInjectionContext(() =>
-      firstValueFrom(
-        authenticationInterceptor(new HttpRequest('GET', `${environment.apiUrl}/data`), (request) => {
-          authorizations.push(request.headers.get('Authorization'));
-          return authorizations.length === 1
-            ? throwError(() => new HttpErrorResponse({ status: 401 }))
-            : of(new HttpResponse());
-        }),
+    await expectAsync(
+      TestBed.runInInjectionContext(() =>
+        firstValueFrom(
+          authenticationInterceptor(new HttpRequest('GET', `${environment.apiUrl}/data`), (request) => {
+            authorizations.push(request.headers.get('Authorization'));
+            return authorizations.length === 1
+              ? throwError(() => new HttpErrorResponse({ status: 401 }))
+              : of(new HttpResponse());
+          }),
+        ),
       ),
-    );
-    expect(authorizations).toEqual(['Bearer old', 'Bearer fresh']);
-    expect(getIdToken.calls.allArgs()).toEqual([[false], [true]]);
+    ).toBeRejected();
+    expect(authorizations).toEqual(['Bearer old']);
+    expect(getIdToken.calls.allArgs()).toEqual([[false]]);
   });
 
   it('does not refresh or retry a 403', async () => {

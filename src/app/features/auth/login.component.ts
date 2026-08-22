@@ -84,10 +84,10 @@ export class LoginComponent {
 
   private routeUser(user: SessionUser): Promise<boolean> {
     const decision = this.coordinator.decision(user);
-    if (decision.reason !== 'dashboard') return this.router.navigateByUrl(decision.path);
+    if (decision.reason !== 'dashboard') return this.auth.navigate(decision.path);
     const returnUrl = safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'), this.router, user.roles);
-    if (returnUrl) return this.router.navigateByUrl(returnUrl);
-    return this.router.navigateByUrl(decision.path);
+    if (returnUrl) return this.auth.navigate(this.router.serializeUrl(returnUrl));
+    return this.auth.navigate(decision.path);
   }
 }
 

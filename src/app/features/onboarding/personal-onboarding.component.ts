@@ -167,7 +167,6 @@ export class PersonalOnboardingComponent implements OnInit {
 
   async signOut(): Promise<void> {
     await this.auth.logout();
-    await this.router.navigateByUrl('/auth/login', { replaceUrl: true });
   }
 
   private start(): Promise<void> {
