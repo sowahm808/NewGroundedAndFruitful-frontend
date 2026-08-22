@@ -540,6 +540,8 @@ export class AppShellComponent {
       membership: this.organizations.activeMembership(),
       personas: this.auth.personas(),
       capabilities: this.auth.capabilities(),
+      workspaceRoles: this.organizations.roles(),
+      platformRoles: this.auth.user()?.platformRoles ?? [],
     }).map((item) => ({ ...item, path: item.route, requiredRoles: [] })),
   );
   readonly initials = computed(() => initialsFor(this.auth.user()?.displayName ?? ''));
