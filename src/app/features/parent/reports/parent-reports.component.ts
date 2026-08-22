@@ -1,12 +1,12 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { GfAlert, GfCard, GfLoading, GfPageHeader } from '../../../shared/components/design-system';
+import { GfAlert, GfCard, GfEmptyState, GfLoading, GfPageHeader } from '../../../shared/components/design-system';
 import { ParentApi, ParentReport } from '../parent-api.service';
 import { parentViewError, ViewError } from '../parent-view.utilities';
 import { ParentChildScopeComponent } from '../shared/parent-child-scope.component';
 @Component({
   standalone: true,
-  imports: [ParentChildScopeComponent, GfAlert, GfCard, GfLoading, GfPageHeader],
+  imports: [ParentChildScopeComponent, GfAlert, GfCard, GfEmptyState, GfLoading, GfPageHeader],
   template: `<gf-page-header title="Reports" eyebrow="Parent journey"
       ><p>Report values are limited to the parent-safe backend contract.</p></gf-page-header
     ><gf-parent-child-scope (childChange)="load($event)" />
@@ -17,6 +17,12 @@ import { ParentChildScopeComponent } from '../shared/parent-child-scope.componen
       <gf-alert [title]="e.title"
         ><p>{{ e.message }}</p></gf-alert
       >
+    }
+    @if (!childId() && !loading()) {
+      <gf-empty-state
+        title="No linked children are available for this report."
+        message="Reports require an active linked child."
+      />
     }
     <div class="cards">
       @for (r of items(); track r.id) {

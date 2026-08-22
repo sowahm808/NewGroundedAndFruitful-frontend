@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { ApiClient } from '../../core/http/api-client.service';
+import { ApiError } from '../../core/http/api-error';
 import { buildHttpParams } from '../../core/http/http-params';
 
 export type RecordStatus = 'active' | 'pending' | 'inactive' | 'completed' | 'closed' | 'submitted';
@@ -88,7 +89,9 @@ export class ParentApi {
     return this.api.getData('/parent/dashboard');
   }
   children(search = '', status = '', cursor = ''): Observable<CursorPage<ParentChild>> {
-    return this.api.getData('/parent/children', { params: buildHttpParams({ search, status, cursor }) });
+    return this.api
+      .getData<unknown>('/parent/children', { params: buildHttpParams({ search, status, cursor }) })
+      .pipe(map(normalizeChildrenPage));
   }
   child(id: string): Observable<ParentChild> {
     return this.api.getData(`/parent/children/${encodeURIComponent(id)}`);
@@ -129,4 +132,31 @@ export class ParentApi {
   notifications(search = '', status = '', cursor = ''): Observable<CursorPage<ParentNotification>> {
     return this.api.getData('/parent/notifications', { params: buildHttpParams({ search, status, cursor }) });
   }
+}
+
+/** Validates the published `{ data: { items, hasMore, nextCursor? } }` contract once. */
+function normalizeChildrenPage(value: unknown): CursorPage<ParentChild> {
+  if (!isRecord(value) || !Array.isArray(value['items']) || typeof value['hasMore'] !== 'boolean')
+    throw new ApiError(-1, 'unexpected_error', 'The linked-child response did not match the published contract.');
+  const items = value['items'];
+  if (!items.every(isParentChild))
+    throw new ApiError(-1, 'unexpected_error', 'The linked-child response contained an invalid relationship.');
+  const nextCursor = value['nextCursor'];
+  if (nextCursor !== undefined && typeof nextCursor !== 'string')
+    throw new ApiError(-1, 'unexpected_error', 'The linked-child cursor was invalid.');
+  return { items, hasMore: value['hasMore'], ...(nextCursor ? { nextCursor } : {}) };
+}
+
+function isParentChild(value: unknown): value is ParentChild {
+  return (
+    isRecord(value) &&
+    typeof value['id'] === 'string' &&
+    value['id'].length > 0 &&
+    typeof value['displayName'] === 'string' &&
+    typeof value['status'] === 'string'
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
