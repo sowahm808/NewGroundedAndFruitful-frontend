@@ -239,7 +239,6 @@ export const routes: Routes = [
         ['projects', 'projects', 'admin.projects.manage'],
         ['surveys', 'surveys', 'admin.surveys.manage'],
         ['points', 'points', 'admin.point_rules.manage'],
-        ['reports', 'reports', 'admin.reports.read'],
         ['awards', 'awards', 'admin.awards.manage'],
       ].map(([path, resource, capability]) => ({
         path,
@@ -247,6 +246,12 @@ export const routes: Routes = [
         data: { resource },
         loadComponent: () => import('./features/admin/admin-pages.component').then((m) => m.AdminPageComponent),
       })),
+      {
+        path: 'reports',
+        canActivate: [organizationRoleGuard('admin'), capabilityGuard(['admin.reports.read'])],
+        loadComponent: () =>
+          import('./features/admin/reports/admin-reports.component').then((m) => m.AdminReportsComponent),
+      },
       {
         path: 'roles',
         canActivate: [roleGuard(['super_admin'])],
