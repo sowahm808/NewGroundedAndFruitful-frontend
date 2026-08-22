@@ -122,6 +122,62 @@ export interface BibleActivity {
   readonly prompt: string;
   readonly participationPoints?: number;
 }
+
+export type BibleImportStatus =
+  | 'processing'
+  | 'needs_review'
+  | 'needs_correction'
+  | 'draft_created'
+  | 'processing_failed'
+  | 'rejected'
+  | 'committed';
+
+export type BibleImportAction = 'view' | 'review' | 'reject' | 'commit';
+
+export interface BibleImportQuarter {
+  readonly id: string;
+  readonly name: string;
+  readonly startDate: string;
+  readonly endDate: string;
+}
+
+export interface BibleImportItem {
+  readonly id: string;
+  readonly title: string;
+  readonly status: BibleImportStatus;
+  readonly quarter: BibleImportQuarter;
+  readonly questionFilename: string;
+  readonly answerKeyFilename: string;
+  readonly activityCount: number;
+  readonly questionCount: number;
+  readonly warningCount: number;
+  readonly errorCount: number;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly version: number;
+  readonly committedContentSetId: string | null;
+  readonly allowedActions: readonly BibleImportAction[];
+}
+
+export interface Pagination {
+  readonly page: number;
+  readonly pageSize: number;
+  readonly total?: number;
+  readonly totalItems?: number;
+  readonly totalPages?: number;
+}
+
+export interface BibleImportsPayload {
+  readonly items: readonly BibleImportItem[];
+  readonly pagination: Pagination;
+}
+
+export interface BibleAdminDashboardData {
+  readonly imports: BibleImportsPayload;
+  readonly meta?: {
+    readonly nextCursor?: string | null;
+  };
+}
 export interface TeamProgress {
   readonly individualContribution: number;
   readonly quarterPoints: number;
