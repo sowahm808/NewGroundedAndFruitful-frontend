@@ -1,7 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Subject, catchError, map, of, switchMap } from 'rxjs';
 import { ApiError } from '../../../core/http/api-error';
 import { GfAlert, GfBadge, GfPageHeader, GfStatCard } from '../../../shared/components/design-system';
@@ -11,6 +11,7 @@ import {
   BibleContentQuery,
   BibleContentSort,
   BibleContentStatus,
+  BibleImportList,
 } from './admin-bible-api.service';
 
 const PAGE_SIZE = 25;
@@ -26,6 +27,20 @@ type LoadResult = { sequence: number; data?: BibleContentList; error?: ApiError 
       </gf-page-header>
       <a class="primary" routerLink="/admin/bible/imports/new">Upload Quiz</a>
     </div>
+
+    <nav class="tabs" aria-label="Bible administration sections">
+      <button type="button" [class.active]="tab() === 'imports'" (click)="selectTab('imports')">Imports <span class="count">{{ imports()?.aggregates?.needs_review ?? 0 }} needing review</span></button>
+      <button type="button" [class.active]="tab() === 'content'" (click)="selectTab('content')">Content sets</button>
+    </nav>
+
+    @if (tab() === 'imports') {
+      <div class="status-groups" aria-label="Import statuses">@for(status of importStatuses; track status){<button type="button" (click)="importStatus.set(status)">{{statusLabel(status)}} ({{imports()?.aggregates?.[status] ?? 0}})</button>}</div>
+      @if(importsLoading()){<p role="status">Loading imports…</p>}@else if(importsError(); as failure){<gf-alert title="Imports could not be loaded"><p>{{failure.message}}</p>@if(failure.requestId){<p>Request ID: {{failure.requestId}}</p>}<button (click)="loadImports()">Retry</button></gf-alert>}@else if(imports(); as queue){
+        @if(!filteredImports().length){<section class="empty"><h2>No {{statusLabel(importStatus()).toLowerCase()}} imports</h2><p>New uploads appear here automatically as processing progresses.</p></section>}@else{
+        <div class="desktop"><table><thead><tr><th>Title / quarter</th><th>Documents</th><th>Detected</th><th>Validation</th><th>Uploaded</th><th>Updated</th><th>Actions</th></tr></thead><tbody>@for(item of filteredImports();track item.id){<tr><td><strong>{{item.title}}</strong><br>{{item.quarter.name}}<br><gf-badge>{{statusLabel(item.status)}}</gf-badge></td><td>{{item.documents.question.filename}}<br>{{item.documents.answerKey.filename}}</td><td>{{item.activityCount}} activities<br>{{item.questionCount}} questions</td><td>{{item.errorCount}} errors<br>{{item.warningCount}} warnings</td><td>{{item.uploadedBy}}<br>{{item.uploadedAt | date:'medium'}}</td><td>{{item.updatedAt | date:'medium'}}</td><td><div class="actions">@if(item.allowedActions.includes('review')||item.allowedActions.includes('continue_review')){<a [routerLink]="['/admin/bible/imports',item.id]">{{item.allowedActions.includes('continue_review')?'Continue review':'Review'}}</a>}@if(item.allowedActions.includes('view_committed_content')&&item.committedContentSetId){<a [routerLink]="['/admin/bible/content',item.committedContentSetId]">View committed content</a>}@if(!item.allowedActions.length){<span>No actions permitted by the service.</span>}</div></td></tr>}</tbody></table></div>
+        <div class="mobile">@for(item of filteredImports();track item.id){<article><h2>{{item.title}}</h2><p><gf-badge>{{statusLabel(item.status)}}</gf-badge></p><dl><div><dt>Quarter</dt><dd>{{item.quarter.name}}</dd></div><div><dt>Documents</dt><dd>{{item.documents.question.filename}}<br>{{item.documents.answerKey.filename}}</dd></div><div><dt>Detected</dt><dd>{{item.activityCount}} activities · {{item.questionCount}} questions</dd></div><div><dt>Validation</dt><dd>{{item.errorCount}} errors · {{item.warningCount}} warnings</dd></div><div><dt>Uploaded</dt><dd>{{item.uploadedBy}}, {{item.uploadedAt|date:'medium'}}</dd></div></dl><a [routerLink]="['/admin/bible/imports',item.id]">Review import</a></article>}</div>}}
+      }
+    } @else {
 
     @if (result()?.aggregates; as totals) {
       <section class="summary" aria-label="Bible content summary">
@@ -46,7 +61,6 @@ type LoadResult = { sequence: number; data?: BibleContentList; error?: ApiError 
         }
       </section>
     }
-
     <form class="filters" [formGroup]="filters" (ngSubmit)="applyFilters()" aria-label="Bible content filters">
       <label>Search <input type="search" formControlName="search" /></label>
       <label>Quarter <input formControlName="quarterId" placeholder="All quarters" /></label>
@@ -200,6 +214,7 @@ type LoadResult = { sequence: number; data?: BibleContentList; error?: ApiError 
         </nav>
       }
     }
+    }
   `,
   styles: [
     `
@@ -227,6 +242,33 @@ type LoadResult = { sequence: number; data?: BibleContentList; error?: ApiError 
         grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
         gap: 1rem;
         margin-bottom: 1.5rem;
+      }
+      .tabs {
+        display: flex;
+        gap: 0.5rem;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 1rem;
+      }
+      .tabs button {
+        border: 0;
+        border-bottom: 3px solid transparent;
+        background: transparent;
+      }
+      .tabs button.active {
+        border-color: var(--brand);
+      }
+      .count {
+        display: inline-block;
+        background: #e7efe2;
+        padding: 0.15rem 0.45rem;
+        border-radius: 1rem;
+        margin-left: 0.35rem;
+      }
+      .status-groups {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
       }
       .filters {
         display: flex;
@@ -352,6 +394,25 @@ type LoadResult = { sequence: number; data?: BibleContentList; error?: ApiError 
 export class AdminBibleComponent {
   private readonly api = inject(AdminBibleApiService);
   private readonly fb = inject(FormBuilder);
+  private readonly route = inject(ActivatedRoute);
+  readonly tab = signal<'imports' | 'content'>(
+    this.route.snapshot.queryParamMap.get('tab') === 'content' ? 'content' : 'imports',
+  );
+  readonly importStatuses = [
+    'processing',
+    'needs_correction',
+    'needs_review',
+    'rejected',
+    'committed',
+    'processing_failed',
+  ] as const;
+  readonly importStatus = signal<(typeof this.importStatuses)[number]>('needs_review');
+  readonly imports = signal<BibleImportList | null>(null);
+  readonly importsLoading = signal(true);
+  readonly importsError = signal<ApiError | null>(null);
+  readonly filteredImports = computed(
+    () => this.imports()?.items.filter((item) => item.status === this.importStatus()) ?? [],
+  );
   readonly statuses: readonly BibleContentStatus[] = [
     'draft',
     'uploaded',
@@ -407,6 +468,24 @@ export class AdminBibleComponent {
         else this.result.set(response.data);
       });
     this.load();
+    this.loadImports();
+  }
+  selectTab(tab: 'imports' | 'content') {
+    this.tab.set(tab);
+  }
+  loadImports() {
+    this.importsLoading.set(true);
+    this.importsError.set(null);
+    this.api.listImports().subscribe({
+      next: (value) => {
+        this.imports.set(value);
+        this.importsLoading.set(false);
+      },
+      error: (error: ApiError) => {
+        this.importsError.set(error);
+        this.importsLoading.set(false);
+      },
+    });
   }
   applyFilters() {
     const value = this.filters.getRawValue();
@@ -442,6 +521,11 @@ export class AdminBibleComponent {
           uploaded: 'Processing',
           parsing: 'Processing',
           needs_review: 'Needs Review',
+          needs_correction: 'Needs correction',
+          processing: 'Processing',
+          committed: 'Draft created',
+          rejected: 'Rejected',
+          processing_failed: 'Processing failed',
           validated: 'Ready to Commit',
           published: 'Published',
           archived: 'Archived',
