@@ -60,6 +60,5 @@ export class AccountRecoveryComponent {
     if (this.busy()) return;
     this.signingOut.set(true);
     await this.auth.logout();
-    await this.router.navigateByUrl('/auth/login');
   }
 }

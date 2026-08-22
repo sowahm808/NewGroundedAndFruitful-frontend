@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { Router } from '@angular/router';
+import { Subject, firstValueFrom, takeUntil } from 'rxjs';
 import {
   GoogleAuthProvider,
   User,
@@ -24,6 +25,7 @@ import {
 import { ApiClient } from '../http/api-client.service';
 import { ApiError } from '../http/api-error';
 import { normalizeRoles } from './role.utilities';
+import { AuthTokenProvider } from './auth-token-provider.service';
 
 function normalizeStrings(values: readonly string[] | undefined): readonly string[] {
   return [...new Set((values ?? []).filter((value): value is string => typeof value === 'string' && value.length > 0))];
@@ -39,6 +41,8 @@ function normalizePersonas(values: SessionData['personas']): NonNullable<Session
 export type AuthStatus =
   | 'initializing'
   | 'anonymous'
+  | 'signing-in'
+  | 'signing-out'
   | 'loading-session'
   | 'authenticated'
   | 'organization-required'
@@ -67,6 +71,8 @@ export interface RegistrationResult {
 export class AuthService {
   private readonly firebaseAuth = inject(FIREBASE_AUTH);
   private readonly api = inject(ApiClient);
+  private readonly tokens = inject(AuthTokenProvider);
+  private readonly router = inject(Router, { optional: true });
   private readonly current = signal<SessionUser | null>(null);
   private readonly currentStatus = signal<AuthStatus>('initializing');
   private readonly currentError = signal<string | null>(null);
@@ -78,6 +84,9 @@ export class AuthService {
   private synchronizationRefreshAttempted = false;
   private pendingRegistrationUser?: User;
   private registrationIntentSubmission?: { key: string; promise: Promise<RegistrationResult> };
+  private authGeneration = 0;
+  private cancellation = new Subject<void>();
+  private navigationId = 0;
 
   readonly status = this.currentStatus.asReadonly();
   readonly user = this.current.asReadonly();
@@ -95,6 +104,7 @@ export class AuthService {
     this.initialization = new Promise((resolve) => {
       let initialEvent = true;
       onAuthStateChanged(this.firebaseAuth, (user) => {
+        this.trace('firebase_auth_state', { hasUser: Boolean(user), uid: user ? safeUid(user.uid) : undefined });
         void this.handleAuthChange(user).finally(() => {
           if (initialEvent) {
             initialEvent = false;
@@ -107,8 +117,10 @@ export class AuthService {
   }
 
   async signIn(email: string, password: string): Promise<SessionUser> {
+    const generation = this.beginGeneration('signing-in');
+    this.trace('firebase_login_start', { hasUser: false });
     const credential = await signInWithEmailAndPassword(this.firebaseAuth, email, password);
-    return this.loadBackendSession(credential.user);
+    return this.finishSignIn(credential.user, generation);
   }
 
   async sendPasswordReset(email: string): Promise<void> {
@@ -116,8 +128,9 @@ export class AuthService {
   }
 
   async signInChild(customToken: string): Promise<SessionUser> {
+    const generation = this.beginGeneration('signing-in');
     const credential = await signInWithCustomToken(this.firebaseAuth, customToken);
-    return this.loadBackendSession(credential.user);
+    return this.finishSignIn(credential.user, generation);
   }
 
   async createAccount(
@@ -141,9 +154,11 @@ export class AuthService {
   async signInWithGoogle(intent?: RegistrationIntent): Promise<SessionUser | RegistrationResult> {
     let user = this.pendingRegistrationUser;
     if (!user) {
+      const generation = this.beginGeneration('signing-in');
       const credential = await signInWithPopup(this.firebaseAuth, new GoogleAuthProvider());
       user = credential.user;
       this.pendingRegistrationUser = user;
+      if (!intent) return this.finishSignIn(user, generation);
     }
     if (intent) return this.completeRegistration(user, intent);
     return this.loadBackendSession(user);
@@ -235,26 +250,40 @@ export class AuthService {
   }
 
   async logout(): Promise<void> {
-    this.bootstrapAttempt++;
-    this.bootstrap = undefined;
-    this.current.set(null);
-    this.currentError.set(null);
-    this.synchronizationWarning.set(null);
-    this.synchronizationRefreshAttempted = false;
-    this.currentStatus.set('anonymous');
+    if (this.currentStatus() === 'signing-out') return;
+    this.currentStatus.set('signing-out');
+    const generation = this.cancelGeneration();
+    this.trace('logout_start', { hasUser: Boolean(this.firebaseAuth.currentUser) });
+    this.clearApplicationAuthentication();
     await signOut(this.firebaseAuth);
+    await this.firebaseAuth.authStateReady();
+    if (this.firebaseAuth.currentUser) throw new Error('Firebase sign-out did not reach an authoritative null state.');
+    this.trace('firebase_auth_state_confirmed', { hasUser: false });
+    if (generation !== this.authGeneration) return;
+    this.currentStatus.set('anonymous');
+    this.trace('logout_complete', { hasUser: false });
+    await this.navigate('/auth/login', true);
+  }
+
+  async navigate(route: string, replaceUrl = false): Promise<boolean> {
+    const navigationId = ++this.navigationId;
+    this.trace('navigation_start', { route, navigationId });
+    if (!this.router) return false;
+    const result = await this.router.navigateByUrl(route, { replaceUrl });
+    this.trace('navigation_end', { route, navigationId, status: result ? 200 : 0 });
+    return result;
   }
 
   private async handleAuthChange(user: User | null): Promise<void> {
     if (!user) {
-      this.bootstrapAttempt++;
-      this.bootstrap = undefined;
-      this.current.set(null);
-      this.currentError.set(null);
-      this.synchronizationWarning.set(null);
-      this.currentStatus.set('anonymous');
+      if (this.currentStatus() !== 'signing-out') {
+        this.cancelGeneration();
+        this.clearApplicationAuthentication();
+        this.currentStatus.set('anonymous');
+      }
       return;
     }
+    if (this.currentStatus() === 'signing-in' || this.currentStatus() === 'signing-out') return;
     try {
       await this.loadBackendSession(user);
     } catch {
@@ -262,29 +291,30 @@ export class AuthService {
     }
   }
 
-  private loadBackendSession(firebaseUser: User): Promise<SessionUser> {
+  private loadBackendSession(firebaseUser: User, generation = this.authGeneration): Promise<SessionUser> {
     if (this.bootstrap?.uid === firebaseUser.uid) return this.bootstrap.promise;
     const attempt = ++this.bootstrapAttempt;
     this.currentStatus.set('loading-session');
     this.currentError.set(null);
     this.synchronizationWarning.set(null);
-    const promise = this.loadSession()
+    const promise = this.loadSession(firebaseUser, generation)
       .then((session) => {
-        if (attempt === this.bootstrapAttempt) {
+        if (attempt === this.bootstrapAttempt && generation === this.authGeneration) {
           this.current.set(session);
           this.applySessionStatus(session);
         }
         return session;
       })
-      .catch((error: unknown) => {
+      .catch(async (error: unknown) => {
         const failure = classifySessionError(error);
-        if (attempt === this.bootstrapAttempt) {
+        if (attempt === this.bootstrapAttempt && generation === this.authGeneration) {
           this.current.set(null);
           this.currentStatus.set(failure.kind === 'authentication' ? 'authentication-error' : 'error');
           this.currentError.set(
             'Your account was verified, but its application session could not be loaded. Try again.',
           );
           this.bootstrap = undefined;
+          if (failure.kind === 'authentication') await this.logout();
         }
         throw failure;
       });
@@ -292,16 +322,35 @@ export class AuthService {
     return promise;
   }
 
-  private async loadSession(): Promise<SessionUser> {
-    const response = await firstValueFrom(this.api.get<ApiResponse<SessionData> | SessionData>('/auth/session'));
+  private async loadSession(firebaseUser: User, generation: number): Promise<SessionUser> {
+    this.assertCurrent(firebaseUser, generation);
+    this.trace('session_request_start', { hasUser: true, uid: safeUid(firebaseUser.uid), route: '/auth/session' });
+    let response: ApiResponse<SessionData> | SessionData;
+    let refreshedAfterUnauthorized = false;
+    try {
+      response = await this.sessionRequest();
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 401 || generation !== this.authGeneration) throw error;
+      this.trace('session_request_end', { status: 401, requestId: error.requestId, route: '/auth/session' });
+      this.trace('token_acquisition_start', { hasUser: true, uid: safeUid(firebaseUser.uid) });
+      const token = await this.tokens.token(true, generation, firebaseUser);
+      if (!token) throw error;
+      refreshedAfterUnauthorized = true;
+      this.traceToken(firebaseUser, token);
+      this.assertCurrent(firebaseUser, generation);
+      response = await this.sessionRequest();
+    }
+    this.trace('session_request_end', { status: 200, route: '/auth/session' });
     let session = sessionBody(response);
 
-    if (session.claimSynchronization?.tokenRefreshRequired && !this.synchronizationRefreshAttempted) {
+    if (
+      session.claimSynchronization?.tokenRefreshRequired &&
+      !this.synchronizationRefreshAttempted &&
+      !refreshedAfterUnauthorized
+    ) {
       this.synchronizationRefreshAttempted = true;
-      await this.firebaseAuth.currentUser?.getIdToken(true);
-      const refreshedResponse = await firstValueFrom(
-        this.api.get<ApiResponse<SessionData> | SessionData>('/auth/session'),
-      );
+      await this.tokens.token(true, generation, firebaseUser);
+      const refreshedResponse = await this.sessionRequest();
       session = sessionBody(refreshedResponse);
       if (session.claimSynchronization?.tokenRefreshRequired) {
         this.synchronizationWarning.set(
@@ -316,9 +365,9 @@ export class AuthService {
     }
 
     return {
-      uid: session.uid ?? this.firebaseAuth.currentUser?.uid ?? '',
+      uid: session.uid ?? firebaseUser.uid,
       email: session.email,
-      displayName: session.displayName ?? this.firebaseAuth.currentUser?.displayName ?? '',
+      displayName: session.displayName ?? firebaseUser.displayName ?? '',
       // Effective roles are calculated by the server. Never rebuild them from a selected membership.
       roles: normalizeRoles(session.effectiveRoles ?? session.roles),
       // Platform roles remain a separate authority dimension and are never inferred from memberships.
@@ -360,6 +409,68 @@ export class AuthService {
     };
   }
 
+  private async finishSignIn(user: User, generation: number): Promise<SessionUser> {
+    this.assertCurrent(user, generation);
+    this.trace('firebase_login_end', { hasUser: true, uid: safeUid(user.uid) });
+    this.trace('token_acquisition_start', { hasUser: true, uid: safeUid(user.uid) });
+    const token = await this.tokens.token(true, generation, user);
+    if (!token) throw new SessionBootstrapError('authentication');
+    this.traceToken(user, token);
+    this.assertCurrent(user, generation);
+    this.currentStatus.set('authenticated');
+    return this.loadBackendSession(user, generation);
+  }
+
+  private beginGeneration(status: 'signing-in'): number {
+    const generation = this.cancelGeneration();
+    this.clearApplicationAuthentication();
+    this.currentStatus.set(status);
+    return generation;
+  }
+
+  private cancelGeneration(): number {
+    this.cancellation.next();
+    this.cancellation.complete();
+    this.cancellation = new Subject<void>();
+    this.bootstrapAttempt++;
+    this.bootstrap = undefined;
+    const generation = ++this.authGeneration;
+    this.tokens.invalidate(generation);
+    return generation;
+  }
+
+  private clearApplicationAuthentication(): void {
+    this.bootstrap = undefined;
+    this.pendingRegistrationUser = undefined;
+    this.registrationIntentSubmission = undefined;
+    this.current.set(null);
+    this.currentError.set(null);
+    this.synchronizationWarning.set(null);
+    this.synchronizationRefreshAttempted = false;
+    this.trace('application_auth_cleared', { hasUser: Boolean(this.firebaseAuth.currentUser) });
+  }
+
+  private sessionRequest(): Promise<ApiResponse<SessionData> | SessionData> {
+    return firstValueFrom(
+      this.api.get<ApiResponse<SessionData> | SessionData>('/auth/session').pipe(takeUntil(this.cancellation)),
+    );
+  }
+
+  private assertCurrent(user: User, generation: number): void {
+    if (generation !== this.authGeneration || this.firebaseAuth.currentUser?.uid !== user.uid)
+      throw new SessionBootstrapError('authentication');
+  }
+
+  private traceToken(user: User, token: string): void {
+    const timing = tokenTiming(token);
+    this.trace('token_acquisition_end', { hasUser: true, uid: safeUid(user.uid), ...timing });
+  }
+
+  private trace(stage: string, fields: Record<string, unknown>): void {
+    // Structured diagnostics deliberately exclude credentials and personal account fields.
+    console.info('[auth-lifecycle]', { stage, generation: this.authGeneration, ...fields });
+  }
+
   private applySessionStatus(user: SessionUser | null): void {
     this.currentError.set(null);
     const membershipStates = user?.memberships.map((membership) => membership.status) ?? [];
@@ -382,6 +493,24 @@ export class AuthService {
       this.currentStatus.set('pending-approval');
     else if (user.onboardingStatus === 'role_required') this.currentStatus.set('role-required');
     else this.currentStatus.set('authenticated');
+  }
+}
+
+function safeUid(uid: string): string {
+  let hash = 2166136261;
+  for (const character of uid) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619);
+  return `uid-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+}
+
+function tokenTiming(token: string): { issuedAt?: number; expiresAt?: number } {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1] ?? '')) as { iat?: unknown; exp?: unknown };
+    return {
+      ...(typeof payload.iat === 'number' ? { issuedAt: payload.iat } : {}),
+      ...(typeof payload.exp === 'number' ? { expiresAt: payload.exp } : {}),
+    };
+  } catch {
+    return {};
   }
 }
 

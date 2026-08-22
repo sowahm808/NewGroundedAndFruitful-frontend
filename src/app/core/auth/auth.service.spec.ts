@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { ApiClient } from '../http/api-client.service';
 import { ApiError } from '../http/api-error';
 import { ApiResponse, SessionData } from '../models/domain.models';
@@ -125,17 +125,29 @@ describe('AuthService backend session bootstrap', () => {
   let getSession: jasmine.Spy;
   let getIdToken: jasmine.Spy;
   let auth: AuthService;
+  let firebaseAuth: {
+    currentUser: { uid: string; getIdToken: jasmine.Spy } | null;
+    authStateReady: () => Promise<void>;
+    signOut: () => Promise<void>;
+  };
 
   beforeEach(() => {
     getSession = jasmine.createSpy('get').and.returnValue(of(backendSession(false)));
     getIdToken = jasmine.createSpy('getIdToken').and.resolveTo('refreshed-token');
+    firebaseAuth = {
+      currentUser: { uid: 'firebase-uid', getIdToken },
+      authStateReady: async () => undefined,
+      signOut: async () => {
+        firebaseAuth.currentUser = null;
+      },
+    };
     TestBed.configureTestingModule({
       providers: [
         AuthService,
         { provide: ApiClient, useValue: { get: getSession } },
         {
           provide: FIREBASE_AUTH,
-          useValue: { currentUser: { uid: 'firebase-uid', getIdToken } },
+          useValue: firebaseAuth,
         },
       ],
     });
@@ -254,7 +266,9 @@ describe('AuthService backend session bootstrap', () => {
   it('classifies 401 separately from technical session-loading failures', async () => {
     getSession.and.returnValue(throwError(() => new ApiError(401, 'authentication_required', 'expired')));
     await expectAsync(auth.retrySession()).toBeRejectedWith(jasmine.objectContaining({ kind: 'authentication' }));
-    expect(auth.status()).toBe('authentication-error');
+    expect(auth.status()).toBe('anonymous');
+
+    firebaseAuth.currentUser = { uid: 'firebase-uid', getIdToken };
 
     for (const status of [0, 500, 503]) {
       getSession.and.returnValue(throwError(() => new ApiError(status, 'dependency_failure', 'unavailable')));
@@ -267,6 +281,40 @@ describe('AuthService backend session bootstrap', () => {
     getSession.and.returnValue(of({ data: { onboardingStatus: 'role_required' } }));
     await expectAsync(auth.retrySession()).toBeRejectedWith(jasmine.objectContaining({ kind: 'unexpected' }));
     expect(auth.status()).toBe('error');
+  });
+
+  it('does not let a stale in-flight session response repopulate state', async () => {
+    const delayed = new Subject<ApiResponse<SessionData>>();
+    getSession.and.returnValue(delayed);
+    const pending = auth.retrySession();
+
+    (
+      auth as unknown as {
+        cancelGeneration(): number;
+        clearApplicationAuthentication(): void;
+      }
+    ).cancelGeneration();
+    (
+      auth as unknown as {
+        clearApplicationAuthentication(): void;
+      }
+    ).clearApplicationAuthentication();
+    delayed.next(backendSession(false));
+    delayed.complete();
+
+    await expectAsync(pending).toBeRejected();
+    expect(auth.user()).toBeNull();
+  });
+
+  it('clears a rejected session bootstrap so the next request can succeed', async () => {
+    getSession.and.returnValues(
+      throwError(() => new ApiError(503, 'dependency_failure', 'unavailable')),
+      of(backendSession(false)),
+    );
+    await expectAsync(auth.retrySession()).toBeRejected();
+
+    expect((await auth.retrySession())?.uid).toBe('firebase-uid');
+    expect(getSession).toHaveBeenCalledTimes(2);
   });
 
   it('treats organization-required and contradictory migration state as account setup', () => {

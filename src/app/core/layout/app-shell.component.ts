@@ -658,7 +658,6 @@ export class AppShellComponent {
     this.closeDrawer(false);
     try {
       await this.auth.logout();
-      await this.router.navigateByUrl('/auth/login', { replaceUrl: true });
     } catch {
       this.logoutError.set('We could not sign you out. Please try again.');
     } finally {

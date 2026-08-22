@@ -43,6 +43,5 @@ export class RoleRequiredComponent {
     if (this.signingOut()) return;
     this.signingOut.set(true);
     await this.auth.logout();
-    await this.router.navigateByUrl('/auth/login');
   }
 }
