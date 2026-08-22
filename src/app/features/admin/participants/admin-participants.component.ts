@@ -2,6 +2,7 @@ import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
+import { ApiClient } from '../../../core/http/api-client.service';
 import { ApiError } from '../../../core/http/api-error';
 import { GfAlert, GfEmptyState, GfLoading, GfPageHeader } from '../../../shared/components/design-system';
 import {
@@ -20,6 +21,43 @@ import {
     <gf-page-header title="Participants" eyebrow="Administration">
       <p>Manage participant enrollment without exposing private journey content.</p>
     </gf-page-header>
+
+    <div class="actions-bar">
+      <button type="button" class="btn-primary" (click)="showCreateModal.set(true)">
+        + Enroll Participant
+      </button>
+    </div>
+
+    <!-- Create Participant Modal -->
+    @if (showCreateModal()) {
+      <div class="modal-overlay">
+        <div class="modal-card">
+          <h3>Enroll New Participant</h3>
+          <form (ngSubmit)="createParticipant()">
+            <label>
+              Full Name
+              <input name="name" [(ngModel)]="newParticipant.displayName" required placeholder="e.g. David Sowah" />
+            </label>
+            <label>
+              Handle / Username
+              <input name="handle" [(ngModel)]="newParticipant.handle" placeholder="e.g. davids" />
+            </label>
+            <label>
+              Assign Team (Optional)
+              <input name="teamId" [(ngModel)]="newParticipant.teamId" placeholder="Team ID" />
+            </label>
+
+            <div class="modal-actions">
+              <button type="button" (click)="showCreateModal.set(false)" [disabled]="isSubmitting()">Cancel</button>
+              <button type="submit" class="btn-primary" [disabled]="isSubmitting() || !newParticipant.displayName.trim()">
+                {{ isSubmitting() ? 'Enrolling...' : 'Save & Enroll' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    }
+
     <form class="filters" (ngSubmit)="apply()">
       <label>Search participants <input name="search" [(ngModel)]="draft.search" /></label>
       <label
@@ -41,6 +79,7 @@ import {
       >
       <button type="submit">Apply</button><button type="button" (click)="clear()">Clear</button>
     </form>
+
     @if (loading()) {
       <gf-loading />
     } @else if (error(); as failure) {
@@ -115,6 +154,47 @@ import {
         display: block;
         max-width: 76rem;
       }
+      .actions-bar {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 1rem;
+      }
+      .btn-primary {
+        background: #1b4332;
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+      }
+      .modal-card {
+        background: #fff;
+        padding: 2rem;
+        border-radius: 0.75rem;
+        width: 100%;
+        max-width: 28rem;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+      }
+      .modal-card form {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        margin-top: 1rem;
+      }
+      .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        margin-top: 1rem;
+      }
       .filters {
         display: flex;
         flex-wrap: wrap;
@@ -175,19 +255,33 @@ import {
 })
 export class AdminParticipantsComponent implements OnInit {
   private readonly api = inject(AdminParticipantsApiService);
+  private readonly http = inject(ApiClient);
+
   readonly page = signal<ParticipantPage | null>(null);
   readonly loading = signal(true);
   readonly error = signal<ApiError | null>(null);
   readonly query = signal<ParticipantListQuery>({ page: 1, pageSize: 25, sort: 'updatedAt_desc' });
+
+  readonly showCreateModal = signal(false);
+  readonly isSubmitting = signal(false);
+
+  newParticipant = {
+    displayName: '',
+    handle: '',
+    teamId: '',
+  };
+
   draft: { search: string; status: ParticipantStatus | ''; teamId: string; sort: ParticipantSort } = {
     search: '',
     status: '',
     teamId: '',
     sort: 'updatedAt_desc',
   };
+
   ngOnInit(): void {
     this.load();
   }
+
   load(page = 1): void {
     const query = { ...this.query(), page };
     this.query.set(query);
@@ -206,6 +300,35 @@ export class AdminParticipantsComponent implements OnInit {
           ),
       });
   }
+
+  createParticipant(): void {
+    if (!this.newParticipant.displayName.trim()) return;
+    this.isSubmitting.set(true);
+
+    this.http
+      .postData('/admin/participants', {
+        displayName: this.newParticipant.displayName.trim(),
+        name: this.newParticipant.displayName.trim(),
+        handle: this.newParticipant.handle.trim() || undefined,
+        activeTeamId: this.newParticipant.teamId.trim() || undefined,
+        status: 'active',
+        enrollmentStatus: 'active',
+      })
+      .pipe(finalize(() => this.isSubmitting.set(false)))
+      .subscribe({
+        next: () => {
+          this.showCreateModal.set(false);
+          this.newParticipant = { displayName: '', handle: '', teamId: '' };
+          this.load(1);
+        },
+        error: (err) => {
+          this.error.set(
+            err instanceof ApiError ? err : new ApiError(-1, 'unexpected_error', 'Failed to enroll participant.'),
+          );
+        },
+      });
+  }
+
   apply(): void {
     this.query.set({
       page: 1,
@@ -217,11 +340,13 @@ export class AdminParticipantsComponent implements OnInit {
     });
     this.load();
   }
+
   clear(): void {
     this.draft = { search: '', status: '', teamId: '', sort: 'updatedAt_desc' };
     this.query.set({ page: 1, pageSize: 25, sort: 'updatedAt_desc' });
     this.load();
   }
+
   fieldNames(fields: Readonly<Record<string, readonly string[]>>): readonly string[] {
     return Object.keys(fields);
   }
