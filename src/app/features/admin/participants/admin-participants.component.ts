@@ -301,34 +301,63 @@ export class AdminParticipantsComponent implements OnInit {
       });
   }
 
-  createParticipant(): void {
-    if (!this.newParticipant.displayName.trim()) return;
-    this.isSubmitting.set(true);
+  // createParticipant(): void {
+  //   if (!this.newParticipant.displayName.trim()) return;
+  //   this.isSubmitting.set(true);
 
-    this.http
-      .postData('/admin/participants', {
-        displayName: this.newParticipant.displayName.trim(),
-        name: this.newParticipant.displayName.trim(),
-        handle: this.newParticipant.handle.trim() || undefined,
-        activeTeamId: this.newParticipant.teamId.trim() || undefined,
-        status: 'active',
-        enrollmentStatus: 'active',
-      })
-      .pipe(finalize(() => this.isSubmitting.set(false)))
-      .subscribe({
-        next: () => {
-          this.showCreateModal.set(false);
-          this.newParticipant = { displayName: '', handle: '', teamId: '' };
-          this.load(1);
-        },
-        error: (err) => {
-          this.error.set(
-            err instanceof ApiError ? err : new ApiError(-1, 'unexpected_error', 'Failed to enroll participant.'),
-          );
-        },
-      });
-  }
+  //   this.http
+  //     .postData('/admin/participants', {
+  //       displayName: this.newParticipant.displayName.trim(),
+  //       name: this.newParticipant.displayName.trim(),
+  //       handle: this.newParticipant.handle.trim() || undefined,
+  //       activeTeamId: this.newParticipant.teamId.trim() || undefined,
+  //       status: 'active',
+  //       enrollmentStatus: 'active',
+  //     })
+  //     .pipe(finalize(() => this.isSubmitting.set(false)))
+  //     .subscribe({
+  //       next: () => {
+  //         this.showCreateModal.set(false);
+  //         this.newParticipant = { displayName: '', handle: '', teamId: '' };
+  //         this.load(1);
+  //       },
+  //       error: (err) => {
+  //         this.error.set(
+  //           err instanceof ApiError ? err : new ApiError(-1, 'unexpected_error', 'Failed to enroll participant.'),
+  //         );
+  //       },
+  //     });
+  // }
+createParticipant(): void {
+  const name = this.newParticipant.displayName.trim();
+  if (!name) return;
 
+  this.isSubmitting.set(true);
+
+  const payload = {
+    displayName: name,
+    birthDate: '2015-01-01',
+    programId: 'default-program',
+  };
+
+  this.http
+    .postData('/admin/participants', payload)
+    .pipe(finalize(() => this.isSubmitting.set(false)))
+    .subscribe({
+      next: () => {
+        this.showCreateModal.set(false);
+        this.newParticipant = { displayName: '', handle: '', teamId: '' };
+        this.load(1);
+      },
+      error: (err) => {
+        this.error.set(
+          err instanceof ApiError
+            ? err
+            : new ApiError(-1, 'unexpected_error', 'Failed to enroll participant.'),
+        );
+      },
+    });
+}
   apply(): void {
     this.query.set({
       page: 1,
