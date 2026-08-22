@@ -90,7 +90,7 @@ export class ParentApi {
   }
   children(search = '', status = '', cursor = ''): Observable<CursorPage<ParentChild>> {
     return this.api
-      .getData<unknown>('/parent/children', { params: buildHttpParams({ search, status, cursor }) })
+      .getCollectionData<unknown>('/parent/children', { params: buildHttpParams({ search, status, cursor }) })
       .pipe(map(normalizeChildrenPage));
   }
   child(id: string): Observable<ParentChild> {
@@ -135,13 +135,13 @@ export class ParentApi {
 }
 
 /** Validates the published `{ data: { items, hasMore, nextCursor? } }` contract once. */
-function normalizeChildrenPage(value: unknown): CursorPage<ParentChild> {
-  if (!isRecord(value) || !Array.isArray(value['items']) || typeof value['hasMore'] !== 'boolean')
+function normalizeChildrenPage(value: CursorPage<unknown>): CursorPage<ParentChild> {
+  if (!Array.isArray(value.items) || typeof value.hasMore !== 'boolean')
     throw new ApiError(-1, 'unexpected_error', 'The linked-child response did not match the published contract.');
-  const items = value['items'];
+  const items = value.items;
   if (!items.every(isParentChild))
     throw new ApiError(-1, 'unexpected_error', 'The linked-child response contained an invalid relationship.');
-  const nextCursor = value['nextCursor'];
+  const nextCursor = value.nextCursor;
   if (nextCursor !== undefined && typeof nextCursor !== 'string')
     throw new ApiError(-1, 'unexpected_error', 'The linked-child cursor was invalid.');
   return { items, hasMore: value['hasMore'], ...(nextCursor ? { nextCursor } : {}) };

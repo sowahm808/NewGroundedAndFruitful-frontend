@@ -23,6 +23,12 @@ export interface ApiEnvelope<T> {
   readonly requestId?: string;
 }
 
+export interface ApiCollection<T> {
+  readonly items: readonly T[];
+  readonly nextCursor?: string;
+  readonly hasMore: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ApiClient {
   private readonly http = inject(HttpClient);
@@ -35,6 +41,11 @@ export class ApiClient {
   /** Reads the API's standard envelope in one place. */
   getData<T>(path: string, options: ApiRequestOptions = {}): Observable<T> {
     return this.get<ApiEnvelope<T>>(path, options).pipe(map(unwrapEnvelope));
+  }
+
+  /** Normalizes both supported collection envelopes without converting transport errors to empty results. */
+  getCollectionData<T>(path: string, options: ApiRequestOptions = {}): Observable<ApiCollection<T>> {
+    return this.get<unknown>(path, options).pipe(map(unwrapCollectionEnvelope<T>));
   }
 
   postData<T>(path: string, body: unknown, options: ApiRequestOptions = {}): Observable<T> {
@@ -156,6 +167,41 @@ function unwrapEnvelope<T>(response: ApiEnvelope<T>): T {
     throw new ApiError(-1, 'unexpected_error', 'The backend returned an invalid response envelope.');
   }
   return response.data;
+}
+
+function unwrapCollectionEnvelope<T>(response: unknown): ApiCollection<T> {
+  if (!response || typeof response !== 'object' || !('data' in response)) {
+    throw new ApiError(-1, 'unexpected_error', 'The backend returned an invalid response envelope.');
+  }
+  const envelope = response as { data?: unknown; meta?: unknown };
+  if (Array.isArray(envelope.data)) {
+    const meta = envelope.meta;
+    if (meta !== undefined && (!meta || typeof meta !== 'object')) {
+      throw new ApiError(-1, 'unexpected_error', 'The backend returned invalid collection metadata.');
+    }
+    const cursor = (meta as { nextCursor?: unknown } | undefined)?.nextCursor;
+    if (cursor !== undefined && cursor !== null && typeof cursor !== 'string') {
+      throw new ApiError(-1, 'unexpected_error', 'The backend returned an invalid collection cursor.');
+    }
+    return {
+      items: envelope.data as readonly T[],
+      hasMore: typeof cursor === 'string' && cursor.length > 0,
+      ...(typeof cursor === 'string' && cursor.length ? { nextCursor: cursor } : {}),
+    };
+  }
+  const data = envelope.data;
+  if (!data || typeof data !== 'object' || !Array.isArray((data as { items?: unknown }).items)) {
+    throw new ApiError(-1, 'unexpected_error', 'The backend returned an invalid collection.');
+  }
+  const page = data as { items: readonly T[]; nextCursor?: unknown; hasMore?: unknown };
+  if (page.nextCursor !== undefined && page.nextCursor !== null && typeof page.nextCursor !== 'string') {
+    throw new ApiError(-1, 'unexpected_error', 'The backend returned an invalid collection cursor.');
+  }
+  if (page.hasMore !== undefined && typeof page.hasMore !== 'boolean') {
+    throw new ApiError(-1, 'unexpected_error', 'The backend returned invalid collection pagination.');
+  }
+  const nextCursor = typeof page.nextCursor === 'string' && page.nextCursor.length ? page.nextCursor : undefined;
+  return { items: page.items, hasMore: page.hasMore ?? Boolean(nextCursor), ...(nextCursor ? { nextCursor } : {}) };
 }
 
 function parseRetryAfter(value: string | null): number | undefined {
