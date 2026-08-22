@@ -85,6 +85,7 @@ export class AuthService {
   private pendingRegistrationUser?: User;
   private registrationIntentSubmission?: { key: string; promise: Promise<RegistrationResult> };
   private authGeneration = 0;
+  private readonly generationState = signal(0);
   private cancellation = new Subject<void>();
   private navigationId = 0;
 
@@ -98,6 +99,8 @@ export class AuthService {
   readonly sessionReady = computed(() => !['initializing', 'loading-session'].includes(this.currentStatus()));
   readonly sessionError = this.currentError.asReadonly();
   readonly sessionSynchronizationWarning = this.synchronizationWarning.asReadonly();
+  /** Changes whenever credentials are replaced or cleared; feature stores use it to invalidate scoped data. */
+  readonly sessionGeneration = this.generationState.asReadonly();
 
   initialize(): Promise<void> {
     if (this.initialization) return this.initialization;
@@ -435,6 +438,7 @@ export class AuthService {
     this.bootstrapAttempt++;
     this.bootstrap = undefined;
     const generation = ++this.authGeneration;
+    this.generationState.set(generation);
     this.tokens.invalidate(generation);
     return generation;
   }

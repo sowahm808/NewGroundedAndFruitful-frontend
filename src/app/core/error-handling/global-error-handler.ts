@@ -4,6 +4,9 @@ import { Router } from '@angular/router';
 import { ApiError } from '../http/api-error';
 
 interface SafeErrorDiagnostics {
+  readonly category: 'programming_error';
+  readonly name: string;
+  readonly message: string;
   readonly angularErrorCode: string | null;
   readonly currentRoute: string;
   readonly originRoute: string | null;
@@ -11,6 +14,7 @@ interface SafeErrorDiagnostics {
   readonly applicationVersion: string;
   readonly buildSha: string;
   readonly correlationId: string;
+  readonly stackFingerprint: string;
 }
 
 @Injectable()
@@ -32,6 +36,9 @@ export class GlobalErrorHandler implements ErrorHandler {
     const originRoute = navigation?.previousNavigation?.finalUrl?.toString() ?? null;
     const navigationId = navigation?.id ?? this.router.lastSuccessfulNavigation()?.id ?? null;
     const diagnostics: SafeErrorDiagnostics = {
+      category: 'programming_error',
+      name: error instanceof Error ? error.name : typeof error,
+      message,
       angularErrorCode: /\bNG\d{4}\b/.exec(message)?.[0] ?? null,
       // Router.url reflects the active Angular navigation, including redirects, at failure time.
       currentRoute,
@@ -40,6 +47,7 @@ export class GlobalErrorHandler implements ErrorHandler {
       applicationVersion: this.meta('application-version'),
       buildSha: this.meta('build-sha'),
       correlationId: globalThis.crypto?.randomUUID?.() ?? `error-${Date.now()}`,
+      stackFingerprint: fingerprint(error instanceof Error ? (error.stack ?? message) : message),
     };
     console.error('An unexpected application error occurred.', diagnostics);
   }
@@ -47,4 +55,10 @@ export class GlobalErrorHandler implements ErrorHandler {
   private meta(name: string): string {
     return this.document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content || 'unknown';
   }
+}
+
+function fingerprint(value: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index++) hash = Math.imul(hash ^ value.charCodeAt(index), 16777619);
+  return (hash >>> 0).toString(16).padStart(8, '0');
 }

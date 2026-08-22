@@ -29,6 +29,13 @@ describe('ParentApi', () => {
       .flush({ data: { items: [], hasMore: false } });
   });
 
+  it('turns a malformed linked-child contract into a handled ApiError', () => {
+    let failure: unknown;
+    api.children().subscribe({ error: (error) => (failure = error) });
+    http.expectOne(`${baseUrl}/parent/children`).flush({ data: [] });
+    expect(failure).toEqual(jasmine.objectContaining({ name: 'ApiError', status: -1 }));
+  });
+
   it('omits empty child and cursor values from the observations request URL', () => {
     api.observations().subscribe();
     http.expectOne(`${baseUrl}/parent/observations`).flush({ data: { items: [], hasMore: false } });
