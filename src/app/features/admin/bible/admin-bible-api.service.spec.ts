@@ -57,4 +57,61 @@ describe('AdminBibleApiService', () => {
     expect(request.request.headers.get('Idempotency-Key')).toBe('logical-import-1');
     request.flush({ data: { id: 'import-1', status: 'uploaded' } });
   });
+
+  it('normalizes nested import documents and commits with version and one idempotency key', () => {
+    let detail: any;
+    service.getImport('import/1').subscribe((value) => (detail = value));
+    const request = http.expectOne((candidate) => candidate.url.endsWith('/admin/bible-content/imports/import%2F1'));
+    request.flush({
+      data: {
+        id: 'import/1',
+        title: 'Autumn Bible quiz',
+        status: 'needs_review',
+        quarter: { id: 'q1', name: 'Autumn 2026' },
+        documents: {
+          question: { filename: 'questions.docx', sizeBytes: 1024 },
+          answerKey: { filename: 'answers.docx', sizeBytes: 512 },
+        },
+        counts: { activities: 1, questions: 1, errors: 0, warnings: 1 },
+        uploadedBy: 'Admin User',
+        uploadedAt: '2026-08-20T10:00:00Z',
+        updatedAt: '2026-08-20T10:01:00Z',
+        parserVersion: '2.1.0',
+        version: 4,
+        allowedActions: ['commit'],
+        validation: { issues: [{ code: 'spacing', message: 'Spacing normalized.', blocking: false }] },
+        activities: [
+          {
+            id: 'a1',
+            title: 'Day one',
+            date: '2026-09-01',
+            questions: [
+              { number: 1, prompt: 'Who?', choices: [{ id: 'a', text: 'Moses', isCorrect: true }], issues: [] },
+            ],
+          },
+        ],
+      },
+    });
+    expect(detail.documents.question.filename).toBe('questions.docx');
+    expect(detail.activities[0].questions[0].choices[0].isCorrect).toBeTrue();
+
+    service.commitImport('import/1', 4, 'approval-1').subscribe();
+    const commit = http.expectOne((candidate) =>
+      candidate.url.endsWith('/admin/bible-content/imports/import%2F1/commit'),
+    );
+    expect(commit.request.body).toEqual({ expectedVersion: 4 });
+    expect(commit.request.headers.get('Idempotency-Key')).toBe('approval-1');
+    commit.flush({
+      data: { importId: 'import/1', committedContentSetId: 'content-1', status: 'committed', version: 5 },
+    });
+  });
+
+  it('fails incomplete detail as a contract error instead of rendering blank metadata', () => {
+    let failure: any;
+    service.getImport('bad').subscribe({ error: (error) => (failure = error) });
+    http
+      .expectOne((candidate) => candidate.url.endsWith('/admin/bible-content/imports/bad'))
+      .flush({ data: { id: 'bad' } });
+    expect(failure.message).toContain('documents');
+  });
 });
