@@ -66,7 +66,6 @@ export const routes: Routes = [
       },
       {
         path: 'character',
-        canActivate: [capabilityGuard(['parent.children.read'])],
         loadComponent: () => import('./features/child/character.component').then((m) => m.CharacterComponent),
       },
       { path: 'bible', loadComponent: () => import('./features/child/bible.component').then((m) => m.BibleComponent) },
@@ -231,39 +230,28 @@ export const routes: Routes = [
           import('./features/admin/memberships/admin-memberships.component').then((m) => m.AdminMembershipsComponent),
       },
       ...[
-        ['participants', 'Participants'],
-        ['assignments', 'Assignments'],
-        ['projects', 'Projects'],
-        ['awards', 'Awards'],
-      ].map(([path, title]) => ({
+        ['participants', 'participants', 'admin.participants.manage'],
+        ['teams', 'teams', 'admin.teams.manage'],
+        ['assignments', 'assignments', 'admin.assignments.manage'],
+        ['character', 'character', 'admin.character.manage'],
+        ['family', 'family', 'admin.family_activities.manage'],
+        ['books', 'books', 'admin.books.manage'],
+        ['projects', 'projects', 'admin.projects.manage'],
+        ['surveys', 'surveys', 'admin.surveys.manage'],
+        ['points', 'points', 'admin.point_rules.manage'],
+        ['reports', 'reports', 'admin.reports.read'],
+        ['awards', 'awards', 'admin.awards.manage'],
+      ].map(([path, resource, capability]) => ({
         path,
-        canActivate: [organizationRoleGuard('admin')],
-        data: { title },
-        loadComponent: () =>
-          import('./features/admin/admin-capability-unavailable.component').then(
-            (m) => m.AdminCapabilityUnavailableComponent,
-          ),
+        canActivate: [organizationRoleGuard('admin'), capabilityGuard([capability])],
+        data: { resource },
+        loadComponent: () => import('./features/admin/admin-pages.component').then((m) => m.AdminPageComponent),
       })),
       {
         path: 'roles',
         canActivate: [roleGuard(['super_admin'])],
-        data: { title: 'Roles' },
-        loadComponent: () =>
-          import('./features/admin/admin-capability-unavailable.component').then(
-            (m) => m.AdminCapabilityUnavailableComponent,
-          ),
-      },
-      {
-        path: 'teams',
-        canActivate: [organizationRoleGuard('admin')],
-        loadComponent: () =>
-          import('./features/admin/teams-unavailable.component').then((m) => m.AdminTeamsUnavailableComponent),
-      },
-      {
-        path: 'character',
-        canActivate: [organizationRoleGuard('admin')],
-        loadComponent: () =>
-          import('./features/admin/character-unavailable.component').then((m) => m.AdminCharacterUnavailableComponent),
+        data: { resource: 'roles' },
+        loadComponent: () => import('./features/admin/admin-pages.component').then((m) => m.AdminPageComponent),
       },
       {
         path: 'bible',
@@ -289,40 +277,10 @@ export const routes: Routes = [
           import('./features/admin/bible/admin-bible-content.component').then((m) => m.AdminBibleContentComponent),
       },
       {
-        path: 'family',
-        canActivate: [organizationRoleGuard('admin')],
-        loadComponent: () =>
-          import('./features/admin/family-unavailable.component').then((m) => m.AdminFamilyUnavailableComponent),
-      },
-      {
-        path: 'books',
-        canActivate: [organizationRoleGuard('admin')],
-        loadComponent: () =>
-          import('./features/admin/books-unavailable.component').then((m) => m.AdminBooksUnavailableComponent),
-      },
-      {
-        path: 'surveys',
-        canActivate: [organizationRoleGuard('admin')],
-        loadComponent: () =>
-          import('./features/admin/surveys-unavailable.component').then((m) => m.AdminSurveysUnavailableComponent),
-      },
-      {
-        path: 'points',
-        canActivate: [organizationRoleGuard('admin')],
-        loadComponent: () =>
-          import('./features/admin/points-unavailable.component').then((m) => m.AdminPointsUnavailableComponent),
-      },
-      {
-        path: 'reports',
-        canActivate: [organizationRoleGuard('admin')],
-        loadComponent: () =>
-          import('./features/admin/reports-unavailable.component').then((m) => m.AdminReportsUnavailableComponent),
-      },
-      {
         path: 'audit',
         canActivate: [roleGuard(['super_admin'])],
-        loadComponent: () =>
-          import('./features/admin/audit-unavailable.component').then((m) => m.AdminAuditUnavailableComponent),
+        data: { resource: 'audit' },
+        loadComponent: () => import('./features/admin/admin-pages.component').then((m) => m.AdminPageComponent),
       },
       { path: '', pathMatch: 'full', redirectTo: 'quarters' },
     ],

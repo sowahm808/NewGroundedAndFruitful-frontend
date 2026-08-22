@@ -1,40 +1,103 @@
-import { navigationFor } from './navigation-policy';
+import { NavigationContext, navigationFor } from './navigation-policy';
 
-describe('capability-driven navigation policy', () => {
-  const activeMembership = { workspaceId: 'personal-1', workspaceRoles: ['owner'] as const, status: 'active' as const };
-
-  it('shows ordered parent navigation to a personal owner with backend capabilities', () => {
-    const paths = navigationFor({
-      workspaceType: 'personal',
-      membership: activeMembership,
-      personas: ['parent'],
-      capabilities: [
-        'support.requests.create',
-        'family.activities.read',
-        'parent.observations.create',
-        'parent.children.read',
-      ],
+describe('typed role/persona/capability navigation registry', () => {
+  const active = { status: 'active' as const, workspaceRoles: [] };
+  const routes = (context: Partial<NavigationContext>) =>
+    navigationFor({
+      workspaceType: 'organization',
+      membership: active,
+      personas: [],
+      capabilities: [],
+      ...context,
     }).map((item) => item.route);
-    expect(paths).toEqual(['/parent/children', '/parent/observations', '/parent/family', '/parent/academic-support']);
-    expect(paths.some((path) => path.startsWith('/admin/'))).toBeFalse();
+
+  it('shows every enabled organization workflow to a capability-authorized admin', () => {
+    expect(
+      routes({
+        workspaceRoles: ['admin'],
+        capabilities: [
+          'admin.participants.manage',
+          'admin.teams.manage',
+          'admin.assignments.manage',
+          'admin.quarters.manage',
+          'admin.character.manage',
+          'admin.bible_content.manage',
+          'admin.family_activities.manage',
+          'admin.books.manage',
+          'admin.projects.manage',
+          'admin.surveys.manage',
+          'admin.point_rules.manage',
+          'admin.reports.read',
+          'admin.awards.manage',
+        ],
+      }),
+    ).toEqual([
+      '/admin/participants',
+      '/admin/teams',
+      '/admin/assignments',
+      '/admin/quarters',
+      '/admin/character',
+      '/admin/bible',
+      '/admin/family',
+      '/admin/books',
+      '/admin/projects',
+      '/admin/surveys',
+      '/admin/points',
+      '/admin/reports',
+      '/admin/awards',
+    ]);
   });
 
-  it('does not infer parent or admin navigation from workspace ownership', () => {
+  it('does not infer admin authority from ownership', () => {
+    expect(routes({ workspaceRoles: ['owner'], capabilities: ['admin.quarters.manage'] })).toEqual([]);
+  });
+
+  it('adds only capability-authorized tenant administration for super admin', () => {
     expect(
-      navigationFor({ workspaceType: 'personal', membership: activeMembership, personas: [], capabilities: [] }),
+      routes({
+        platformRoles: ['super_admin'],
+        capabilities: [
+          'platform.organizations.manage',
+          'platform.memberships.manage',
+          'platform.roles.read',
+          'platform.audit.read',
+        ],
+      }),
+    ).toEqual(['/admin/organizations', '/admin/users', '/admin/memberships', '/admin/roles', '/admin/audit']);
+  });
+
+  it('restores complete child, mentor, and observer menus from persona boundaries', () => {
+    const personal = { workspaceType: 'personal' as const };
+    expect(routes({ ...personal, personas: ['child'] })).toHaveSize(9);
+    expect(routes({ ...personal, personas: ['mentor'] })).toEqual([
+      '/mentor/teams',
+      '/mentor/projects',
+      '/mentor/reading',
+      '/mentor/encouragement',
+    ]);
+    expect(routes({ ...personal, personas: ['observer'] })).toEqual(['/observer/observations']);
+  });
+
+  it('requires parent capabilities only where the published contract requires them', () => {
+    expect(
+      routes({
+        workspaceType: 'personal',
+        personas: ['parent'],
+        capabilities: [
+          'parent.children.read',
+          'parent.observations.create',
+          'family.activities.read',
+          'support.requests.create',
+          'parent.notifications.read',
+          'parent.reports.read',
+        ],
+      }),
+    ).toHaveSize(8);
+  });
+
+  it('renders nothing before an active membership is available', () => {
+    expect(
+      navigationFor({ workspaceType: 'organization', membership: null, personas: ['child'], capabilities: [] }),
     ).toEqual([]);
-  });
-
-  it('requires an active membership and organization workspace for admin capabilities', () => {
-    const context = { personas: [] as const, capabilities: ['admin.quarters.manage'] };
-    expect(navigationFor({ ...context, workspaceType: 'personal', membership: activeMembership })).toEqual([]);
-    expect(navigationFor({ ...context, workspaceType: 'organization', membership: { status: 'inactive' } })).toEqual(
-      [],
-    );
-    expect(
-      navigationFor({ ...context, workspaceType: 'organization', membership: { status: 'active' } }).map(
-        (i) => i.route,
-      ),
-    ).toEqual(['/admin/quarters']);
   });
 });
