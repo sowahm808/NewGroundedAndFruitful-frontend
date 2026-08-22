@@ -230,7 +230,6 @@ export const routes: Routes = [
           import('./features/admin/memberships/admin-memberships.component').then((m) => m.AdminMembershipsComponent),
       },
       ...[
-        ['participants', 'participants', 'admin.participants.manage'],
         ['teams', 'teams', 'admin.teams.manage'],
         ['assignments', 'assignments', 'admin.assignments.manage'],
         ['character', 'character', 'admin.character.manage'],
@@ -246,6 +245,14 @@ export const routes: Routes = [
         data: { resource },
         loadComponent: () => import('./features/admin/admin-pages.component').then((m) => m.AdminPageComponent),
       })),
+      {
+        path: 'participants',
+        canActivate: [organizationRoleGuard('admin'), capabilityGuard(['admin.participants.manage'])],
+        loadComponent: () =>
+          import('./features/admin/participants/admin-participants.component').then(
+            (m) => m.AdminParticipantsComponent,
+          ),
+      },
       {
         path: 'reports',
         canActivate: [organizationRoleGuard('admin'), capabilityGuard(['admin.reports.read'])],
