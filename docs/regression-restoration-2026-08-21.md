@@ -61,3 +61,20 @@ until the canonical active membership is loaded, preventing an unauthorized flas
 
 Use `git revert <restoration-commit-sha>` after deployment (never `reset --hard`). This produces a reviewable inverse
 commit while preserving later authentication/security work and unrelated history.
+
+## Parent Reports state regression (2026-08-22)
+
+`/parent/reports` now treats the shared relationship state as the single authority before rendering report content.
+Relationship loading, successful relationship emptiness, relationship failure, child selection, report loading,
+successful report emptiness, report failure, and populated reports are mutually exclusive. A relationship failure
+shows Retry and the backend request ID when supplied; a valid parent with no active relationship sees **No linked
+children yet** and the real administrator-assisted enrollment/linking guidance.
+
+The API client now normalizes both published collection shapes—`{ data: { items, hasMore, nextCursor? } }` and
+`{ data: [], meta: { nextCursor: null } }`—at the HTTP boundary. `nextCursor: null` is a completed empty page, not
+contract drift. HTTP 403, 404, and 5xx responses still remain errors and are never converted into empty arrays.
+
+No Parent Reports summary/category/trend values were invented. The currently available report contract exposes only
+report identity, child scope, title, lifecycle status, availability, and calculation timestamp. Reporting periods,
+category summaries, server-calculated trend points, and secure exports remain blocked until the backend-owned OpenAPI
+publishes those DTOs and operations; the enabled page displays only authorized server fields in the meantime.

@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Output, effect, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  EventEmitter,
+  Output,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ParentContextStore } from '../parent-context.store';
@@ -13,18 +22,26 @@ import { ParentContextStore } from '../parent-context.store';
     @if (context.state().status === 'loading' || context.state().status === 'idle') {
       <p class="muted" role="status">Checking active relationships…</p>
     } @else if (context.state().status === 'empty') {
-      <p class="muted">No linked children are available.</p>
+      <h3>No linked children yet</h3>
+      <p class="muted">Ask your program administrator to enroll and actively link your child to this account.</p>
     } @else if (context.state().status === 'forbidden') {
       <p role="alert">Your account cannot access linked-child relationships in this workspace.</p>
     } @else if (context.state().status === 'dependency_error' || context.state().status === 'contract_error') {
       <p role="alert">Linked children could not be loaded.</p>
       <button type="button" (click)="context.retry()">Try again</button>
+      @if (requestId(); as requestId) {
+        <p class="muted">Support reference: {{ requestId }}</p>
+      }
     } @else if (context.state().status === 'ready') {
+      <label for="scope-search"
+        >Find a linked child
+        <input id="scope-search" type="search" [formControl]="search" autocomplete="off" />
+      </label>
       <label for="scope-child"
         >View for
         <select id="scope-child" [formControl]="selection">
           <option value="">Choose a linked child</option>
-          @for (child of context.children(); track child.id) {
+          @for (child of filteredChildren(); track child.id) {
             <option [value]="child.id">{{ child.displayName }}</option>
           }
         </select>
@@ -40,8 +57,23 @@ export class ParentChildScopeComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   @Output() readonly childChange = new EventEmitter<string>();
+  readonly search = new FormControl('', { nonNullable: true });
   readonly selection = new FormControl('', { nonNullable: true });
+  private readonly searchValue = signal('');
+  readonly filteredChildren = computed(() => {
+    const query = this.searchValue().trim().toLocaleLowerCase();
+    return query
+      ? this.context.children().filter((child) => child.displayName.toLocaleLowerCase().includes(query))
+      : this.context.children();
+  });
+  readonly requestId = computed(() => {
+    const state = this.context.state();
+    return state.status === 'forbidden' || state.status === 'dependency_error' || state.status === 'contract_error'
+      ? state.requestId
+      : undefined;
+  });
   constructor() {
+    this.search.valueChanges.subscribe((value) => this.searchValue.set(value));
     this.selection.valueChanges.subscribe((id) => this.choose(id));
     effect(() => {
       if (this.context.state().status !== 'ready') {

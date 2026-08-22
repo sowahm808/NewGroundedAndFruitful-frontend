@@ -29,10 +29,17 @@ describe('ParentApi', () => {
       .flush({ data: { items: [], hasMore: false } });
   });
 
+  it('normalizes a successful empty data/meta collection without treating null cursor as a contract error', () => {
+    let result: unknown;
+    api.children().subscribe((page) => (result = page));
+    http.expectOne(`${baseUrl}/parent/children`).flush({ data: [], meta: { nextCursor: null } });
+    expect(result).toEqual({ items: [], hasMore: false });
+  });
+
   it('turns a malformed linked-child contract into a handled ApiError', () => {
     let failure: unknown;
     api.children().subscribe({ error: (error) => (failure = error) });
-    http.expectOne(`${baseUrl}/parent/children`).flush({ data: [] });
+    http.expectOne(`${baseUrl}/parent/children`).flush({ data: [{ id: '' }], meta: { nextCursor: null } });
     expect(failure).toEqual(jasmine.objectContaining({ name: 'ApiError', status: -1 }));
   });
 
