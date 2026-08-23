@@ -37,10 +37,24 @@ describe('AdminParticipantsApiService', () => {
       .expectOne((candidate) => candidate.url.endsWith('/admin/participants'))
       .flush({
         data: {
-          items: [{ id: 'p1', name: 'Ada', enrollmentStatus: 'active', updatedAt: '2026-08-22T00:00:00Z' }],
+          items: [{ id: 'p1', name: 'Ada', enrollmentStatus: 'active', version: 1, updatedAt: '2026-08-22T00:00:00Z' }],
           pagination: { page: 1, pageSize: 25, total: 1, totalPages: 1 },
         },
       });
     expect(name).toBe('Ada');
+  });
+
+  it('hydrates the published displayName and status fields', () => {
+    let participantName = '';
+    service.list({}).subscribe((page) => (participantName = page.items[0].name));
+    http
+      .expectOne((candidate) => candidate.url.endsWith('/admin/participants'))
+      .flush({
+        data: {
+          items: [{ id: 'p1', displayName: 'Ama', status: 'pending', version: 3, updatedAt: '2026-08-22T00:00:00Z' }],
+          pagination: { page: 1, pageSize: 25, total: 1, totalPages: 1 },
+        },
+      });
+    expect(participantName).toBe('Ama');
   });
 });

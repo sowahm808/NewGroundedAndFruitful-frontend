@@ -19,6 +19,7 @@ export interface ParticipantListQuery {
 export interface ParticipantSummary {
   readonly id: string;
   readonly name: string;
+  readonly version: number;
   readonly enrollmentStatus: ParticipantStatus;
   readonly linkedGuardian?: string;
   readonly team?: string;
@@ -53,15 +54,18 @@ export class AdminParticipantsApiService {
 function parseParticipantPage(value: unknown): ParticipantPage {
   if (!isRecord(value) || !Array.isArray(value['items']) || !isPagination(value['pagination'])) contractError();
   const items = value['items'].map((item) => {
+    const name = isRecord(item) && (item['displayName'] ?? item['name']);
+    const enrollmentStatus = isRecord(item) && (item['status'] ?? item['enrollmentStatus']);
     if (
       !isRecord(item) ||
       typeof item['id'] !== 'string' ||
-      typeof item['name'] !== 'string' ||
-      !isStatus(item['enrollmentStatus']) ||
+      typeof name !== 'string' ||
+      !isStatus(enrollmentStatus) ||
+      !Number.isInteger(item['version']) ||
       typeof item['updatedAt'] !== 'string'
     )
       contractError();
-    return item as unknown as ParticipantSummary;
+    return { ...item, name, enrollmentStatus } as unknown as ParticipantSummary;
   });
   return { items, pagination: value['pagination'] };
 }

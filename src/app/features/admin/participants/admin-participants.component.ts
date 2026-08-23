@@ -4,28 +4,36 @@ import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { ApiClient } from '../../../core/http/api-client.service';
 import { ApiError } from '../../../core/http/api-error';
-import { GfAlert, GfEmptyState, GfLoading, GfPageHeader } from '../../../shared/components/design-system';
+import {
+  GfAlert,
+  GfBadge,
+  GfCard,
+  GfEmptyState,
+  GfLoading,
+  GfPageHeader,
+} from '../../../shared/components/design-system';
+import { adminMutationOptions } from '../admin-mutation';
+import { TeamItem } from '../teams/admin-teams-api.service';
 import {
   AdminParticipantsApiService,
   ParticipantListQuery,
   ParticipantPage,
   ParticipantSort,
   ParticipantStatus,
+  ParticipantSummary,
 } from './admin-participants-api.service';
 
 @Component({
   selector: 'gf-admin-participants',
   standalone: true,
-  imports: [DatePipe, FormsModule, GfAlert, GfEmptyState, GfLoading, GfPageHeader],
+  imports: [DatePipe, FormsModule, GfAlert, GfBadge, GfCard, GfEmptyState, GfLoading, GfPageHeader],
   template: `
     <gf-page-header title="Participants" eyebrow="Administration">
       <p>Manage participant enrollment without exposing private journey content.</p>
     </gf-page-header>
 
     <div class="actions-bar">
-      <button type="button" class="btn-primary" (click)="showCreateModal.set(true)">
-        + Enroll Participant
-      </button>
+      <button type="button" class="btn-primary" (click)="showCreateModal.set(true)">+ Enroll Participant</button>
     </div>
 
     <!-- Create Participant Modal -->
@@ -49,12 +57,86 @@ import {
 
             <div class="modal-actions">
               <button type="button" (click)="showCreateModal.set(false)" [disabled]="isSubmitting()">Cancel</button>
-              <button type="submit" class="btn-primary" [disabled]="isSubmitting() || !newParticipant.displayName.trim()">
+              <button
+                type="submit"
+                class="btn-primary"
+                [disabled]="isSubmitting() || !newParticipant.displayName.trim()"
+              >
                 {{ isSubmitting() ? 'Enrolling...' : 'Save & Enroll' }}
               </button>
             </div>
           </form>
         </div>
+      </div>
+    }
+
+    @if (participantToAssign(); as participant) {
+      <div class="modal-overlay" (click)="closeAssignment()">
+        <gf-card class="modal-card" (click)="$event.stopPropagation()">
+          <h3>Assign {{ participant.name }} to a team</h3>
+          @if (modalError(); as failure) {
+            <gf-alert title="Team assignment failed."
+              ><p>{{ failure.message }}</p></gf-alert
+            >
+          }
+          @if (teamsLoading()) {
+            <gf-loading />
+          } @else if (!availableTeams().length) {
+            <gf-empty-state title="No teams have space." message="Teams can contain no more than five children." />
+          } @else {
+            <form (ngSubmit)="assignTeam()">
+              <label
+                >Available team
+                <select name="selectedTeam" [(ngModel)]="selectedTeamId" required>
+                  <option value="">Select a team</option>
+                  @for (team of availableTeams(); track team.id) {
+                    <option [value]="team.id">
+                      {{ team.displayName || team.approvedDisplayName || team.name }} ({{ team.memberCount || 0 }}/{{
+                        team.capacity || 5
+                      }})
+                    </option>
+                  }
+                </select>
+              </label>
+              <div class="modal-actions">
+                <button type="button" (click)="closeAssignment()" [disabled]="isSubmitting()">Cancel</button>
+                <button type="submit" class="btn-primary" [disabled]="isSubmitting() || !selectedTeamId">
+                  {{ isSubmitting() ? 'Assigning...' : 'Assign Team' }}
+                </button>
+              </div>
+            </form>
+          }
+        </gf-card>
+      </div>
+    }
+
+    @if (participantToEdit(); as participant) {
+      <div class="modal-overlay" (click)="closeEdit()">
+        <gf-card class="modal-card" (click)="$event.stopPropagation()">
+          <h3>Edit participant</h3>
+          @if (modalError(); as failure) {
+            <gf-alert title="Participant could not be updated."
+              ><p>{{ failure.message }}</p></gf-alert
+            >
+          }
+          <form (ngSubmit)="saveParticipant()">
+            <label>Display name <input name="editName" [(ngModel)]="editDraft.displayName" required /></label>
+            <label
+              >Enrollment status
+              <select name="editStatus" [(ngModel)]="editDraft.status" required>
+                <option value="active">Active</option>
+                <option value="pending">Pending</option>
+                <option value="withdrawn">Withdrawn</option>
+              </select>
+            </label>
+            <div class="modal-actions">
+              <button type="button" (click)="closeEdit()" [disabled]="isSubmitting()">Cancel</button>
+              <button type="submit" class="btn-primary" [disabled]="isSubmitting() || !editDraft.displayName.trim()">
+                {{ isSubmitting() ? 'Saving...' : 'Save changes' }}
+              </button>
+            </div>
+          </form>
+        </gf-card>
       </div>
     }
 
@@ -117,17 +199,27 @@ import {
             @for (participant of page()!.items; track participant.id) {
               <tr>
                 <td>{{ participant.name }}</td>
-                <td>{{ participant.enrollmentStatus }}</td>
+                <td>
+                  <gf-badge>{{ participant.enrollmentStatus }}</gf-badge>
+                </td>
                 <td>{{ participant.linkedGuardian || '—' }}</td>
                 <td>{{ participant.team || '—' }}</td>
                 <td>{{ participant.currentQuarterStatus || '—' }}</td>
                 <td>{{ participant.updatedAt | date: 'medium' }}</td>
                 <td>
-                  @if (participant.allowedActions?.includes('view')) {
-                    <a [href]="'/admin/participants/' + participant.id">View</a>
-                  } @else {
-                    —
-                  }
+                  <div class="row-actions">
+                    @if (participant.allowedActions?.includes('assign')) {
+                      <button type="button" (click)="openAssignment(participant)">Assign Team</button>
+                    }
+                    @if (participant.allowedActions?.includes('edit')) {
+                      <button type="button" (click)="openEdit(participant)">Edit</button>
+                    }
+                    @if (
+                      !participant.allowedActions?.includes('assign') && !participant.allowedActions?.includes('edit')
+                    ) {
+                      <span>—</span>
+                    }
+                  </div>
                 </td>
               </tr>
             }
@@ -176,12 +268,18 @@ import {
         z-index: 100;
       }
       .modal-card {
+        display: block;
         background: #fff;
         padding: 2rem;
         border-radius: 0.75rem;
         width: 100%;
         max-width: 28rem;
         box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+      }
+      .row-actions {
+        display: flex;
+        gap: 0.5rem;
+        white-space: nowrap;
       }
       .modal-card form {
         display: flex;
@@ -264,6 +362,14 @@ export class AdminParticipantsComponent implements OnInit {
 
   readonly showCreateModal = signal(false);
   readonly isSubmitting = signal(false);
+  readonly participantToAssign = signal<ParticipantSummary | null>(null);
+  readonly participantToEdit = signal<ParticipantSummary | null>(null);
+  readonly teams = signal<readonly TeamItem[]>([]);
+  readonly teamsLoading = signal(false);
+  readonly modalError = signal<ApiError | null>(null);
+
+  selectedTeamId = '';
+  editDraft: { displayName: string; status: ParticipantStatus } = { displayName: '', status: 'pending' };
 
   newParticipant = {
     displayName: '',
@@ -280,6 +386,81 @@ export class AdminParticipantsComponent implements OnInit {
 
   ngOnInit(): void {
     this.load();
+  }
+
+  availableTeams(): readonly TeamItem[] {
+    return this.teams().filter((team) => (team.memberCount ?? 0) < Math.min(team.capacity ?? 5, 5));
+  }
+
+  openAssignment(participant: ParticipantSummary): void {
+    this.participantToAssign.set(participant);
+    this.selectedTeamId = '';
+    this.modalError.set(null);
+    this.teamsLoading.set(true);
+    this.http
+      .getData<{ items: readonly TeamItem[] }>('/admin/teams')
+      .pipe(finalize(() => this.teamsLoading.set(false)))
+      .subscribe({
+        next: ({ items }) => this.teams.set(items),
+        error: (error) => this.modalError.set(this.asApiError(error, 'Teams could not be loaded.')),
+      });
+  }
+
+  closeAssignment(): void {
+    if (!this.isSubmitting()) this.participantToAssign.set(null);
+  }
+
+  assignTeam(): void {
+    const participant = this.participantToAssign();
+    if (!participant || !this.selectedTeamId) return;
+    this.isSubmitting.set(true);
+    this.modalError.set(null);
+    this.http
+      .putData(
+        `/admin/teams/${encodeURIComponent(this.selectedTeamId)}/members`,
+        { participantId: participant.id },
+        adminMutationOptions(),
+      )
+      .pipe(finalize(() => this.isSubmitting.set(false)))
+      .subscribe({
+        next: () => {
+          this.participantToAssign.set(null);
+          this.load(this.query().page);
+        },
+        error: (error) => this.modalError.set(this.asApiError(error, 'The participant could not be assigned.')),
+      });
+  }
+
+  openEdit(participant: ParticipantSummary): void {
+    this.participantToEdit.set(participant);
+    this.editDraft = { displayName: participant.name, status: participant.enrollmentStatus };
+    this.modalError.set(null);
+  }
+
+  closeEdit(): void {
+    if (!this.isSubmitting()) this.participantToEdit.set(null);
+  }
+
+  saveParticipant(): void {
+    const participant = this.participantToEdit();
+    const displayName = this.editDraft.displayName.trim();
+    if (!participant || !displayName) return;
+    this.isSubmitting.set(true);
+    this.modalError.set(null);
+    this.http
+      .patchData(
+        `/admin/participants/${encodeURIComponent(participant.id)}`,
+        { displayName, status: this.editDraft.status, expectedVersion: participant.version },
+        adminMutationOptions(participant.version),
+      )
+      .pipe(finalize(() => this.isSubmitting.set(false)))
+      .subscribe({
+        next: () => {
+          this.participantToEdit.set(null);
+          this.load(this.query().page);
+        },
+        error: (error) => this.modalError.set(this.asApiError(error, 'The participant could not be updated.')),
+      });
   }
 
   load(page = 1): void {
@@ -328,36 +509,34 @@ export class AdminParticipantsComponent implements OnInit {
   //       },
   //     });
   // }
-createParticipant(): void {
-  const name = this.newParticipant.displayName.trim();
-  if (!name) return;
+  createParticipant(): void {
+    const name = this.newParticipant.displayName.trim();
+    if (!name) return;
 
-  this.isSubmitting.set(true);
+    this.isSubmitting.set(true);
 
-  const payload = {
-    displayName: name,
-    birthDate: '2015-01-01',
-    programId: 'default-program',
-  };
+    const payload = {
+      displayName: name,
+      birthDate: '2015-01-01',
+      programId: 'default-program',
+    };
 
-  this.http
-    .postData('/admin/participants', payload)
-    .pipe(finalize(() => this.isSubmitting.set(false)))
-    .subscribe({
-      next: () => {
-        this.showCreateModal.set(false);
-        this.newParticipant = { displayName: '', handle: '', teamId: '' };
-        this.load(1);
-      },
-      error: (err) => {
-        this.error.set(
-          err instanceof ApiError
-            ? err
-            : new ApiError(-1, 'unexpected_error', 'Failed to enroll participant.'),
-        );
-      },
-    });
-}
+    this.http
+      .postData('/admin/participants', payload)
+      .pipe(finalize(() => this.isSubmitting.set(false)))
+      .subscribe({
+        next: () => {
+          this.showCreateModal.set(false);
+          this.newParticipant = { displayName: '', handle: '', teamId: '' };
+          this.load(1);
+        },
+        error: (err) => {
+          this.error.set(
+            err instanceof ApiError ? err : new ApiError(-1, 'unexpected_error', 'Failed to enroll participant.'),
+          );
+        },
+      });
+  }
   apply(): void {
     this.query.set({
       page: 1,
@@ -378,5 +557,9 @@ createParticipant(): void {
 
   fieldNames(fields: Readonly<Record<string, readonly string[]>>): readonly string[] {
     return Object.keys(fields);
+  }
+
+  private asApiError(error: unknown, fallback: string): ApiError {
+    return error instanceof ApiError ? error : new ApiError(-1, 'unexpected_error', fallback);
   }
 }
