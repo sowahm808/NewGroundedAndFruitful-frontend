@@ -49,12 +49,12 @@ interface TeamItem {
       <p>Manage growth team rosters, capacities, and target points within authorized scopes.</p>
     </gf-page-header>
 
-    <div class="teams-container">
+    <div class="teams-container" style="max-width: 1200px; margin: 0 auto; padding: 0 1rem;">
       <div class="toolbar" style="margin: 1.5rem 0; display: flex; justify-content: flex-end;">
         <button
           type="button"
           class="gf-button gf-button--primary"
-          style="padding: 0.5rem 1rem; cursor: pointer; border-radius: 6px; font-weight: 600;"
+          style="padding: 0.6rem 1.2rem; cursor: pointer; border-radius: 6px; font-weight: 600; background: #1b4d3e; color: #fff; border: none;"
           (click)="openModal()"
         >
           + Add New Team
@@ -67,13 +67,13 @@ interface TeamItem {
           class="modal-backdrop"
           role="dialog"
           aria-modal="true"
-          style="position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); display: flex; align-items: center; justify-content: center; z-index: 1000;"
+          style="position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); display: flex; align-items: center; justify-content: center; z-index: 1000;"
         >
           <div
             class="modal-card"
-            style="background: #ffffff; padding: 2rem; border-radius: 8px; width: 100%; max-width: 480px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);"
+            style="background: #ffffff; padding: 2rem; border-radius: 8px; width: 100%; max-width: 480px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);"
           >
-            <h3 style="margin-top: 0;">Create New Team</h3>
+            <h3 style="margin-top: 0; font-size: 1.25rem; font-weight: 700;">Create Growth Team</h3>
 
             @if (errorMessage()) {
               <gf-alert title="Error">
@@ -83,46 +83,46 @@ interface TeamItem {
 
             <form [formGroup]="teamForm" (ngSubmit)="onCreateTeam()">
               <div style="margin-bottom: 1rem;">
-                <label for="teamName" style="display: block; margin-bottom: 0.25rem; font-weight: 500;">
+                <label for="teamName" style="display: block; margin-bottom: 0.25rem; font-weight: 600; font-size: 0.875rem;">
                   Team Name
                 </label>
                 <input
                   id="teamName"
                   type="text"
                   formControlName="name"
-                  placeholder="e.g. Team Alpha"
-                  style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;"
+                  placeholder="e.g. Eagles"
+                  style="width: 100%; box-sizing: border-box; padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95rem;"
                 />
               </div>
 
               <div style="margin-bottom: 1rem;">
-                <label for="capacity" style="display: block; margin-bottom: 0.25rem; font-weight: 500;">
+                <label for="capacity" style="display: block; margin-bottom: 0.25rem; font-weight: 600; font-size: 0.875rem;">
                   Capacity (Max Children)
                 </label>
                 <input
                   id="capacity"
                   type="number"
                   formControlName="capacity"
-                  style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;"
+                  style="width: 100%; box-sizing: border-box; padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95rem;"
                 />
               </div>
 
               <div style="margin-bottom: 1.5rem;">
-                <label for="targetPoints" style="display: block; margin-bottom: 0.25rem; font-weight: 500;">
+                <label for="targetPoints" style="display: block; margin-bottom: 0.25rem; font-weight: 600; font-size: 0.875rem;">
                   Target Points (Quarter Goal)
                 </label>
                 <input
                   id="targetPoints"
                   type="number"
                   formControlName="targetPoints"
-                  style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;"
+                  style="width: 100%; box-sizing: border-box; padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95rem;"
                 />
               </div>
 
-              <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+              <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
                 <button
                   type="button"
-                  style="padding: 0.5rem 1rem; cursor: pointer; border-radius: 4px; border: 1px solid #ccc; background: #fff;"
+                  style="padding: 0.6rem 1.2rem; cursor: pointer; border-radius: 4px; border: 1px solid #ccc; background: #fff; font-weight: 600;"
                   (click)="closeModal()"
                   [disabled]="isSubmitting()"
                 >
@@ -130,7 +130,7 @@ interface TeamItem {
                 </button>
                 <button
                   type="submit"
-                  style="padding: 0.5rem 1rem; cursor: pointer; border-radius: 4px; border: none; background: #1b4d3e; color: #fff; font-weight: 600;"
+                  style="padding: 0.6rem 1.2rem; cursor: pointer; border-radius: 4px; border: none; background: #1b4d3e; color: #fff; font-weight: 600;"
                   [disabled]="teamForm.invalid || isSubmitting()"
                 >
                   {{ isSubmitting() ? 'Saving...' : 'Create Team' }}
@@ -143,13 +143,13 @@ interface TeamItem {
 
       <!-- Team List -->
       @if (isLoading()) {
-        <div class="cards" role="status" aria-label="Loading teams">
-          <div class="skeleton"></div>
-          <div class="skeleton"></div>
+        <div class="cards" role="status" aria-label="Loading teams" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem;">
+          <div class="skeleton" style="height: 140px; background: #eee; border-radius: 8px;"></div>
+          <div class="skeleton" style="height: 140px; background: #eee; border-radius: 8px;"></div>
         </div>
       } @else if (teams().length === 0) {
         <gf-empty-state
-          title="No teams found"
+          title="No records found"
           message="Create your first team using the '+ Add New Team' button above."
         />
       } @else {
@@ -159,8 +159,10 @@ interface TeamItem {
               <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                 <gf-badge>{{ team.status }}</gf-badge>
               </div>
-              <h2 style="margin: 0.5rem 0;">{{ team.approvedDisplayName || team.displayName || team.name }}</h2>
-              <ul class="meta" style="list-style: none; padding: 0; margin: 0.5rem 0; color: #555;">
+              <h2 style="margin: 0.5rem 0; font-size: 1.2rem; font-weight: 700;">
+                {{ team.approvedDisplayName || team.displayName || team.name }}
+              </h2>
+              <ul class="meta" style="list-style: none; padding: 0; margin: 0.5rem 0; color: #555; font-size: 0.9rem;">
                 <li><strong>Members:</strong> {{ team.memberCount || 0 }} / {{ team.capacity || 5 }}</li>
                 <li><strong>Target:</strong> {{ team.targetPoints || 5000 }} pts</li>
               </ul>
@@ -201,46 +203,54 @@ export class AdminTeamsComponent implements OnInit {
     this.showModal.set(false);
   }
 
-  private getActiveOrgId(): string | null {
-    // 1. Check local session storage / app state if stored
-    const stored = localStorage.getItem('gf_active_workspace_id') || localStorage.getItem('gf_active_org_id');
-    return stored || null;
+  private resolveActiveOrganizationId(): string | null {
+    return (
+      localStorage.getItem('gf_active_organization_id') ||
+      localStorage.getItem('gf_active_workspace_id') ||
+      null
+    );
   }
 
   fetchActiveSessionAndTeams(): void {
     this.isLoading.set(true);
 
-    // Fetch auth session first to guarantee the active workspace ID
     this.http.get<{ data: { activeWorkspaceId?: string; activeOrganizationId?: string } }>('/api/v1/auth/session').subscribe({
       next: (sessionRes) => {
         const orgId = sessionRes.data?.activeOrganizationId || sessionRes.data?.activeWorkspaceId;
         if (orgId) {
-          localStorage.setItem('gf_active_workspace_id', orgId);
+          localStorage.setItem('gf_active_organization_id', orgId);
         }
         this.fetchTeams(orgId);
       },
       error: () => {
-        this.fetchTeams(this.getActiveOrgId() || undefined);
+        this.fetchTeams(this.resolveActiveOrganizationId() || undefined);
       },
     });
   }
 
   fetchTeams(organizationId?: string): void {
+    const orgId = organizationId || this.resolveActiveOrganizationId();
     let params = new HttpParams();
-    if (organizationId) {
-      params = params.set('organizationId', organizationId);
+    if (orgId) {
+      params = params.set('organizationId', orgId);
     }
 
-    this.http.get<{ data: { items: TeamItem[] } }>('/api/v1/admin/teams', { params }).subscribe({
-      next: (res) => {
-        this.teams.set(res.data?.items || []);
-        this.isLoading.set(false);
-      },
-      error: () => {
-        this.teams.set([]);
-        this.isLoading.set(false);
-      },
-    });
+    this.http
+      .get<{ data: { items: TeamItem[] } }>('/api/v1/admin/teams', {
+        params,
+        headers: orgId ? { 'x-organization-id': orgId } : {},
+      })
+      .subscribe({
+        next: (res) => {
+          this.teams.set(res.data?.items || []);
+          this.isLoading.set(false);
+        },
+        error: (err) => {
+          this.teams.set([]);
+          this.isLoading.set(false);
+          this.errorMessage.set(err.error?.error?.message || 'Failed to load teams.');
+        },
+      });
   }
 
   onCreateTeam(): void {
@@ -249,24 +259,27 @@ export class AdminTeamsComponent implements OnInit {
     this.isSubmitting.set(true);
     this.errorMessage.set(null);
 
-    const organizationId = this.getActiveOrgId();
-
+    const orgId = this.resolveActiveOrganizationId();
     const payload = {
       ...this.teamForm.value,
-      ...(organizationId ? { organizationId } : {}),
+      ...(orgId ? { organizationId: orgId } : {}),
     };
 
-    this.http.post('/api/v1/admin/teams', payload).subscribe({
-      next: () => {
-        this.isSubmitting.set(false);
-        this.closeModal();
-        this.teamForm.reset({ capacity: 5, targetPoints: 5000 });
-        this.fetchTeams(organizationId || undefined);
-      },
-      error: (err) => {
-        this.isSubmitting.set(false);
-        this.errorMessage.set(err.error?.error?.message || 'Failed to create team.');
-      },
-    });
+    this.http
+      .post('/api/v1/admin/teams', payload, {
+        headers: orgId ? { 'x-organization-id': orgId } : {},
+      })
+      .subscribe({
+        next: () => {
+          this.isSubmitting.set(false);
+          this.closeModal();
+          this.teamForm.reset({ capacity: 5, targetPoints: 5000 });
+          this.fetchTeams(orgId || undefined);
+        },
+        error: (err) => {
+          this.isSubmitting.set(false);
+          this.errorMessage.set(err.error?.error?.message || 'Failed to create team.');
+        },
+      });
   }
 }
