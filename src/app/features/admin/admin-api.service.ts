@@ -26,6 +26,7 @@ export interface AdminListQuery {
   readonly pageSize: number;
   readonly status?: string;
   readonly sort?: string;
+  readonly search?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -38,6 +39,7 @@ export class AdminApiService {
       pageSize: query.pageSize,
       ...(query.status ? { status: query.status } : {}),
       ...(query.sort ? { sort: query.sort } : {}),
+      ...(query.search ? { search: query.search } : {}),
     };
     return this.api.getData<AdminPage>(`/admin/${resource}`, { params });
   }
@@ -49,7 +51,10 @@ export class AdminApiService {
         version: record.version,
       },
       {
-        headers: new HttpHeaders({ 'If-Match': `"${record.version}"` }),
+        headers: new HttpHeaders({
+          'If-Match': `"${record.version}"`,
+          'Idempotency-Key': crypto.randomUUID(),
+        }),
       },
     );
   }

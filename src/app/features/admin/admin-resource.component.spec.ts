@@ -47,6 +47,7 @@ describe('AdminResourceComponent required input lifecycle', () => {
       page: 1,
       pageSize: 25,
       sort: '-updatedAt',
+      search: undefined,
     });
   }));
 

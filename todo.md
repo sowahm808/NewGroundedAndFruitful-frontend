@@ -148,6 +148,11 @@ This checklist compares the product described in the repository documentation wi
 
 ## Audit notes
 
+- [x] Audited the administration checklist against the frontend on 2026-08-23; added missing searchable generic resources,
+      restricted observation/incident routes, mutation idempotency, and a backend implementation hand-off. Unchecked feature
+      boxes above still require their complete backend contracts and/or resource-specific CRUD workflows and are not claimed
+      complete by this audit.
+
 - This audit inspected the route table, feature components, authentication/session boundary, HTTP client and interceptor, domain models, design-system primitives, environment and deployment configuration, Firestore rules, unit tests, and Playwright scenarios. The counts above are derived directly from this checklist.
 - The 53 checked items comprise production/application infrastructure (17), authentication/account state (10), the complete child journey (14), parent and family workflows (7), accessibility foundations (2), and test/tooling setup (3). A checked frontend workflow still requires contract and authenticated end-to-end verification before production promotion.
 - Routes exist for all major product areas, but unfinished mentor, observer, and administration routes deliberately render an unavailable-state page and do not constitute completed features.

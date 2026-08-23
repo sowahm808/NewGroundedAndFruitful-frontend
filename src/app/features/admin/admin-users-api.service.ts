@@ -32,6 +32,7 @@ export interface AdminUsersQuery {
   readonly pageSize: number;
   readonly status?: UserStatus;
   readonly sort?: '-updatedAt' | 'displayName';
+  readonly search?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -46,6 +47,7 @@ export class AdminUsersApiService {
         pageSize: query.pageSize,
         ...(query.status ? { status: query.status } : {}),
         ...(query.sort ? { sort: query.sort } : {}),
+        ...(query.search ? { search: query.search } : {}),
       },
     });
   }

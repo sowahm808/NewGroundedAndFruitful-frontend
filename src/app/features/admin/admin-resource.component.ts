@@ -26,6 +26,10 @@ export interface AdminResourceDefinition {
 
     <form class="filters" (ngSubmit)="applyFilters()">
       <label
+        >Search
+        <input name="search" type="search" [(ngModel)]="draftSearch" maxlength="120" autocomplete="off" />
+      </label>
+      <label
         >Status
         <select name="status" [(ngModel)]="draftStatus">
           <option value="">All statuses</option>
@@ -172,6 +176,7 @@ export interface AdminResourceDefinition {
         font-weight: 700;
       }
       select,
+      input,
       button {
         min-height: 44px;
         font: inherit;
@@ -292,8 +297,10 @@ export class AdminResourceComponent implements OnInit {
   readonly busyId = signal<string | null>(null);
   readonly pending = signal<{ record: AdminRecord; action: string } | null>(null);
   draftStatus = '';
+  draftSearch = '';
   draftSort = '-updatedAt';
   private status = '';
+  private search = '';
   private sort = '-updatedAt';
   readonly pageCount = computed(() =>
     Math.max(1, Math.ceil((this.page()?.total ?? 0) / (this.page()?.pageSize ?? 25))),
@@ -317,11 +324,18 @@ export class AdminResourceComponent implements OnInit {
     this.loading.set(true);
     this.error.set(null);
     this.api
-      .list(this.definition().resource, { page, pageSize: 25, status: this.status || undefined, sort: this.sort })
+      .list(this.definition().resource, {
+        page,
+        pageSize: 25,
+        status: this.status || undefined,
+        sort: this.sort,
+        search: this.search || undefined,
+      })
       .pipe(finalize(() => this.loading.set(false)))
       .subscribe({ next: (result) => this.page.set(result), error: (error) => this.error.set(asApiError(error)) });
   }
   applyFilters(): void {
+    this.search = this.draftSearch.trim().slice(0, 120);
     this.status = this.definition().statuses.includes(this.draftStatus) ? this.draftStatus : '';
     this.sort = this.definition().sorts.some((s) => s.value === this.draftSort)
       ? this.draftSort
