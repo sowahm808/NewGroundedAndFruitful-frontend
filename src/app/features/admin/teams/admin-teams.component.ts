@@ -12,7 +12,7 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import {
   GfAlert,
   GfBadge,
@@ -49,12 +49,13 @@ interface TeamItem {
       <p>Manage growth team rosters, capacities, and target points within authorized scopes.</p>
     </gf-page-header>
 
-    <div class="teams-container" style="max-width: 1200px; margin: 0 auto; padding: 0 1rem;">
+    <div class="teams-container">
+      <!-- Toolbar -->
       <div class="toolbar" style="margin: 1.5rem 0; display: flex; justify-content: flex-end;">
         <button
           type="button"
           class="gf-button gf-button--primary"
-          style="padding: 0.6rem 1.2rem; cursor: pointer; border-radius: 6px; font-weight: 600; background: #1b4d3e; color: #fff; border: none;"
+          style="padding: 0.6rem 1.2rem; cursor: pointer; border-radius: 6px; font-weight: 600;"
           (click)="openModal()"
         >
           + Add New Team
@@ -90,7 +91,7 @@ interface TeamItem {
                   id="teamName"
                   type="text"
                   formControlName="name"
-                  placeholder="e.g. Eagles"
+                  placeholder="e.g. Team Alpha"
                   style="width: 100%; box-sizing: border-box; padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95rem;"
                 />
               </div>
@@ -191,7 +192,7 @@ export class AdminTeamsComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    this.fetchActiveSessionAndTeams();
+    this.fetchTeams();
   }
 
   openModal(): void {
@@ -203,121 +204,38 @@ export class AdminTeamsComponent implements OnInit {
     this.showModal.set(false);
   }
 
-  private resolveActiveOrganizationId(): string | null {
-    return (
-      localStorage.getItem('gf_active_organization_id') ||
-      localStorage.getItem('gf_active_workspace_id') ||
-      null
-    );
-  }
-
-  fetchActiveSessionAndTeams(): void {
+  fetchTeams(): void {
     this.isLoading.set(true);
-
-    this.http.get<{ data: { activeWorkspaceId?: string; activeOrganizationId?: string } }>('/api/v1/auth/session').subscribe({
-      next: (sessionRes) => {
-        const orgId = sessionRes.data?.activeOrganizationId || sessionRes.data?.activeWorkspaceId;
-        if (orgId) {
-          localStorage.setItem('gf_active_organization_id', orgId);
-        }
-        this.fetchTeams(orgId);
+    this.http.get<{ data: { items: TeamItem[] } }>('/api/v1/admin/teams').subscribe({
+      next: (res) => {
+        this.teams.set(res.data?.items || []);
+        this.isLoading.set(false);
       },
-      error: () => {
-        this.fetchTeams(this.resolveActiveOrganizationId() || undefined);
+      error: (err) => {
+        this.teams.set([]);
+        this.isLoading.set(false);
+        this.errorMessage.set(err.error?.error?.message || 'Failed to load teams.');
       },
     });
   }
 
-  fetchTeams(organizationId?: string): void {
-    const orgId = organizationId || this.resolveActiveOrganizationId();
-    let params = new HttpParams();
-    if (orgId) {
-      params = params.set('organizationId', orgId);
-    }
-
-    this.http
-      .get<{ data: { items: TeamItem[] } }>('/api/v1/admin/teams', {
-        params,
-        headers: orgId ? { 'x-organization-id': orgId } : {},
-      })
-      .subscribe({
-        next: (res) => {
-          this.teams.set(res.data?.items || []);
-          this.isLoading.set(false);
-        },
-        error: (err) => {
-          this.teams.set([]);
-          this.isLoading.set(false);
-          this.errorMessage.set(err.error?.error?.message || 'Failed to load teams.');
-        },
-      });
-  }
-
-//   onCreateTeam(): void {
-//     if (this.teamForm.invalid) return;
-
-//     this.isSubmitting.set(true);
-//     this.errorMessage.set(null);
-
-//     const orgId = this.resolveActiveOrganizationId();
-//     const payload = {
-//       ...this.teamForm.value,
-//       ...(orgId ? { organizationId: orgId } : {}),
-//     };
-
-//     this.http
-//       .post('/api/v1/admin/teams', payload, {
-//         headers: orgId ? { 'x-organization-id': orgId } : {},
-//       })
-//       .subscribe({
-//         next: () => {
-//           this.isSubmitting.set(false);
-//           this.closeModal();
-//           this.teamForm.reset({ capacity: 5, targetPoints: 5000 });
-//           this.fetchTeams(orgId || undefined);
-//         },
-//         error: (err) => {
-//           this.isSubmitting.set(false);
-//           this.errorMessage.set(err.error?.error?.message || 'Failed to create team.');
-//         },
-//       });
-//   }
-onCreateTeam(): void {
+  onCreateTeam(): void {
     if (this.teamForm.invalid) return;
 
     this.isSubmitting.set(true);
     this.errorMessage.set(null);
 
-    // Fetch the current session to get the active organization
-    this.http.get<{ data: { activeOrganizationId?: string; activeWorkspaceId?: string; memberships?: any[] } }>('/api/v1/auth/session').subscribe({
-      next: (sessionRes) => {
-        const orgId =
-          sessionRes.data?.activeOrganizationId ||
-          sessionRes.data?.activeWorkspaceId ||
-          sessionRes.data?.memberships?.[0]?.organizationId;
-
-        const payload = {
-          ...this.teamForm.value,
-          organizationId: orgId,
-        };
-
-        this.http.post('/api/v1/admin/teams', payload).subscribe({
-          next: () => {
-            this.isSubmitting.set(false);
-            this.closeModal();
-            this.teamForm.reset({ capacity: 5, targetPoints: 5000 });
-            this.fetchTeams();
-          },
-          error: (err) => {
-            this.isSubmitting.set(false);
-            this.errorMessage.set(err.error?.error?.message || 'Failed to create team.');
-          },
-        });
-      },
-      error: () => {
+    this.http.post('/api/v1/admin/teams', this.teamForm.value).subscribe({
+      next: () => {
         this.isSubmitting.set(false);
-        this.errorMessage.set('Failed to verify active organization session.');
-      }
+        this.closeModal();
+        this.teamForm.reset({ capacity: 5, targetPoints: 5000 });
+        this.fetchTeams();
+      },
+      error: (err) => {
+        this.isSubmitting.set(false);
+        this.errorMessage.set(err.error?.error?.message || 'Failed to create team.');
+      },
     });
   }
 }
