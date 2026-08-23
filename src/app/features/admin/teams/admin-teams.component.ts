@@ -2,7 +2,10 @@ import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@ang
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
+import { AuthService } from '../../../core/auth/auth.service';
 import { ActiveOrganizationService } from '../../../core/organizations/active-organization.service';
+import { OrganizationRepairService } from '../../../core/organizations/organization-repair.service';
 import { GfAlert, GfBadge, GfCard, GfEmptyState, GfPageHeader } from '../../../shared/components/design-system';
 
 interface TeamItem {
@@ -173,7 +176,9 @@ interface TeamItem {
 export class AdminTeamsComponent implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly fb = inject(FormBuilder);
+  private readonly auth = inject(AuthService);
   private readonly organizations = inject(ActiveOrganizationService);
+  private readonly repair = inject(OrganizationRepairService);
 
   readonly organizationId = this.organizations.organizationId;
 
@@ -217,29 +222,41 @@ export class AdminTeamsComponent implements OnInit {
     });
   }
 
-  onCreateTeam(): void {
-    if (this.teamForm.invalid) return;
-
-    const organizationId = this.organizationId();
-    if (!organizationId) {
-      this.errorMessage.set('Select an organization before creating a team.');
-      return;
-    }
-
+  async onCreateTeam(): Promise<void> {
+    if (this.teamForm.invalid || this.isSubmitting()) return;
     this.isSubmitting.set(true);
     this.errorMessage.set(null);
+    try {
+      let organizationId = this.organizationId();
+      const session = this.auth.user();
+      if (session?.migrationRequired || session?.authorization?.migrationRequired || !organizationId) {
+        const repaired = await firstValueFrom(this.repair.repair());
+        await this.auth.refreshSession(repaired.tokenRefreshRequired);
+        organizationId = this.organizationId();
+      }
+      if (!organizationId) throw new Error('Select an organization before creating a team.');
 
-    this.http.post('/api/v1/admin/teams', { ...this.teamForm.getRawValue(), organizationId }).subscribe({
-      next: () => {
-        this.isSubmitting.set(false);
-        this.closeModal();
-        this.teamForm.reset({ capacity: 5, targetPoints: 5000 });
-        this.fetchTeams();
-      },
-      error: (err) => {
-        this.isSubmitting.set(false);
-        this.errorMessage.set(err.error?.error?.message || 'Failed to create team.');
-      },
-    });
+      // Capture form values only at the final submission point. Repair never clears or mutates the form.
+      await firstValueFrom(
+        this.http.post('/api/v1/admin/teams', { ...this.teamForm.getRawValue(), organizationId }),
+      );
+      this.closeModal();
+      this.teamForm.reset({ capacity: 5, targetPoints: 5000 });
+      this.fetchTeams();
+    } catch (error: unknown) {
+      this.errorMessage.set(teamErrorMessage(error));
+    } finally {
+      this.isSubmitting.set(false);
+    }
   }
+}
+
+function teamErrorMessage(error: unknown): string {
+  if (error && typeof error === 'object') {
+    const response = error as { error?: { error?: { message?: unknown }; message?: unknown } };
+    const message = response.error?.error?.message ?? response.error?.message;
+    if (typeof message === 'string') return message;
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return 'Failed to create team.';
 }
