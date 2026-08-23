@@ -28,6 +28,22 @@ import { MentorViewError, mentorViewError } from './mentor-view.utilities';
           ><h2>{{ item.participantName }}</h2>
           <p>{{ item.summary }}</p>
           <p><strong>Status:</strong> {{ item.status }}</p>
+          @for (milestone of item.milestones ?? []; track milestone.id) {
+            <section class="milestone">
+              <h3>{{ milestone.title }}</h3>
+              <p><strong>Milestone status:</strong> {{ milestone.status }}</p>
+              @if (milestone.feedback) {
+                <p>{{ milestone.feedback }}</p>
+              }
+              <label>Milestone feedback<textarea #feedback maxlength="1000"></textarea></label>
+              <gf-button
+                type="button"
+                [disabled]="submitting() || !feedback.value.trim()"
+                (click)="submitMilestone(item.id, milestone.id, feedback.value); feedback.value = ''"
+                >Send milestone feedback</gf-button
+              >
+            </section>
+          }
           <form [formGroup]="form" (ngSubmit)="submit(item.id)">
             <label>Guidance<textarea formControlName="guidance" maxlength="1000" required></textarea></label
             ><gf-button type="submit" [disabled]="form.invalid || submitting()">{{
@@ -86,6 +102,25 @@ export class MentorProjectsComponent {
           this.form.reset();
           this.submitting.set(false);
           this.message.set('Guidance sent for the participant.');
+        },
+        error: (e) => {
+          this.error.set(mentorViewError(e));
+          this.submitting.set(false);
+        },
+      });
+  }
+  submitMilestone(reviewId: string, milestoneId: string, feedback: string) {
+    const value = feedback.trim();
+    if (!value || this.submitting()) return;
+    this.submitting.set(true);
+    this.api
+      .addMilestoneFeedback(reviewId, milestoneId, value)
+      .pipe(takeUntilDestroyed(this.destroy))
+      .subscribe({
+        next: (updated) => {
+          this.items.update((items) => items.map((item) => (item.id === updated.id ? updated : item)));
+          this.submitting.set(false);
+          this.message.set('Milestone feedback sent.');
         },
         error: (e) => {
           this.error.set(mentorViewError(e));

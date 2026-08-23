@@ -22,4 +22,13 @@ describe('ObserverApi', () => {
     api.observations().subscribe();
     http.expectOne(`${baseUrl}/observer/observations`).flush({ data: [] });
   });
+  it('submits only the opaque grant id and positive summary', () => {
+    api.submit({ participantId: 'grant/subject', summary: 'Showed thoughtful teamwork' }).subscribe();
+    const request = http.expectOne(`${baseUrl}/observer/observations`);
+    expect(request.request.body).toEqual({
+      participantId: 'grant/subject',
+      summary: 'Showed thoughtful teamwork',
+    });
+    request.flush({ data: {} });
+  });
 });

@@ -74,6 +74,7 @@ describe('typed role/persona/capability navigation registry', () => {
       '/mentor/projects',
       '/mentor/reading',
       '/mentor/encouragement',
+      '/mentor/notifications',
     ]);
     expect(routes({ ...personal, personas: ['observer'] })).toEqual(['/observer/observations']);
   });

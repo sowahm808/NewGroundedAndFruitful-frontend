@@ -183,6 +183,11 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/mentor/mentor-encouragement.component').then((m) => m.MentorEncouragementComponent),
       },
+      {
+        path: 'notifications',
+        loadComponent: () =>
+          import('./features/mentor/mentor-notifications.component').then((m) => m.MentorNotificationsComponent),
+      },
       { path: '', pathMatch: 'full', redirectTo: 'teams' },
     ],
   },

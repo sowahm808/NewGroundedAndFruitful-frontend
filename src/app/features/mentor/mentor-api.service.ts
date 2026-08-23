@@ -35,11 +35,28 @@ export interface MentorReview {
   readonly summary: string;
   readonly status: string;
   readonly updatedAt: string;
+  readonly milestones?: readonly MentorMilestone[];
 }
-export interface MentorRecipient {
+export interface MentorMilestone {
+  readonly id: string;
+  readonly title: string;
+  readonly status: string;
+  readonly feedback?: string;
+}
+export interface MentorEncouragementSignal {
   readonly id: string;
   readonly displayName: string;
   readonly teamName: string;
+  readonly signal: string;
+  readonly followUpStatus: string;
+}
+export interface MentorNotification {
+  readonly id: string;
+  readonly title: string;
+  readonly message: string;
+  readonly status: string;
+  readonly followUpStatus: string;
+  readonly createdAt: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -60,10 +77,24 @@ export class MentorApi {
   addGuidance(reviewId: string, guidance: string): Observable<MentorReview> {
     return this.api.postData(`/mentor/projects/${encodeURIComponent(reviewId)}/guidance`, { guidance });
   }
-  encouragementRecipients(): Observable<readonly MentorRecipient[]> {
-    return this.api.getData('/mentor/encouragement/recipients');
+  addMilestoneFeedback(reviewId: string, milestoneId: string, feedback: string): Observable<MentorReview> {
+    return this.api.postData(
+      `/mentor/projects/${encodeURIComponent(reviewId)}/milestones/${encodeURIComponent(milestoneId)}/feedback`,
+      { feedback },
+    );
+  }
+  encouragementSignals(): Observable<readonly MentorEncouragementSignal[]> {
+    return this.api.getData('/mentor/encouragement/signals');
   }
   encourage(participantId: string, message: string): Observable<void> {
     return this.api.postData('/mentor/encouragement', { participantId, message });
+  }
+  notifications(): Observable<readonly MentorNotification[]> {
+    return this.api.getData('/mentor/notifications');
+  }
+  updateNotificationFollowUp(notificationId: string, followUpStatus: string): Observable<MentorNotification> {
+    return this.api.patchData(`/mentor/notifications/${encodeURIComponent(notificationId)}/follow-up`, {
+      followUpStatus,
+    });
   }
 }
