@@ -29,6 +29,14 @@ describe('authenticationInterceptor', () => {
     expect(request.headers.get('Authorization')).toBe('Bearer firebase-token');
   });
 
+  it('attaches the current Firebase ID token to a relative /api/v1 request', async () => {
+    const request = await intercept(
+      { currentUser: { getIdToken: () => Promise.resolve('firebase-token') } } as unknown as Auth,
+      '/api/v1/admin/teams',
+    );
+    expect(request.headers.get('Authorization')).toBe('Bearer firebase-token');
+  });
+
   it('adds authorization without transforming FormData or setting its boundary', async () => {
     const body = new FormData();
     body.append('title', 'Quiz');

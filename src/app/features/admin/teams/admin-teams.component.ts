@@ -1,23 +1,13 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../../core/auth/auth.service';
 import { ActiveOrganizationService } from '../../../core/organizations/active-organization.service';
 import { OrganizationRepairService } from '../../../core/organizations/organization-repair.service';
 import { GfAlert, GfBadge, GfCard, GfEmptyState, GfPageHeader } from '../../../shared/components/design-system';
-
-interface TeamItem {
-  id: string;
-  name: string;
-  displayName?: string;
-  approvedDisplayName?: string;
-  status: string;
-  capacity?: number;
-  memberCount?: number;
-  targetPoints?: number;
-}
+import { ApiError } from '../../../core/http/api-error';
+import { AdminTeamsApiService, TeamItem } from './admin-teams-api.service';
 
 @Component({
   selector: 'gf-admin-teams',
@@ -35,6 +25,7 @@ interface TeamItem {
           class="gf-button gf-button--primary"
           style="padding: 0.6rem 1.2rem; cursor: pointer; border-radius: 6px; font-weight: 600;"
           (click)="openModal()"
+          [disabled]="!organizationId()"
         >
           + Add New Team
         </button>
@@ -174,7 +165,7 @@ interface TeamItem {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AdminTeamsComponent implements OnInit {
-  private readonly http = inject(HttpClient);
+  private readonly api = inject(AdminTeamsApiService);
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly organizations = inject(ActiveOrganizationService);
@@ -190,11 +181,12 @@ export class AdminTeamsComponent implements OnInit {
 
   readonly teamForm: FormGroup = this.fb.group({
     name: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(120)]],
-    capacity: [5, [Validators.required, Validators.min(1), Validators.max(20)]],
+    capacity: [5, [Validators.required, Validators.min(3), Validators.max(5)]],
     targetPoints: [5000, [Validators.required, Validators.min(100)]],
   });
 
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
+    await this.auth.initialize();
     this.fetchTeams();
   }
 
@@ -209,15 +201,15 @@ export class AdminTeamsComponent implements OnInit {
 
   fetchTeams(): void {
     this.isLoading.set(true);
-    this.http.get<{ data: { items: TeamItem[] } }>('/api/v1/admin/teams').subscribe({
-      next: (res) => {
-        this.teams.set(res.data?.items || []);
+    this.api.list().subscribe({
+      next: (items) => {
+        this.teams.set([...items]);
         this.isLoading.set(false);
       },
       error: (err) => {
         this.teams.set([]);
         this.isLoading.set(false);
-        this.errorMessage.set(err.error?.error?.message || 'Failed to load teams.');
+        void this.handleRequestError(err, 'Failed to load teams.');
       },
     });
   }
@@ -237,26 +229,49 @@ export class AdminTeamsComponent implements OnInit {
       if (!organizationId) throw new Error('Select an organization before creating a team.');
 
       // Capture form values only at the final submission point. Repair never clears or mutates the form.
-      await firstValueFrom(
-        this.http.post('/api/v1/admin/teams', { ...this.teamForm.getRawValue(), organizationId }),
-      );
+      await firstValueFrom(this.api.create({ ...this.teamForm.getRawValue(), organizationId }));
       this.closeModal();
       this.teamForm.reset({ capacity: 5, targetPoints: 5000 });
       this.fetchTeams();
     } catch (error: unknown) {
-      this.errorMessage.set(teamErrorMessage(error));
+      await this.handleRequestError(error, 'Failed to create team.');
     } finally {
       this.isSubmitting.set(false);
     }
   }
+
+  private async handleRequestError(error: unknown, fallback: string): Promise<void> {
+    if (error instanceof ApiError && error.status === 401) {
+      await this.auth.logout();
+      await this.auth.navigate('/auth/login?returnUrl=%2Fadmin%2Fteams', true);
+      return;
+    }
+    this.errorMessage.set(teamErrorMessage(error, fallback));
+  }
 }
 
-function teamErrorMessage(error: unknown): string {
+function teamErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError) {
+    const supportReference = error.requestId ? ` Support reference: ${error.requestId}` : '';
+    if (error.status === 403) return `You do not have permission to manage teams.${supportReference}`;
+    if (error.status === 409) return `A team with this name already exists.${supportReference}`;
+    if (error.status === 422) return `${fieldValidationMessage(error) ?? error.message}${supportReference}`;
+    if (error.status === 429) return `Too many requests. Please wait and try again.${supportReference}`;
+    return `${error.message || fallback}${supportReference}`;
+  }
   if (error && typeof error === 'object') {
     const response = error as { error?: { error?: { message?: unknown }; message?: unknown } };
     const message = response.error?.error?.message ?? response.error?.message;
     if (typeof message === 'string') return message;
   }
   if (error instanceof Error && error.message) return error.message;
-  return 'Failed to create team.';
+  return fallback;
+}
+
+function fieldValidationMessage(error: ApiError): string | null {
+  const fields = error.fieldErrors;
+  if (!fields) return null;
+  return Object.entries(fields)
+    .flatMap(([field, messages]) => messages.map((message) => `${field}: ${message}`))
+    .join(' ');
 }
