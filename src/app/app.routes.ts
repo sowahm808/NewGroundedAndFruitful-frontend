@@ -225,12 +225,18 @@ export const routes: Routes = [
       },
       {
         path: 'memberships',
-        canActivate: [roleGuard(['super_admin'])],
+        canActivate: [roleGuard(['admin'])],
         loadComponent: () =>
           import('./features/admin/memberships/admin-memberships.component').then((m) => m.AdminMembershipsComponent),
       },
+
+      {
+        path: 'teams',
+        canActivate: [organizationRoleGuard('admin'), capabilityGuard(['admin.teams.manage'])],
+        loadComponent: () =>
+          import('./features/admin/teams/admin-teams.component').then((m) => m.AdminTeamsComponent),
+      },
       ...[
-        ['teams', 'teams', 'admin.teams.manage'],
         ['assignments', 'assignments', 'admin.assignments.manage'],
         ['character', 'character', 'admin.character.manage'],
         ['family', 'family', 'admin.family_activities.manage'],
