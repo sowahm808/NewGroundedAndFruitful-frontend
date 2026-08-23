@@ -131,11 +131,16 @@ export class ObserverObservationsComponent {
   }
   submit() {
     if (this.form.invalid || this.submitting()) return;
+    const participantId = this.form.controls.participantId.value;
+    if (!this.grants().some((grant) => grant.participantId === participantId)) {
+      this.error.set('That participant is not in your current permissions. Refresh and try again.');
+      return;
+    }
     this.submitting.set(true);
     this.confirmation.set(false);
     this.api
       .submit({
-        participantId: this.form.controls.participantId.value,
+        participantId,
         summary: this.form.controls.summary.value.trim(),
       })
       .pipe(takeUntilDestroyed(this.destroy))

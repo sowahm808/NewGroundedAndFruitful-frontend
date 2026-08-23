@@ -24,4 +24,17 @@ describe('MentorApi', () => {
     expect(request.request.body).toEqual({ guidance: 'Keep going' });
     request.flush({ data: {} });
   });
+  it('encodes review and milestone ids and sends only milestone feedback', () => {
+    api.addMilestoneFeedback('review/one', 'milestone/two', 'A useful next step').subscribe();
+    const request = http.expectOne(`${baseUrl}/mentor/projects/review%2Fone/milestones/milestone%2Ftwo/feedback`);
+    expect(request.request.body).toEqual({ feedback: 'A useful next step' });
+    request.flush({ data: {} });
+  });
+  it('updates follow-up status using an encoded opaque notification id', () => {
+    api.updateNotificationFollowUp('notice/one', 'completed').subscribe();
+    const request = http.expectOne(`${baseUrl}/mentor/notifications/notice%2Fone/follow-up`);
+    expect(request.request.method).toBe('PATCH');
+    expect(request.request.body).toEqual({ followUpStatus: 'completed' });
+    request.flush({ data: {} });
+  });
 });

@@ -90,18 +90,18 @@ This checklist compares the product described in the repository documentation wi
 
 ## 6. Mentor workflows
 
-- [ ] Load only backend-assigned teams with quarter progress and weekly participation summaries.
-- [ ] Implement team detail with opaque identifiers and backend assignment authorization.
-- [ ] Implement project guidance and milestone feedback.
-- [ ] Implement permitted reading-participation status.
-- [ ] Implement “may need encouragement” signals and encouragement actions without exposing private child data.
-- [ ] Implement mentor notifications and follow-up status.
+- [x] Load only backend-assigned teams with quarter progress and weekly participation summaries.
+- [x] Implement team detail with opaque identifiers and backend assignment authorization.
+- [x] Implement project guidance and milestone feedback.
+- [x] Implement permitted reading-participation status.
+- [x] Implement “may need encouragement” signals and encouragement actions without exposing private child data.
+- [x] Implement mentor notifications and follow-up status.
 
 ## 7. Authorized-adult (`observer`) workflows
 
-- [ ] Implement scoped positive-observation submission.
-- [ ] Implement permitted observation history and review status.
-- [ ] Enforce backend resource scope so observers cannot browse unrelated children or teams.
+- [x] Implement scoped positive-observation submission.
+- [x] Implement permitted observation history and review status.
+- [x] Enforce backend resource scope so observers cannot browse unrelated children or teams.
 
 ## 8. Administration
 

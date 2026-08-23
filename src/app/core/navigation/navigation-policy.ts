@@ -98,6 +98,7 @@ export const NAVIGATION_POLICIES: readonly NavigationPolicy[] = [
   persona('mentor', 'mentor-projects', 'Projects', '/mentor/projects', 210),
   persona('mentor', 'mentor-reading', 'Reading', '/mentor/reading', 220),
   persona('mentor', 'mentor-encouragement', 'Encouragement', '/mentor/encouragement', 230),
+  persona('mentor', 'mentor-notifications', 'Notifications', '/mentor/notifications', 240),
   persona('observer', 'observer-observations', 'Observations', '/observer/observations', 300),
   admin('admin-participants', 'Participants', '/admin/participants', 400, 'admin.participants.manage'),
   admin('admin-teams', 'Teams', '/admin/teams', 410, 'admin.teams.manage'),

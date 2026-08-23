@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { GfAlert, GfButton, GfEmptyState, GfLoading, GfPageHeader } from '../../shared/components/design-system';
-import { MentorApi, MentorRecipient } from './mentor-api.service';
+import { MentorApi, MentorEncouragementSignal } from './mentor-api.service';
 import { MentorViewError, mentorViewError } from './mentor-view.utilities';
 @Component({
   standalone: true,
@@ -12,7 +12,7 @@ import { MentorViewError, mentorViewError } from './mentor-view.utilities';
     >
     @if (loading()) {
       <gf-loading />
-    } @else if (!recipients().length) {
+    } @else if (!signals().length) {
       <gf-empty-state
         title="No available recipients"
         message="Only participants authorized by the program appear here."
@@ -22,8 +22,8 @@ import { MentorViewError, mentorViewError } from './mentor-view.utilities';
         <label
           >Participant<select formControlName="participantId" required>
             <option value="">Choose a participant</option>
-            @for (p of recipients(); track p.id) {
-              <option [value]="p.id">{{ p.displayName }} — {{ p.teamName }}</option>
+            @for (p of signals(); track p.id) {
+              <option [value]="p.id">{{ p.displayName }} — {{ p.teamName }} ({{ p.signal }})</option>
             }
           </select></label
         ><label>Encouragement<textarea formControlName="message" maxlength="500" required></textarea></label
@@ -46,7 +46,7 @@ import { MentorViewError, mentorViewError } from './mentor-view.utilities';
 export class MentorEncouragementComponent {
   private api = inject(MentorApi);
   private destroy = inject(DestroyRef);
-  readonly recipients = signal<readonly MentorRecipient[]>([]);
+  readonly signals = signal<readonly MentorEncouragementSignal[]>([]);
   readonly loading = signal(true);
   readonly submitting = signal(false);
   readonly sent = signal(false);
@@ -57,11 +57,11 @@ export class MentorEncouragementComponent {
   });
   constructor() {
     this.api
-      .encouragementRecipients()
+      .encouragementSignals()
       .pipe(takeUntilDestroyed(this.destroy))
       .subscribe({
         next: (v) => {
-          this.recipients.set(v);
+          this.signals.set(v);
           this.loading.set(false);
         },
         error: (e) => {
