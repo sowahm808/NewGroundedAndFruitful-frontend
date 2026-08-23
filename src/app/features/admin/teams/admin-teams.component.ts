@@ -30,7 +30,6 @@ interface TeamItem {
   capacity?: number;
   memberCount?: number;
   targetPoints?: number;
-  quarterId?: string | null;
 }
 
 @Component({
@@ -46,15 +45,11 @@ interface TeamItem {
     GfPageHeader,
   ],
   template: `
-    <gf-page-header
-      title="Teams"
-      eyebrow="Administration"
-    >
+    <gf-page-header title="Teams" eyebrow="Administration">
       <p>Manage growth team rosters, capacities, and target points within authorized scopes.</p>
     </gf-page-header>
 
     <div class="teams-container">
-      <!-- Toolbar -->
       <div class="toolbar" style="margin: 1.5rem 0; display: flex; justify-content: flex-end;">
         <button
           type="button"
@@ -66,7 +61,7 @@ interface TeamItem {
         </button>
       </div>
 
-      <!-- Creation Modal -->
+      <!-- Add Team Modal -->
       @if (showModal()) {
         <div
           class="modal-backdrop"
