@@ -141,6 +141,52 @@ export const ADMIN_RESOURCES: Readonly<Record<string, AdminResourceDefinition>> 
       archive: STANDARD_ACTIONS.archive,
     },
   ),
+  special: definition(
+    'special-activities',
+    'Special activities',
+    'Configure eligibility and participation windows for special activities.',
+    ['draft', 'scheduled', 'active', 'closed', 'archived'],
+    {
+      publish: { label: 'Publish', consequence: 'This makes the activity available to its eligible scope.' },
+      ...STANDARD_ACTIONS,
+    },
+  ),
+  observations: definition(
+    'observations',
+    'Observation moderation',
+    'Review observations in the scope authorized by the server without exposing private journey data.',
+    ['pending', 'approved', 'rejected'],
+    {
+      approve: {
+        label: 'Approve observation',
+        consequence: 'This publishes the observation to its authorized recipients.',
+      },
+      reject: {
+        label: 'Reject observation',
+        consequence: 'This rejects the observation while retaining its moderation history.',
+      },
+    },
+  ),
+  incidents: definition(
+    'incidents',
+    'Incidents',
+    'Review restricted incident records. Access and every privileged read are enforced and audited by the server.',
+    ['open', 'investigating', 'resolved', 'closed'],
+    {
+      investigate: {
+        label: 'Begin investigation',
+        consequence: 'This records you as beginning a restricted investigation.',
+      },
+      resolve: {
+        label: 'Resolve incident',
+        consequence: 'This records the incident as resolved without deleting its history.',
+      },
+      close: {
+        label: 'Close incident',
+        consequence: 'This closes the incident while retaining its immutable history.',
+      },
+    },
+  ),
   surveys: definition(
     'surveys',
     'Surveys',

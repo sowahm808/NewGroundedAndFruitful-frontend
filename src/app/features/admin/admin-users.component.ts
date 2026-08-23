@@ -31,6 +31,10 @@ const SORTS: readonly { value: NonNullable<AdminUsersQuery['sort']>; label: stri
 
     <form class="filters" (ngSubmit)="applyFilters()">
       <label
+        >Search
+        <input name="search" type="search" [(ngModel)]="draftSearch" maxlength="120" autocomplete="off" />
+      </label>
+      <label
         >Status
         <select name="status" [(ngModel)]="draftStatus">
           <option value="">All statuses</option>
@@ -198,6 +202,7 @@ const SORTS: readonly { value: NonNullable<AdminUsersQuery['sort']>; label: stri
         font-weight: 700;
       }
       select,
+      input,
       button {
         min-height: 44px;
         font: inherit;
@@ -354,11 +359,15 @@ export class AdminUsersComponent {
   readonly sorts = SORTS;
   readonly skeletonRows = [1, 2, 3, 4];
   draftStatus = '';
+  draftSearch = '';
   draftSort: NonNullable<AdminUsersQuery['sort']> = '-updatedAt';
   private appliedStatus = '';
+  private appliedSearch = '';
   private appliedSort: NonNullable<AdminUsersQuery['sort']> = '-updatedAt';
   private currentPage = 1;
-  readonly hasActiveFilters = computed(() => Boolean(this.appliedStatus) || this.appliedSort !== '-updatedAt');
+  readonly hasActiveFilters = computed(
+    () => Boolean(this.appliedSearch || this.appliedStatus) || this.appliedSort !== '-updatedAt',
+  );
   readonly rangeStart = computed(() => {
     const pagination = this.payload()?.pagination;
     return !pagination?.total ? 0 : (pagination.page - 1) * pagination.pageSize + 1;
@@ -399,6 +408,7 @@ export class AdminUsersComponent {
   }
 
   applyFilters(): void {
+    this.appliedSearch = this.draftSearch.trim().slice(0, 120);
     this.appliedStatus = STATUSES.includes(this.draftStatus as UserStatus) ? this.draftStatus : '';
     this.appliedSort = SORTS.some(({ value }) => value === this.draftSort) ? this.draftSort : '-updatedAt';
     this.request(1);
@@ -432,6 +442,7 @@ export class AdminUsersComponent {
       pageSize: PAGE_SIZE,
       status: (this.appliedStatus || undefined) as UserStatus | undefined,
       sort: this.appliedSort,
+      search: this.appliedSearch || undefined,
     });
   }
 }

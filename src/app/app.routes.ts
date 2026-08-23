@@ -233,8 +233,7 @@ export const routes: Routes = [
       {
         path: 'teams',
         canActivate: [organizationRoleGuard('admin'), capabilityGuard(['admin.teams.manage'])],
-        loadComponent: () =>
-          import('./features/admin/teams/admin-teams.component').then((m) => m.AdminTeamsComponent),
+        loadComponent: () => import('./features/admin/teams/admin-teams.component').then((m) => m.AdminTeamsComponent),
       },
       ...[
         ['assignments', 'assignments', 'admin.assignments.manage'],
@@ -242,8 +241,11 @@ export const routes: Routes = [
         ['family', 'family', 'admin.family_activities.manage'],
         ['books', 'books', 'admin.books.manage'],
         ['projects', 'projects', 'admin.projects.manage'],
+        ['special-activities', 'special', 'admin.special_activities.manage'],
         ['surveys', 'surveys', 'admin.surveys.manage'],
         ['points', 'points', 'admin.point_rules.manage'],
+        ['observations', 'observations', 'admin.observations.moderate'],
+        ['incidents', 'incidents', 'admin.incidents.manage'],
         ['awards', 'awards', 'admin.awards.manage'],
       ].map(([path, resource, capability]) => ({
         path,
