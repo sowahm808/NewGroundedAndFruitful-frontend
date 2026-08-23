@@ -33,4 +33,11 @@ describe('AdminApiService', () => {
     expect(request.request.body).toEqual({ version: 7 });
     request.flush({ data: record });
   });
+
+  it('loads privacy-filtered record details with an encoded id', () => {
+    service.detail('audit', 'event/1').subscribe();
+    const request = http.expectOne((req) => req.url.endsWith('/admin/audit/event%2F1'));
+    expect(request.request.method).toBe('GET');
+    request.flush({ data: { id: 'event/1', label: 'Event', status: 'success', version: 1 } });
+  });
 });

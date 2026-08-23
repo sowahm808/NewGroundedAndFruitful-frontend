@@ -107,6 +107,7 @@ export interface AdminResourceDefinition {
               </p>
             }
             <div class="actions">
+              <button type="button" [disabled]="detailLoading()" (click)="openDetail(record)">View details</button>
               @for (action of visibleActions(record); track action) {
                 <button type="button" [disabled]="busyId() === record.id" (click)="confirm(record, action)">
                   {{ definition().actions[action].label }}
@@ -128,6 +129,32 @@ export interface AdminResourceDefinition {
           Next
         </button>
       </nav>
+    }
+
+    @if (selected(); as record) {
+      <div class="backdrop" role="presentation">
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+          <h2 id="detail-title">{{ record.label }}</h2>
+          @if (definition().resource === 'audit') {
+            <p><strong>Immutable audit event.</strong> Audit records cannot be edited or deleted.</p>
+          }
+          @if (detailLoading()) {
+            <gf-loading />
+          } @else if (detailError(); as failure) {
+            <gf-alert title="Unable to load details"><p>{{ failure.message }}</p></gf-alert>
+          } @else {
+            <dl class="detail-list">
+              <div><dt>ID</dt><dd><code>{{ record.id }}</code></dd></div>
+              <div><dt>Status</dt><dd>{{ record.status }}</dd></div>
+              <div><dt>Version</dt><dd>{{ record.version }}</dd></div>
+              @for (field of detailEntries(record); track field[0]) {
+                <div><dt>{{ field[0] }}</dt><dd>{{ field[1] }}</dd></div>
+              }
+            </dl>
+          }
+          <div><button type="button" (click)="closeDetail()">Close</button></div>
+        </section>
+      </div>
     }
 
     @if (pending(); as command) {
@@ -283,6 +310,8 @@ export interface AdminResourceDefinition {
       .dialog > div {
         justify-content: flex-end;
       }
+      .detail-list { display: grid; gap: .75rem; }
+      .detail-list div { display: grid; grid-template-columns: minmax(7rem, 1fr) 2fr; }
     `,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -296,6 +325,9 @@ export class AdminResourceComponent implements OnInit {
   readonly actionError = signal<Record<string, ApiError>>({});
   readonly busyId = signal<string | null>(null);
   readonly pending = signal<{ record: AdminRecord; action: string } | null>(null);
+  readonly selected = signal<AdminRecord | null>(null);
+  readonly detailLoading = signal(false);
+  readonly detailError = signal<ApiError | null>(null);
   draftStatus = '';
   draftSearch = '';
   draftSort = '-updatedAt';
@@ -350,6 +382,22 @@ export class AdminResourceComponent implements OnInit {
   }
   confirm(record: AdminRecord, action: string): void {
     if (this.visibleActions(record).includes(action)) this.pending.set({ record, action });
+  }
+  openDetail(summary: AdminRecord): void {
+    this.selected.set(summary);
+    this.detailError.set(null);
+    this.detailLoading.set(true);
+    this.api.detail(this.definition().resource, summary.id).pipe(finalize(() => this.detailLoading.set(false))).subscribe({
+      next: (record) => this.selected.set(record),
+      error: (error) => this.detailError.set(asApiError(error)),
+    });
+  }
+  closeDetail(): void {
+    this.selected.set(null);
+    this.detailError.set(null);
+  }
+  detailEntries(record: AdminRecord): readonly [string, string | number | boolean | null][] {
+    return Object.entries(record.details ?? {});
   }
   runCommand(): void {
     const command = this.pending();

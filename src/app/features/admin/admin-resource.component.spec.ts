@@ -27,7 +27,7 @@ describe('AdminResourceComponent required input lifecycle', () => {
   let api: jasmine.SpyObj<AdminApiService>;
 
   beforeEach(() => {
-    api = jasmine.createSpyObj<AdminApiService>('AdminApiService', ['list', 'command']);
+    api = jasmine.createSpyObj<AdminApiService>('AdminApiService', ['list', 'detail', 'command']);
     api.list.and.returnValue(of({ items: [], page: 1, pageSize: 25, total: 0 }));
     TestBed.configureTestingModule({
       imports: [TestHostComponent],

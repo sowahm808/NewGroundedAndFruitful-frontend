@@ -105,21 +105,21 @@ This checklist compares the product described in the repository documentation wi
 
 ## 8. Administration
 
-- [ ] Implement searchable, filterable, paginated user CRUD and account-status management.
-- [ ] Implement team CRUD, mentor assignment, and child placement.
-- [ ] Implement quarter CRUD, activation, enrollment, targets, and program-week configuration.
-- [ ] Implement character-quality and cycle configuration.
-- [ ] Implement Bible activity configuration.
-- [ ] Implement family-activity configuration.
-- [ ] Implement book/reading-program configuration.
-- [ ] Implement special-activity configuration.
-- [ ] Implement survey configuration and results access controls.
-- [ ] Implement backend-owned point-rule configuration and immutable point history; never calculate or award privileged points in Angular.
-- [ ] Implement observation moderation/approval.
-- [ ] Implement scoped administrative reports and exports with privacy controls.
-- [ ] Implement incident reporting and restricted incident-management access.
-- [ ] Implement immutable audit-log search/detail views.
-- [ ] Enforce optimistic concurrency/version handling and idempotency on all mutating administration actions.
+- [x] Implement searchable, filterable, paginated user CRUD and account-status management.
+- [x] Implement team CRUD, mentor assignment, and child placement.
+- [x] Implement quarter CRUD, activation, enrollment, targets, and program-week configuration.
+- [x] Implement character-quality and cycle configuration.
+- [x] Implement Bible activity configuration.
+- [x] Implement family-activity configuration.
+- [x] Implement book/reading-program configuration.
+- [x] Implement special-activity configuration.
+- [x] Implement survey configuration and results access controls.
+- [x] Implement backend-owned point-rule configuration and immutable point history; never calculate or award privileged points in Angular.
+- [x] Implement observation moderation/approval.
+- [x] Implement scoped administrative reports and exports with privacy controls.
+- [x] Implement incident reporting and restricted incident-management access.
+- [x] Implement immutable audit-log search/detail views.
+- [x] Enforce optimistic concurrency/version handling and idempotency on all mutating administration actions.
 
 ## 9. Accessibility, resilience, and UX quality
 

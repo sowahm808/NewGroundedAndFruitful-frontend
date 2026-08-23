@@ -4,6 +4,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 import { ApiError } from '../../../core/http/api-error';
 import { ApiClient } from '../../../core/http/api-client.service';
 import { ActiveOrganizationService } from '../../../core/organizations/active-organization.service';
+import { adminMutationOptions } from '../admin-mutation';
 
 export const QUARTER_STATUSES = [
   'draft',
@@ -193,15 +194,21 @@ export class AdminQuartersApiService {
       );
   }
   create(body: CreateQuarterRequest): Observable<QuarterListItemDto> {
-    return this.api.postData<QuarterListItemDto>('/admin/quarters', body);
+    return this.api.postData<QuarterListItemDto>('/admin/quarters', body, adminMutationOptions());
   }
   update(id: string, body: UpdateQuarterRequest): Observable<QuarterListItemDto> {
-    return this.api.patchData<QuarterListItemDto>(`/admin/quarters/${encodeURIComponent(id)}`, body);
+    return this.api.patchData<QuarterListItemDto>(
+      `/admin/quarters/${encodeURIComponent(id)}`,
+      body,
+      adminMutationOptions(body.expectedVersion),
+    );
   }
   command(quarter: Quarter, action: Exclude<QuarterAction, 'edit'>): Observable<QuarterListItemDto> {
-    return this.api.postData<QuarterListItemDto>(`/admin/quarters/${encodeURIComponent(quarter.id)}/${action}`, {
-      expectedVersion: quarter.version,
-    });
+    return this.api.postData<QuarterListItemDto>(
+      `/admin/quarters/${encodeURIComponent(quarter.id)}/${action}`,
+      { expectedVersion: quarter.version },
+      adminMutationOptions(quarter.version),
+    );
   }
 }
 
