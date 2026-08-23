@@ -2,6 +2,7 @@ import { HttpHeaders } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiClient } from '../../../core/http/api-client.service';
+import { adminMutationOptions } from '../admin-mutation';
 
 export type ReportJobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'expired' | 'cancelled';
 
@@ -61,10 +62,18 @@ export class AdminReportsApiService {
   }
 
   command(jobId: string, command: 'retry' | 'cancel'): Observable<ReportJob> {
-    return this.api.postData<ReportJob>(`/admin/reports/${encodeURIComponent(jobId)}/${command}`, {});
+    return this.api.postData<ReportJob>(
+      `/admin/reports/${encodeURIComponent(jobId)}/${command}`,
+      {},
+      adminMutationOptions(),
+    );
   }
 
   download(jobId: string): Observable<ReportDownload> {
-    return this.api.postData<ReportDownload>(`/admin/reports/${encodeURIComponent(jobId)}/download`, {});
+    return this.api.postData<ReportDownload>(
+      `/admin/reports/${encodeURIComponent(jobId)}/download`,
+      {},
+      adminMutationOptions(),
+    );
   }
 }

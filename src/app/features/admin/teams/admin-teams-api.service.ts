@@ -3,6 +3,7 @@ import { Observable, catchError, from, map, switchMap, throwError } from 'rxjs';
 import { AuthTokenProvider } from '../../../core/auth/auth-token-provider.service';
 import { ApiClient } from '../../../core/http/api-client.service';
 import { ApiError } from '../../../core/http/api-error';
+import { adminMutationOptions } from '../admin-mutation';
 
 export interface TeamItem {
   readonly id: string;
@@ -34,7 +35,8 @@ export class AdminTeamsApiService {
   }
 
   create(command: CreateTeamCommand): Observable<TeamItem> {
-    return this.withOneAuthenticationRetry(() => this.api.postData<TeamItem>('/admin/teams', command));
+    const options = adminMutationOptions();
+    return this.withOneAuthenticationRetry(() => this.api.postData<TeamItem>('/admin/teams', command, options));
   }
 
   /** A 401 can mean Firebase's cached ID token expired between session bootstrap and this command. */

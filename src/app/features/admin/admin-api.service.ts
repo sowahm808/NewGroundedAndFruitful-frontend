@@ -1,7 +1,7 @@
-import { HttpHeaders } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiClient } from '../../core/http/api-client.service';
+import { adminMutationOptions } from './admin-mutation';
 
 export interface AdminRecord {
   readonly id: string;
@@ -12,6 +12,8 @@ export interface AdminRecord {
   /** Commands are server-authorized for this record; absence means read-only. */
   readonly allowedActions?: readonly string[];
   readonly updatedAt?: string;
+  /** Privacy-filtered detail fields explicitly selected by the API. */
+  readonly details?: Readonly<Record<string, string | number | boolean | null>>;
 }
 
 export interface AdminPage {
@@ -44,6 +46,22 @@ export class AdminApiService {
     return this.api.getData<AdminPage>(`/admin/${resource}`, { params });
   }
 
+  detail(resource: string, id: string): Observable<AdminRecord> {
+    return this.api.getData<AdminRecord>(`/admin/${resource}/${encodeURIComponent(id)}`);
+  }
+
+  create(resource: string, body: Readonly<Record<string, unknown>>, idempotencyKey = crypto.randomUUID()) {
+    return this.api.postData<AdminRecord>(`/admin/${resource}`, body, adminMutationOptions(undefined, idempotencyKey));
+  }
+
+  update(resource: string, record: AdminRecord, body: Readonly<Record<string, unknown>>) {
+    return this.api.patchData<AdminRecord>(
+      `/admin/${resource}/${encodeURIComponent(record.id)}`,
+      { ...body, version: record.version },
+      adminMutationOptions(record.version),
+    );
+  }
+
   command(resource: string, record: AdminRecord, action: string): Observable<AdminRecord> {
     return this.api.postData<AdminRecord>(
       `/admin/${resource}/${encodeURIComponent(record.id)}/commands/${action}`,
@@ -51,10 +69,7 @@ export class AdminApiService {
         version: record.version,
       },
       {
-        headers: new HttpHeaders({
-          'If-Match': `"${record.version}"`,
-          'Idempotency-Key': crypto.randomUUID(),
-        }),
+        ...adminMutationOptions(record.version),
       },
     );
   }

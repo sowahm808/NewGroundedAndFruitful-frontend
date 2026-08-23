@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { ApiError } from '../../../core/http/api-error';
 import { ApiClient } from '../../../core/http/api-client.service';
+import { adminMutationOptions } from '../admin-mutation';
 
 export type BibleContentStatus =
   'draft' | 'uploaded' | 'parsing' | 'needs_review' | 'validated' | 'published' | 'archived' | 'failed';
@@ -179,16 +180,19 @@ export class AdminBibleApiService {
   }
 
   reprocessImport(id: string, expectedVersion: number) {
-    return this.api.postData<unknown>(`/admin/bible-content/imports/${encodeURIComponent(id)}/reprocess`, {
-      expectedVersion,
-    });
+    return this.api.postData<unknown>(
+      `/admin/bible-content/imports/${encodeURIComponent(id)}/reprocess`,
+      { expectedVersion },
+      adminMutationOptions(expectedVersion),
+    );
   }
 
   rejectImport(id: string, expectedVersion: number, reason: string) {
-    return this.api.postData<unknown>(`/admin/bible-content/imports/${encodeURIComponent(id)}/reject`, {
-      expectedVersion,
-      reason,
-    });
+    return this.api.postData<unknown>(
+      `/admin/bible-content/imports/${encodeURIComponent(id)}/reject`,
+      { expectedVersion, reason },
+      adminMutationOptions(expectedVersion),
+    );
   }
 
   getContent(id: string) {
