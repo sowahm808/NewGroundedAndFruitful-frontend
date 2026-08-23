@@ -1,25 +1,9 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  OnInit,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import {
-  FormBuilder,
-  FormGroup,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
+import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import {
-  GfAlert,
-  GfBadge,
-  GfCard,
-  GfEmptyState,
-  GfPageHeader,
-} from '../../../shared/components/design-system';
+import { ActiveOrganizationService } from '../../../core/organizations/active-organization.service';
+import { GfAlert, GfBadge, GfCard, GfEmptyState, GfPageHeader } from '../../../shared/components/design-system';
 
 interface TeamItem {
   id: string;
@@ -35,15 +19,7 @@ interface TeamItem {
 @Component({
   selector: 'gf-admin-teams',
   standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    GfAlert,
-    GfBadge,
-    GfCard,
-    GfEmptyState,
-    GfPageHeader,
-  ],
+  imports: [CommonModule, ReactiveFormsModule, GfAlert, GfBadge, GfCard, GfEmptyState, GfPageHeader],
   template: `
     <gf-page-header title="Teams" eyebrow="Administration">
       <p>Manage growth team rosters, capacities, and target points within authorized scopes.</p>
@@ -83,7 +59,10 @@ interface TeamItem {
 
             <form [formGroup]="teamForm" (ngSubmit)="onCreateTeam()">
               <div style="margin-bottom: 1rem;">
-                <label for="teamName" style="display: block; margin-bottom: 0.25rem; font-weight: 600; font-size: 0.875rem;">
+                <label
+                  for="teamName"
+                  style="display: block; margin-bottom: 0.25rem; font-weight: 600; font-size: 0.875rem;"
+                >
                   Team Name
                 </label>
                 <input
@@ -96,7 +75,10 @@ interface TeamItem {
               </div>
 
               <div style="margin-bottom: 1rem;">
-                <label for="capacity" style="display: block; margin-bottom: 0.25rem; font-weight: 600; font-size: 0.875rem;">
+                <label
+                  for="capacity"
+                  style="display: block; margin-bottom: 0.25rem; font-weight: 600; font-size: 0.875rem;"
+                >
                   Capacity (Max Children)
                 </label>
                 <input
@@ -108,7 +90,10 @@ interface TeamItem {
               </div>
 
               <div style="margin-bottom: 1.5rem;">
-                <label for="targetPoints" style="display: block; margin-bottom: 0.25rem; font-weight: 600; font-size: 0.875rem;">
+                <label
+                  for="targetPoints"
+                  style="display: block; margin-bottom: 0.25rem; font-weight: 600; font-size: 0.875rem;"
+                >
                   Target Points (Quarter Goal)
                 </label>
                 <input
@@ -143,7 +128,12 @@ interface TeamItem {
 
       <!-- Team List -->
       @if (isLoading()) {
-        <div class="cards" role="status" aria-label="Loading teams" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem;">
+        <div
+          class="cards"
+          role="status"
+          aria-label="Loading teams"
+          style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem;"
+        >
           <div class="skeleton" style="height: 140px; background: #eee; border-radius: 8px;"></div>
           <div class="skeleton" style="height: 140px; background: #eee; border-radius: 8px;"></div>
         </div>
@@ -153,10 +143,16 @@ interface TeamItem {
           message="Create your first team using the '+ Add New Team' button above."
         />
       } @else {
-        <div class="cards" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem;">
+        <div
+          class="cards"
+          style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem;"
+        >
           @for (team of teams(); track team.id) {
             <gf-card>
-              <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <div
+                class="card-header"
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;"
+              >
                 <gf-badge>{{ team.status }}</gf-badge>
               </div>
               <h2 style="margin: 0.5rem 0; font-size: 1.2rem; font-weight: 700;">
@@ -177,6 +173,9 @@ interface TeamItem {
 export class AdminTeamsComponent implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly fb = inject(FormBuilder);
+  private readonly organizations = inject(ActiveOrganizationService);
+
+  readonly organizationId = this.organizations.organizationId;
 
   readonly teams = signal<TeamItem[]>([]);
   readonly isLoading = signal<boolean>(true);
@@ -221,10 +220,16 @@ export class AdminTeamsComponent implements OnInit {
   onCreateTeam(): void {
     if (this.teamForm.invalid) return;
 
+    const organizationId = this.organizationId();
+    if (!organizationId) {
+      this.errorMessage.set('Select an organization before creating a team.');
+      return;
+    }
+
     this.isSubmitting.set(true);
     this.errorMessage.set(null);
 
-    this.http.post('/api/v1/admin/teams', this.teamForm.value).subscribe({
+    this.http.post('/api/v1/admin/teams', { ...this.teamForm.getRawValue(), organizationId }).subscribe({
       next: () => {
         this.isSubmitting.set(false);
         this.closeModal();
