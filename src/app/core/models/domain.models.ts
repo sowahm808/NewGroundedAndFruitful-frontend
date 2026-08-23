@@ -51,6 +51,8 @@ export interface SessionUser {
   readonly roles: readonly UserRole[];
   /** Platform-scoped roles are reported independently from organization memberships. */
   readonly platformRoles?: readonly UserRole[];
+  /** Backend-issued account roles before workspace policy is applied. */
+  readonly baseRoles?: readonly UserRole[];
   /** Product journeys are independent from workspace governance roles. */
   readonly personas?: readonly ProductPersona[];
   /** Server-derived permissions for the selected workspace. */
@@ -74,6 +76,8 @@ export interface SessionUser {
   readonly workspaces?: readonly SessionWorkspace[];
   /** The backend-calculated authority. It is never derived from memberships in the browser. */
   readonly effectiveRoles?: readonly UserRole[];
+  /** Canonical migration signal. Kept top-level for the current session contract. */
+  readonly migrationRequired?: boolean;
   readonly personalWorkspace?: { readonly id: string; readonly displayName?: string; readonly setupComplete?: boolean };
   readonly elevation?: {
     readonly active: boolean;

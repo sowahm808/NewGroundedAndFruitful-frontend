@@ -375,6 +375,7 @@ export class AuthService {
       roles: normalizeRoles(session.effectiveRoles ?? session.roles),
       // Platform roles remain a separate authority dimension and are never inferred from memberships.
       platformRoles: normalizeRoles(session.platformRoles),
+      ...(session.baseRoles ? { baseRoles: normalizeRoles(session.baseRoles) } : {}),
       ...(session.personas ? { personas: normalizePersonas(session.personas) } : {}),
       ...(session.capabilities ? { capabilities: normalizeStrings(session.capabilities) } : {}),
       ...(session.workspaceRoles ? { workspaceRoles: normalizeRoles(session.workspaceRoles) } : {}),
@@ -406,6 +407,9 @@ export class AuthService {
           }
         : {}),
       ...(session.effectiveRoles ? { effectiveRoles: normalizeRoles(session.effectiveRoles) } : {}),
+      ...(typeof session.migrationRequired === 'boolean'
+        ? { migrationRequired: session.migrationRequired }
+        : {}),
       ...(session.personalWorkspace ? { personalWorkspace: session.personalWorkspace } : {}),
       ...(session.elevation ? { elevation: session.elevation } : {}),
       ...(session.authorization ? { authorization: session.authorization } : {}),
