@@ -50,7 +50,6 @@ interface TeamItem {
     </gf-page-header>
 
     <div class="teams-container">
-      <!-- Toolbar -->
       <div class="toolbar" style="margin: 1.5rem 0; display: flex; justify-content: flex-end;">
         <button
           type="button"
@@ -91,7 +90,7 @@ interface TeamItem {
                   id="teamName"
                   type="text"
                   formControlName="name"
-                  placeholder="e.g. Team Alpha"
+                  placeholder="e.g. Jesus team"
                   style="width: 100%; box-sizing: border-box; padding: 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95rem;"
                 />
               </div>
