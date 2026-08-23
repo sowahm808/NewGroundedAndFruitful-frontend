@@ -6,6 +6,14 @@
   NODE_VERSION = "22.22.3"
   NG_CLI_ANALYTICS = "false"
 
+# 1. API Proxy to Render Backend (Must be placed before the SPA catch-all)
+[[redirects]]
+  from = "/api/*"
+  to = "https://newgroundedandfruitful-backend.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+# 2. SPA Catch-All Route
 [[redirects]]
   from = "/*"
   to = "/index.html"
@@ -14,8 +22,6 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    # Firebase's documented popup flow retains an opener. The application does not use
-    # COEP, SharedArrayBuffer, or crossOriginIsolated, so this is the narrow compatible policy.
     Cross-Origin-Opener-Policy = "same-origin-allow-popups"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
