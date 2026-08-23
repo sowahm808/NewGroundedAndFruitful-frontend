@@ -12,7 +12,7 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import {
   GfAlert,
   GfBadge,
@@ -189,7 +189,7 @@ export class AdminTeamsComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    this.fetchTeams();
+    this.fetchActiveSessionAndTeams();
   }
 
   openModal(): void {
@@ -201,9 +201,37 @@ export class AdminTeamsComponent implements OnInit {
     this.showModal.set(false);
   }
 
-  fetchTeams(): void {
+  private getActiveOrgId(): string | null {
+    // 1. Check local session storage / app state if stored
+    const stored = localStorage.getItem('gf_active_workspace_id') || localStorage.getItem('gf_active_org_id');
+    return stored || null;
+  }
+
+  fetchActiveSessionAndTeams(): void {
     this.isLoading.set(true);
-    this.http.get<{ data: { items: TeamItem[] } }>('/api/v1/admin/teams').subscribe({
+
+    // Fetch auth session first to guarantee the active workspace ID
+    this.http.get<{ data: { activeWorkspaceId?: string; activeOrganizationId?: string } }>('/api/v1/auth/session').subscribe({
+      next: (sessionRes) => {
+        const orgId = sessionRes.data?.activeOrganizationId || sessionRes.data?.activeWorkspaceId;
+        if (orgId) {
+          localStorage.setItem('gf_active_workspace_id', orgId);
+        }
+        this.fetchTeams(orgId);
+      },
+      error: () => {
+        this.fetchTeams(this.getActiveOrgId() || undefined);
+      },
+    });
+  }
+
+  fetchTeams(organizationId?: string): void {
+    let params = new HttpParams();
+    if (organizationId) {
+      params = params.set('organizationId', organizationId);
+    }
+
+    this.http.get<{ data: { items: TeamItem[] } }>('/api/v1/admin/teams', { params }).subscribe({
       next: (res) => {
         this.teams.set(res.data?.items || []);
         this.isLoading.set(false);
@@ -221,12 +249,19 @@ export class AdminTeamsComponent implements OnInit {
     this.isSubmitting.set(true);
     this.errorMessage.set(null);
 
-    this.http.post('/api/v1/admin/teams', this.teamForm.value).subscribe({
+    const organizationId = this.getActiveOrgId();
+
+    const payload = {
+      ...this.teamForm.value,
+      ...(organizationId ? { organizationId } : {}),
+    };
+
+    this.http.post('/api/v1/admin/teams', payload).subscribe({
       next: () => {
         this.isSubmitting.set(false);
         this.closeModal();
         this.teamForm.reset({ capacity: 5, targetPoints: 5000 });
-        this.fetchTeams();
+        this.fetchTeams(organizationId || undefined);
       },
       error: (err) => {
         this.isSubmitting.set(false);
