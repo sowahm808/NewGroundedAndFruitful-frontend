@@ -76,6 +76,9 @@ import {
                 [(ngModel)]="newParticipant.guardianEmail"
                 placeholder="parent@example.com"
               />
+              @if (newParticipant.guardianEmail.trim() && !isValidEmail(newParticipant.guardianEmail)) {
+                <span class="field-error" role="alert">Enter a valid guardian email address.</span>
+              }
             </label>
 
             <div class="modal-actions">
@@ -83,7 +86,11 @@ import {
               <button
                 type="submit"
                 class="btn-primary"
-                [disabled]="isSubmitting() || !newParticipant.displayName.trim()"
+                [disabled]="
+                  isSubmitting() ||
+                  !newParticipant.displayName.trim() ||
+                  (!!newParticipant.guardianEmail.trim() && !isValidEmail(newParticipant.guardianEmail))
+                "
               >
                 {{ isSubmitting() ? 'Enrolling...' : 'Save & Enroll' }}
               </button>
@@ -490,7 +497,8 @@ export class AdminParticipantsComponent implements OnInit {
 
   createParticipant(): void {
     const name = this.newParticipant.displayName.trim();
-    if (!name) return;
+    const guardianEmail = this.newParticipant.guardianEmail.trim().toLowerCase();
+    if (!name || (guardianEmail && !this.isValidEmail(guardianEmail))) return;
 
     this.isSubmitting.set(true);
     this.modalError.set(null);
@@ -499,7 +507,7 @@ export class AdminParticipantsComponent implements OnInit {
       displayName: name,
       birthDate: this.newParticipant.birthDate,
       teamId: this.newParticipant.teamId || undefined,
-      guardianEmail: this.newParticipant.guardianEmail.trim() || undefined,
+      guardianEmail: guardianEmail || undefined,
       programId: 'default-program',
     };
 
