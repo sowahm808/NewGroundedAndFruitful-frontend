@@ -72,6 +72,60 @@ describe('AdminParticipantsApiService', () => {
     expect(participantVersion).toBeUndefined();
   });
 
+  it('reconciles guardian email and named-reference responses for the participant table', () => {
+    let participant: unknown;
+    service.list({}).subscribe((page) => (participant = page.items[0]));
+    http
+      .expectOne((candidate) => candidate.url.endsWith('/admin/participants'))
+      .flush({
+        data: {
+          items: [
+            {
+              id: 'p1',
+              displayName: 'Ama',
+              status: 'active',
+              guardianEmail: ' guardian@example.com ',
+              team: { id: 'team-1', approvedDisplayName: ' Seedlings ' },
+              updatedAt: '2026-08-22T00:00:00Z',
+            },
+          ],
+          pagination: { page: 1, pageSize: 25, total: 1, totalPages: 1 },
+        },
+      });
+
+    expect(participant).toEqual(
+      jasmine.objectContaining({
+        linkedGuardian: 'Invited (guardian@example.com)',
+        guardianEmail: 'guardian@example.com',
+        team: 'Seedlings',
+      }),
+    );
+  });
+
+  it('prefers a resolved guardian identity over the invitation email', () => {
+    let linkedGuardian = '';
+    service.list({}).subscribe((page) => (linkedGuardian = page.items[0].linkedGuardian ?? ''));
+    http
+      .expectOne((candidate) => candidate.url.endsWith('/admin/participants'))
+      .flush({
+        data: {
+          items: [
+            {
+              id: 'p1',
+              name: 'Ama',
+              enrollmentStatus: 'active',
+              guardianEmail: 'guardian@example.com',
+              linkedGuardian: { displayName: 'Akosua Parent', email: 'guardian@example.com' },
+              updatedAt: '2026-08-22T00:00:00Z',
+            },
+          ],
+          pagination: { page: 1, pageSize: 25, total: 1, totalPages: 1 },
+        },
+      });
+
+    expect(linkedGuardian).toBe('Akosua Parent');
+  });
+
   it('posts a guardian invitation to the participant-scoped endpoint', () => {
     service.inviteGuardian('participant/1', { email: 'guardian@example.com' }).subscribe();
 
