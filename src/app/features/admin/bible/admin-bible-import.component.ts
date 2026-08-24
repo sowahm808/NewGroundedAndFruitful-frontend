@@ -16,7 +16,7 @@ import { ApiError } from '../../../core/http/api-error';
 import { ActiveOrganizationService } from '../../../core/organizations/active-organization.service';
 import { GfAlert, GfPageHeader } from '../../../shared/components/design-system';
 import { AdminQuartersApiService, DEFAULT_QUARTER_SORT, Quarter } from '../quarters/admin-quarters-api.service';
-import { AdminBibleApiService } from './admin-bible-api.service';
+import { AdminBibleApiService, BibleImportReview } from './admin-bible-api.service';
 
 @Component({
   standalone: true,
@@ -26,7 +26,14 @@ import { AdminBibleApiService } from './admin-bible-api.service';
       <p>Create an import for review before committing a draft content set.</p>
     </gf-page-header>
     <p class="back"><a routerLink="/admin/bible">← Back to Bible content</a></p>
-    @if (error(); as failure) {
+    @if (quarterLifecycleConflict()) {
+      <gf-alert title="Quarter Import Conflict" variant="warning">
+        <p>The selected quarter already has an import or is not in an editable lifecycle state.</p>
+        <div class="alert-actions">
+          <a routerLink="/admin/bible" class="btn btn-secondary btn-sm">View Existing Imports &rarr;</a>
+        </div>
+      </gf-alert>
+    } @else if (error(); as failure) {
       <gf-alert [title]="errorTitle(failure)">
         <p>{{ errorMessage(failure) }}</p>
         <details>
@@ -104,7 +111,9 @@ import { AdminBibleApiService } from './admin-bible-api.service';
       <select id="quarter" formControlName="quarterId" [disabled]="quartersLoading()">
         <option value="">Select a quarter</option>
         @for (quarter of quarters(); track quarter.id) {
-          <option [value]="quarter.id">{{ quarter.name }}</option>
+          <option [value]="quarter.id" [disabled]="quarterHasActiveImport(quarter.id)">
+            {{ quarter.name }}{{ quarterHasActiveImport(quarter.id) ? ' (Import already exists)' : '' }}
+          </option>
         }
       </select>
       @if (fieldError('quarterId'); as message) {
@@ -233,6 +242,9 @@ import { AdminBibleApiService } from './admin-bible-api.service';
         gap: 1rem;
         margin-top: 1rem;
       }
+      .alert-actions {
+        margin-top: 0.75rem;
+      }
       .primary {
         background: var(--brand);
         color: #fff;
@@ -285,6 +297,7 @@ export class AdminBibleImportComponent {
   readonly quarters = signal<readonly Quarter[]>([]);
   readonly quartersLoading = signal(true);
   readonly quartersError = signal(false);
+  readonly activeImportQuarterIds = signal<ReadonlySet<string>>(new Set());
   readonly questionDocument = signal<File | null>(null);
   readonly answerKeyDocument = signal<File | null>(null);
   readonly uploading = signal(false);
@@ -302,6 +315,7 @@ export class AdminBibleImportComponent {
     this.organizations.workspaceChanged$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.form.controls.quarterId.setValue('');
       this.quarters.set([]);
+      this.activeImportQuarterIds.set(new Set());
       this.fieldErrors.set({});
       if (this.organizationId()) this.loadQuarters();
       else this.quartersLoading.set(false);
@@ -323,6 +337,39 @@ export class AdminBibleImportComponent {
           this.loadQuarterPage(sequence, page + 1, quarters);
           return;
         }
+        const editableQuarters = quarters.filter(
+          (quarter) => quarter.status !== 'closed' && quarter.status !== 'archived',
+        );
+        this.loadImportPage(sequence, 1, editableQuarters, []);
+      },
+      error: () => {
+        if (sequence !== this.quarterLoadSequence) return;
+        this.quartersLoading.set(false);
+        this.quartersError.set(true);
+      },
+    });
+  }
+  private loadImportPage(
+    sequence: number,
+    page: number,
+    quarters: readonly Quarter[],
+    loaded: readonly BibleImportReview[],
+  ) {
+    this.api.listImports(page, 100).subscribe({
+      next: (result) => {
+        if (sequence !== this.quarterLoadSequence) return;
+        const imports = [...loaded, ...result.items];
+        if (page < result.pagination.totalPages) {
+          this.loadImportPage(sequence, page + 1, quarters, imports);
+          return;
+        }
+        this.activeImportQuarterIds.set(
+          new Set(
+            imports
+              .filter((item) => item.status === 'draft' || item.status === 'processing')
+              .map((item) => item.quarter.id),
+          ),
+        );
         this.quarters.set(quarters);
         this.quartersLoading.set(false);
       },
@@ -332,6 +379,9 @@ export class AdminBibleImportComponent {
         this.quartersError.set(true);
       },
     });
+  }
+  quarterHasActiveImport(quarterId: string): boolean {
+    return this.activeImportQuarterIds().has(quarterId);
   }
   selectQuestion(event: Event) {
     this.questionDocument.set(this.validDocx((event.target as HTMLInputElement).files?.[0] ?? null, 'quizFile'));
@@ -363,7 +413,9 @@ export class AdminBibleImportComponent {
     const question = this.questionDocument(),
       answer = this.answerKeyDocument();
     const organizationId = this.organizationId();
-    const quarterIsCurrent = this.quarters().some((quarter) => quarter.id === this.form.controls.quarterId.value);
+    const quarterIsCurrent = this.quarters().some(
+      (quarter) => quarter.id === this.form.controls.quarterId.value && !this.quarterHasActiveImport(quarter.id),
+    );
     if (
       !organizationId ||
       this.form.invalid ||
@@ -418,6 +470,10 @@ export class AdminBibleImportComponent {
     if (error.status === 422) return 'Check the import documents';
     if (error.status === 429) return 'Upload limit reached';
     return 'Bible import creation failed';
+  }
+  quarterLifecycleConflict(): boolean {
+    const error = this.error();
+    return error?.status === 409 && error.code === 'BIBLE_QUARTER_LIFECYCLE_CONFLICT';
   }
   errorMessage(error: ApiError): string {
     if (error.status === 403) return 'You do not have permission to create Bible imports.';
