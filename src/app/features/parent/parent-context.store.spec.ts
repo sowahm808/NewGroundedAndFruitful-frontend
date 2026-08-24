@@ -58,6 +58,17 @@ describe('ParentContextStore', () => {
     expect(children).toHaveBeenCalledTimes(2);
     expect(store.state().status).toBe('empty');
   });
+  it('does not publish a new state when the requested child is already selected', () => {
+    children.and.returnValue(
+      of({ items: [{ id: 'child-a', displayName: 'Child A', status: 'active' }], hasMore: false }),
+    );
+    create();
+    expect(store.select('child-a')).toBeTrue();
+    const selectedState = store.state();
+
+    expect(store.select('child-a')).toBeTrue();
+    expect(store.state()).toBe(selectedState);
+  });
   it('cancels stale work and reloads for workspace, generation, logout and another user', () => {
     const pending = new Subject<CursorPage<ParentChild>>();
     children.and.returnValue(pending);

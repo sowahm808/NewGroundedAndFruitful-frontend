@@ -1,5 +1,7 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute } from '@angular/router';
+import { distinctUntilChanged, map } from 'rxjs';
 import { GfAlert, GfCard, GfLoading, GfPageHeader } from '../../../shared/components/design-system';
 import { ParentApi, CharacterCycle } from '../parent-api.service';
 import { parentViewError, ViewError } from '../parent-view.utilities';
@@ -9,7 +11,7 @@ import { ParentChildScopeComponent } from '../shared/parent-child-scope.componen
   imports: [ParentChildScopeComponent, GfAlert, GfCard, GfLoading, GfPageHeader],
   template: `<gf-page-header title="Character cycle" eyebrow="Parent journey"
       ><p>Review and update configured qualities where the program authorizes changes.</p></gf-page-header
-    ><gf-parent-child-scope (childChange)="load($event)" />
+    ><gf-parent-child-scope />
     @if (loading()) {
       <gf-loading />
     }
@@ -45,23 +47,42 @@ import { ParentChildScopeComponent } from '../shared/parent-child-scope.componen
   styleUrl: '../parent-feature.styles.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ParentCharacterComponent {
-  private api = inject(ParentApi);
-  private destroy = inject(DestroyRef);
+export class ParentCharacterComponent implements OnInit {
+  private readonly api = inject(ParentApi);
+  private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
   readonly childId = signal('');
   readonly loading = signal(false);
   readonly error = signal<ViewError | null>(null);
   readonly cycle = signal<CharacterCycle | null>(null);
   readonly selected = signal<readonly string[]>([]);
   readonly busy = signal(false);
-  load(id: string) {
-    this.childId.set(id);
+  ngOnInit(): void {
+    this.route.queryParamMap
+      .pipe(
+        map((params) => params.get('child') ?? ''),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((childId) => {
+        if (childId === this.childId()) return;
+        this.childId.set(childId);
+        this.loadSelection(childId);
+      });
+  }
+
+  private loadSelection(id: string): void {
     this.error.set(null);
-    if (!id) return;
+    if (!id) {
+      this.cycle.set(null);
+      this.selected.set([]);
+      this.loading.set(false);
+      return;
+    }
     this.loading.set(true);
     this.api
       .character(id)
-      .pipe(takeUntilDestroyed(this.destroy))
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (c) => {
           this.cycle.set(c);
@@ -84,7 +105,7 @@ export class ParentCharacterComponent {
     this.busy.set(true);
     this.api
       .saveCharacter(id, this.selected())
-      .pipe(takeUntilDestroyed(this.destroy))
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (c) => {
           this.cycle.set(c);
