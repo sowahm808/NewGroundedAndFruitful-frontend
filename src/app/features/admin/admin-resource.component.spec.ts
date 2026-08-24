@@ -60,4 +60,30 @@ describe('AdminResourceComponent required input lifecycle', () => {
     expect(resource.loading()).toBeFalse();
     expect(fixture.nativeElement.textContent).toContain('No participants have been enrolled.');
   });
+
+  it('names the resource in unfiltered and filtered empty states', () => {
+    const assignments: AdminResourceDefinition = {
+      ...participants,
+      resource: 'assignments',
+      title: 'Assignments',
+      statuses: ['draft', 'published'],
+    };
+    fixture = TestBed.createComponent(TestHostComponent);
+    fixture.componentRef.setInput('definition', assignments);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('No assignments yet');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Assignments will appear here when available in your authorized scope.',
+    );
+    expect(fixture.nativeElement.textContent).not.toContain('No records found');
+
+    const resource = fixture.debugElement.children[0].componentInstance as AdminResourceComponent;
+    resource.draftStatus = 'draft';
+    resource.applyFilters();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('No assignments match the current filters');
+    expect(fixture.nativeElement.textContent).toContain('Try changing or clearing the search and status filters.');
+  });
 });
