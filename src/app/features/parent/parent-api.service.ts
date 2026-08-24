@@ -21,21 +21,27 @@ export interface ParentChild {
   readonly teamProgress?: { readonly completed: number; readonly target: number };
   readonly readingProgress?: string;
   readonly projectStatus?: string;
+  readonly handle?: string;
 }
 export interface ParentDashboard {
   readonly children: readonly ParentChild[];
   readonly calculatedAt?: string;
 }
-export interface CharacterCycle {
+export interface CharacterQuality {
+  readonly id: string;
+  readonly name: string;
+  readonly description?: string;
+}
+export interface CharacterSelection {
   readonly childId: string;
-  readonly quarter?: string;
-  readonly qualities: readonly {
-    readonly id: string;
-    readonly name: string;
-    readonly description?: string;
-    readonly selected: boolean;
-  }[];
-  readonly editable: boolean;
+  readonly quarterId: string;
+  readonly quarterName?: string;
+  readonly currentWeekNumber?: number;
+  readonly qualityIds: readonly string[];
+  readonly version: number;
+  readonly updatedAt: string | null;
+  readonly editable?: boolean;
+  readonly selectionLimit?: number;
 }
 export interface Observation {
   readonly id: string;
@@ -97,11 +103,25 @@ export class ParentApi {
   child(id: string): Observable<ParentChild> {
     return this.api.getData<unknown>(`/parent/children/${encodeURIComponent(id)}`).pipe(map(normalizeParentChild));
   }
-  character(childId = ''): Observable<CharacterCycle> {
-    return this.api.getData('/parent/character', { params: buildHttpParams({ childId }) });
+  characterQualities(): Observable<readonly CharacterQuality[]> {
+    return this.api.getData('/parent/character/qualities');
   }
-  saveCharacter(childId: string, qualityIds: readonly string[]): Observable<CharacterCycle> {
-    return this.api.patchData('/parent/character', { childId, qualityIds });
+  characterSelection(childId: string): Observable<CharacterSelection> {
+    return this.api.getData('/parent/character/selection', { params: buildHttpParams({ childId }) });
+  }
+  saveCharacterSelection(body: {
+    childId: string;
+    quarterId: string;
+    qualityIds: readonly string[];
+    expectedVersion: number;
+  }): Observable<CharacterSelection> {
+    return this.api.postData('/parent/character/selection', body);
+  }
+  setChildCredentials(
+    childId: string,
+    body: { handle?: string; pin: string },
+  ): Observable<{ success: true; handle: string }> {
+    return this.api.postData(`/parent/children/${encodeURIComponent(childId)}/credentials`, body);
   }
   observations(childId = '', cursor = ''): Observable<CursorPage<Observation>> {
     return this.api.getData('/parent/observations', { params: buildHttpParams({ childId, cursor }) });

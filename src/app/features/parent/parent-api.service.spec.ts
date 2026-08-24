@@ -97,4 +97,33 @@ describe('ParentApi', () => {
       .flush({ data: { items: [], hasMore: false } }, { headers: { 'Cache-Control': 'no-store' } });
     expect(itemCount).toBe(0);
   });
+
+  it('loads character qualities and the selected child quarter from the published endpoints', () => {
+    api.characterQualities().subscribe((qualities) => expect(qualities[0].name).toBe('Love'));
+    http.expectOne(`${baseUrl}/parent/character/qualities`).flush({
+      data: [{ id: 'love', name: 'Love', description: 'Choose the good of another.' }],
+    });
+
+    api.characterSelection('child/a').subscribe((selection) => expect(selection.version).toBe(2));
+    http.expectOne(`${baseUrl}/parent/character/selection?childId=child%2Fa`).flush({
+      data: { childId: 'child/a', quarterId: 'q1', qualityIds: ['love'], version: 2, updatedAt: null },
+    });
+  });
+
+  it('saves character selection with optimistic-locking data', () => {
+    const body = { childId: 'child-1', quarterId: 'q1', qualityIds: ['love', 'joy', 'peace'], expectedVersion: 4 };
+    api.saveCharacterSelection(body).subscribe();
+    const request = http.expectOne(`${baseUrl}/parent/character/selection`);
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual(body);
+    request.flush({ data: { ...body, version: 5, updatedAt: '2026-08-24T00:00:00Z' } });
+  });
+
+  it('posts numeric child credentials without placing the PIN in the URL', () => {
+    api.setChildCredentials('child/a', { handle: 'amalee', pin: '1234' }).subscribe();
+    const request = http.expectOne(`${baseUrl}/parent/children/child%2Fa/credentials`);
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ handle: 'amalee', pin: '1234' });
+    request.flush({ data: { success: true, handle: 'amalee' } });
+  });
 });

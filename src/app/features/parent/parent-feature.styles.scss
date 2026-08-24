@@ -76,3 +76,41 @@ button.secondary {
   color: var(--brand);
   border: 1px solid var(--brand);
 }
+.card-actions,
+.modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(0 0 0 / 55%);
+}
+.modal-card {
+  width: min(32rem, 100%);
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.modal-card form {
+  display: grid;
+  gap: 1rem;
+}
+.form-error {
+  margin: 0;
+  color: #9b1c1c;
+  font-weight: 700;
+}
+.quality-option {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
