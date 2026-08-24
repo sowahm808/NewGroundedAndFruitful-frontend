@@ -22,6 +22,7 @@ export interface ParticipantSummary {
   readonly version?: number;
   readonly enrollmentStatus: ParticipantStatus;
   readonly linkedGuardian?: string;
+  readonly guardianEmail?: string;
   readonly team?: string;
   readonly currentQuarterStatus?: string;
   readonly updatedAt: string;
@@ -85,9 +86,44 @@ function parseParticipantPage(value: unknown): ParticipantPage {
       typeof item['updatedAt'] !== 'string'
     )
       contractError();
-    return { ...item, name, enrollmentStatus } as unknown as ParticipantSummary;
+    const guardianEmail = optionalNonEmptyString(item['guardianEmail']);
+    const linkedGuardian = normalizeLinkedGuardian(item['linkedGuardian'], guardianEmail);
+    const team = normalizeNamedValue(item['team']);
+    return {
+      ...item,
+      name,
+      enrollmentStatus,
+      ...(guardianEmail ? { guardianEmail } : {}),
+      ...(linkedGuardian ? { linkedGuardian } : {}),
+      ...(team ? { team } : {}),
+    } as unknown as ParticipantSummary;
   });
   return { items, pagination: value['pagination'] };
+}
+
+function normalizeLinkedGuardian(value: unknown, guardianEmail: string | undefined): string | undefined {
+  const direct = optionalNonEmptyString(value);
+  if (direct) return direct;
+  if (isRecord(value)) {
+    const identity = optionalNonEmptyString(value['displayName']) ?? optionalNonEmptyString(value['email']);
+    if (identity) return identity;
+  }
+  return guardianEmail ? `Invited (${guardianEmail})` : undefined;
+}
+
+function normalizeNamedValue(value: unknown): string | undefined {
+  const direct = optionalNonEmptyString(value);
+  if (direct) return direct;
+  if (!isRecord(value)) return undefined;
+  return (
+    optionalNonEmptyString(value['approvedDisplayName']) ??
+    optionalNonEmptyString(value['displayName']) ??
+    optionalNonEmptyString(value['name'])
+  );
+}
+
+function optionalNonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
 function isPagination(value: unknown): value is ParticipantPage['pagination'] {

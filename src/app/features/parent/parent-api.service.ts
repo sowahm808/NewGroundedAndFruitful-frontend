@@ -104,7 +104,9 @@ export class ParentApi {
     return this.api.getData<unknown>(`/parent/children/${encodeURIComponent(id)}`).pipe(map(normalizeParentChild));
   }
   characterQualities(): Observable<readonly CharacterQuality[]> {
-    return this.api.getData('/parent/character/qualities');
+    return this.api
+      .getData<unknown>('/parent/character/qualities')
+      .pipe(map((value) => normalizeArray<CharacterQuality>(value)));
   }
   characterSelection(childId: string): Observable<CharacterSelection> {
     return this.api.getData('/parent/character/selection', { params: buildHttpParams({ childId }) });
@@ -124,7 +126,9 @@ export class ParentApi {
     return this.api.postData(`/parent/children/${encodeURIComponent(childId)}/credentials`, body);
   }
   observations(childId = '', cursor = ''): Observable<CursorPage<Observation>> {
-    return this.api.getData('/parent/observations', { params: buildHttpParams({ childId, cursor }) });
+    return this.api
+      .getData<unknown>('/parent/observations', { params: buildHttpParams({ childId, cursor }) })
+      .pipe(map((value) => normalizeOptionalPage<Observation>(value)));
   }
   submitObservation(body: { childId: string; summary: string }): Observable<Observation> {
     return this.api.postData('/parent/observations', body);
@@ -136,10 +140,12 @@ export class ParentApi {
     return this.api.postData(`/parent/family/activities/${encodeURIComponent(id)}/completions`, { childId });
   }
   supportConfiguration(): Observable<SupportConfiguration> {
-    return this.api.getData('/parent/academic-support/configuration');
+    return this.api.getData<unknown>('/parent/academic-support/configuration').pipe(map(normalizeSupportConfiguration));
   }
   supportRequests(cursor = ''): Observable<CursorPage<SupportRequest>> {
-    return this.api.getData('/parent/academic-support/requests', { params: buildHttpParams({ cursor }) });
+    return this.api
+      .getData<unknown>('/parent/academic-support/requests', { params: buildHttpParams({ cursor }) })
+      .pipe(map((value) => normalizeOptionalPage<SupportRequest>(value)));
   }
   createSupport(body: { childId: string; categoryId: string; summary: string }): Observable<SupportRequest> {
     return this.api.postData('/parent/academic-support/requests', body);
@@ -153,6 +159,31 @@ export class ParentApi {
   notifications(search = '', status = '', cursor = ''): Observable<CursorPage<ParentNotification>> {
     return this.api.getData('/parent/notifications', { params: buildHttpParams({ search, status, cursor }) });
   }
+}
+
+/** Tolerates the collection shapes used by deployed and legacy parent endpoints. */
+function normalizeOptionalPage<T>(value: unknown): CursorPage<T> {
+  const items = normalizeArray<T>(value);
+  const record = isRecord(value) ? value : undefined;
+  const nextCursor =
+    typeof record?.['nextCursor'] === 'string' && record['nextCursor'] ? record['nextCursor'] : undefined;
+  const hasMore = typeof record?.['hasMore'] === 'boolean' ? record['hasMore'] : Boolean(nextCursor);
+  return { items, hasMore, ...(nextCursor ? { nextCursor } : {}) };
+}
+
+function normalizeArray<T>(value: unknown): readonly T[] {
+  if (Array.isArray(value)) return value as readonly T[];
+  if (!isRecord(value)) return [];
+  if (Array.isArray(value['items'])) return value['items'] as readonly T[];
+  return normalizeArray<T>(value['data']);
+}
+
+function normalizeSupportConfiguration(value: unknown): SupportConfiguration {
+  if (Array.isArray(value)) return { categories: value as SupportConfiguration['categories'] };
+  if (!isRecord(value)) return { categories: [] };
+  return {
+    categories: normalizeArray<SupportConfiguration['categories'][number]>(value['categories'] ?? value['data']),
+  };
 }
 
 /** Validates the published `{ data: { items, hasMore, nextCursor? } }` contract once. */
@@ -174,6 +205,11 @@ function normalizeParentChild(value: unknown): ParentChild {
   const approvedDisplayName =
     firstNonEmptyString(value['approvedDisplayName'], value['displayName'], value['name']) ??
     `Participant (${id.slice(0, 6)})`;
+  const team = normalizeTeam(value['team'], value);
+  const quarter = normalizeNamedReference(value['quarter']);
+  const weeklyParticipation = normalizeProgress(value['weeklyParticipation'], 'available');
+  const teamProgress = normalizeProgress(value['teamProgress'], 'target');
+  const readingProgress = normalizeReadingProgress(value['readingProgress']);
 
   return {
     ...(value as Partial<ParentChild>),
@@ -181,22 +217,43 @@ function normalizeParentChild(value: unknown): ParentChild {
     status: value['status'],
     approvedDisplayName,
     displayName: approvedDisplayName,
-    ...(normalizeTeam(value['team']) ? { team: normalizeTeam(value['team']) } : {}),
-    ...(normalizeProgress(value['weeklyParticipation'], 'available')
-      ? { weeklyParticipation: normalizeProgress(value['weeklyParticipation'], 'available') }
-      : {}),
-    ...(normalizeProgress(value['teamProgress'], 'target')
-      ? { teamProgress: normalizeProgress(value['teamProgress'], 'target') }
-      : {}),
+    ...(team ? { team } : {}),
+    ...(quarter ? { quarter } : {}),
+    ...(weeklyParticipation ? { weeklyParticipation } : {}),
+    ...(teamProgress ? { teamProgress } : {}),
+    ...(readingProgress ? { readingProgress } : {}),
   } as ParentChild;
 }
 
-function normalizeTeam(value: unknown): ParentChild['team'] | undefined {
-  if (!isRecord(value) || !isNonEmptyString(value['id'])) return undefined;
+function normalizeTeam(value: unknown, child: Record<string, unknown>): ParentChild['team'] | undefined {
+  if (!isRecord(value)) {
+    const id = firstNonEmptyString(child['teamId'], child['activeTeamId']);
+    if (!id) return undefined;
+    return { id, name: firstNonEmptyString(child['teamName']) ?? 'Growth Team' };
+  }
+  const id = firstNonEmptyString(value['id'], value['teamId']);
+  if (!id) return undefined;
   return {
-    id: value['id'],
+    id,
     name: firstNonEmptyString(value['approvedDisplayName'], value['displayName'], value['name']) ?? 'Growth Team',
   };
+}
+
+function normalizeNamedReference(value: unknown): ParentChild['quarter'] | undefined {
+  if (!isRecord(value)) return undefined;
+  const id = firstNonEmptyString(value['id']);
+  const name = firstNonEmptyString(value['approvedDisplayName'], value['displayName'], value['name']);
+  return id && name ? { id, name } : undefined;
+}
+
+function normalizeReadingProgress(value: unknown): string | undefined {
+  if (isNonEmptyString(value)) return value.trim();
+  if (!isRecord(value)) return undefined;
+  const label = firstNonEmptyString(value['label'], value['summary'], value['status']);
+  if (label) return label;
+  const completed = value['completed'];
+  const target = value['target'] ?? value['available'];
+  return isNonNegativeNumber(completed) && isNonNegativeNumber(target) ? `${completed} of ${target}` : undefined;
 }
 
 function normalizeProgress(
