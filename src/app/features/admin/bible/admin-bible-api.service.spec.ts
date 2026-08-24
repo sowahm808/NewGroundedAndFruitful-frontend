@@ -28,6 +28,34 @@ describe('AdminBibleApiService', () => {
     expect(result).toEqual(payload);
   });
 
+  it('normalizes a flat Bible list using metadata pagination', () => {
+    let result: ReturnType<AdminBibleApiService['list']> extends import('rxjs').Observable<infer T> ? T : never;
+    service.list({ page: 2, pageSize: 2, sort: '-updatedAt' }).subscribe((value) => (result = value));
+    const request = http.expectOne((candidate) => candidate.url.endsWith('/admin/bible-content'));
+    request.flush({ data: [{ id: 'content-1' }], meta: { total: 5, page: 2, pageSize: 2 } });
+
+    expect(result!.items).toEqual([{ id: 'content-1' } as never]);
+    expect(result!.pagination).toEqual({ page: 2, pageSize: 2, total: 5, totalPages: 3 });
+  });
+
+  it('falls back to the item count when collection pagination is absent', () => {
+    let total: number | undefined;
+    service.listImports().subscribe((value) => (total = value.pagination.total));
+    const request = http.expectOne((candidate) => candidate.url.endsWith('/admin/bible-content/imports'));
+    request.flush({ data: [] });
+
+    expect(total).toBe(0);
+  });
+
+  it('publishes a content set with its expected version', () => {
+    service.publishContent('content/1', 7).subscribe();
+    const request = http.expectOne((candidate) => candidate.url.endsWith('/admin/bible-content/content%2F1/publish'));
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ expectedVersion: 7 });
+    expect(request.request.headers.get('If-Match')).toBe('"7"');
+    request.flush({ data: {} });
+  });
+
   it('sends exactly the canonical multipart contract with native files and no manual content type', () => {
     const question = new File(['questions'], 'questions.docx', {
       type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

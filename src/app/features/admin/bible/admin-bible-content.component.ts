@@ -22,6 +22,16 @@ import { AdminBibleApiService, BibleContentSet } from './admin-bible-api.service
       >
     }
     @if (content(); as item) {
+      @if (publishError(); as failure) {
+        <gf-alert title="Content set could not be published"
+          ><p>{{ failure.message }}</p></gf-alert
+        >
+      }
+      @if (publishSuccess()) {
+        <gf-alert title="Content set published"
+          ><p>This content set is now available as published content.</p></gf-alert
+        >
+      }
       <article>
         <h2>{{ item.title }}</h2>
         <dl>
@@ -52,6 +62,11 @@ import { AdminBibleApiService, BibleContentSet } from './admin-bible-api.service
             <dd>{{ item.updatedAt | date: 'medium' }}</dd>
           </div>
         </dl>
+        @if (item.status === 'draft') {
+          <button type="button" class="publish" [disabled]="publishing()" (click)="publish()">
+            {{ publishing() ? 'Publishing…' : 'Publish Content Set' }}
+          </button>
+        }
       </article>
     }
   `,
@@ -76,6 +91,12 @@ import { AdminBibleApiService, BibleContentSet } from './admin-bible-api.service
       dt {
         font-weight: 800;
       }
+      .publish {
+        margin-top: 1.25rem;
+        background: var(--brand);
+        color: #fff;
+        font-weight: 700;
+      }
     `,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -86,6 +107,9 @@ export class AdminBibleContentComponent {
   readonly content = signal<BibleContentSet | null>(null);
   readonly error = signal<ApiError | null>(null);
   readonly loading = signal(true);
+  readonly publishing = signal(false);
+  readonly publishError = signal<ApiError | null>(null);
+  readonly publishSuccess = signal(false);
   constructor() {
     this.load();
   }
@@ -100,6 +124,24 @@ export class AdminBibleContentComponent {
       error: (error: ApiError) => {
         this.error.set(error);
         this.loading.set(false);
+      },
+    });
+  }
+  publish() {
+    const item = this.content();
+    if (!item || item.status !== 'draft' || this.publishing()) return;
+    this.publishing.set(true);
+    this.publishError.set(null);
+    this.publishSuccess.set(false);
+    this.api.publishContent(this.id, item.version).subscribe({
+      next: () => {
+        this.publishing.set(false);
+        this.publishSuccess.set(true);
+        this.load();
+      },
+      error: (error: ApiError) => {
+        this.publishError.set(error);
+        this.publishing.set(false);
       },
     });
   }
