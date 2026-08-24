@@ -19,7 +19,7 @@ export interface ParticipantListQuery {
 export interface ParticipantSummary {
   readonly id: string;
   readonly name: string;
-  readonly version: number;
+  readonly version?: number;
   readonly enrollmentStatus: ParticipantStatus;
   readonly linkedGuardian?: string;
   readonly team?: string;
@@ -61,7 +61,7 @@ function parseParticipantPage(value: unknown): ParticipantPage {
       typeof item['id'] !== 'string' ||
       typeof name !== 'string' ||
       !isStatus(enrollmentStatus) ||
-      !Number.isInteger(item['version']) ||
+      (item['version'] !== undefined && !Number.isInteger(item['version'])) ||
       typeof item['updatedAt'] !== 'string'
     )
       contractError();
