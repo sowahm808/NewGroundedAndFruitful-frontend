@@ -38,6 +38,18 @@ export interface ParticipantPage {
   };
 }
 
+export interface EnrollParticipantRequest {
+  readonly displayName: string;
+  readonly birthDate: string;
+  readonly programId: string;
+  readonly teamId?: string;
+  readonly guardianEmail?: string;
+}
+
+export interface GuardianInvitationRequest {
+  readonly email: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AdminParticipantsApiService {
   private readonly api = inject(ApiClient);
@@ -48,6 +60,14 @@ export class AdminParticipantsApiService {
       if (value !== undefined && value !== '') params = params.set(key, String(value));
     }
     return this.api.getData<unknown>('/admin/participants', { params }).pipe(map(parseParticipantPage));
+  }
+
+  enroll(request: EnrollParticipantRequest): Observable<unknown> {
+    return this.api.postData('/admin/participants', request);
+  }
+
+  inviteGuardian(participantId: string, request: GuardianInvitationRequest): Observable<unknown> {
+    return this.api.postData(`/admin/participants/${encodeURIComponent(participantId)}/invite-guardian`, request);
   }
 }
 

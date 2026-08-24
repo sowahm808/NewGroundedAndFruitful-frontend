@@ -71,4 +71,31 @@ describe('AdminParticipantsApiService', () => {
       });
     expect(participantVersion).toBeUndefined();
   });
+
+  it('posts a guardian invitation to the participant-scoped endpoint', () => {
+    service.inviteGuardian('participant/1', { email: 'guardian@example.com' }).subscribe();
+
+    const request = http.expectOne((candidate) =>
+      candidate.url.endsWith('/admin/participants/participant%2F1/invite-guardian'),
+    );
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ email: 'guardian@example.com' });
+    request.flush({ data: { status: 'pending_acceptance' } });
+  });
+
+  it('includes optional guardian and team fields when enrolling a participant', () => {
+    const payload = {
+      displayName: 'Ama',
+      birthDate: '2015-01-01',
+      programId: 'default-program',
+      teamId: 'team-1',
+      guardianEmail: 'guardian@example.com',
+    };
+    service.enroll(payload).subscribe();
+
+    const request = http.expectOne((candidate) => candidate.url.endsWith('/admin/participants'));
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual(payload);
+    request.flush({ data: { id: 'participant-1' } });
+  });
 });

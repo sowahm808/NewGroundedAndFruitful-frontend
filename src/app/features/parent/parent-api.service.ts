@@ -12,6 +12,7 @@ export interface CursorPage<T> {
 }
 export interface ParentChild {
   readonly id: string;
+  readonly approvedDisplayName: string;
   readonly displayName: string;
   readonly status: string;
   readonly team?: { readonly id: string; readonly name: string };
@@ -94,7 +95,7 @@ export class ParentApi {
       .pipe(map(normalizeChildrenPage));
   }
   child(id: string): Observable<ParentChild> {
-    return this.api.getData(`/parent/children/${encodeURIComponent(id)}`);
+    return this.api.getData<unknown>(`/parent/children/${encodeURIComponent(id)}`).pipe(map(normalizeParentChild));
   }
   character(childId = ''): Observable<CharacterCycle> {
     return this.api.getData('/parent/character', { params: buildHttpParams({ childId }) });
@@ -138,23 +139,70 @@ export class ParentApi {
 function normalizeChildrenPage(value: CursorPage<unknown>): CursorPage<ParentChild> {
   if (!Array.isArray(value.items) || typeof value.hasMore !== 'boolean')
     throw new ApiError(-1, 'unexpected_error', 'The linked-child response did not match the published contract.');
-  const items = value.items;
-  if (!items.every(isParentChild))
-    throw new ApiError(-1, 'unexpected_error', 'The linked-child response contained an invalid relationship.');
+  const items = value.items.map(normalizeParentChild);
   const nextCursor = value.nextCursor;
   if (nextCursor !== undefined && typeof nextCursor !== 'string')
     throw new ApiError(-1, 'unexpected_error', 'The linked-child cursor was invalid.');
   return { items, hasMore: value['hasMore'], ...(nextCursor ? { nextCursor } : {}) };
 }
 
-function isParentChild(value: unknown): value is ParentChild {
-  return (
-    isRecord(value) &&
-    typeof value['id'] === 'string' &&
-    value['id'].length > 0 &&
-    typeof value['displayName'] === 'string' &&
-    typeof value['status'] === 'string'
-  );
+function normalizeParentChild(value: unknown): ParentChild {
+  if (!isRecord(value) || !isNonEmptyString(value['id']) || !isNonEmptyString(value['status']))
+    throw new ApiError(-1, 'unexpected_error', 'The linked-child response contained an invalid relationship.');
+
+  const id = value['id'];
+  const approvedDisplayName =
+    firstNonEmptyString(value['approvedDisplayName'], value['displayName'], value['name']) ??
+    `Participant (${id.slice(0, 6)})`;
+
+  return {
+    ...(value as Partial<ParentChild>),
+    id,
+    status: value['status'],
+    approvedDisplayName,
+    displayName: approvedDisplayName,
+    ...(normalizeTeam(value['team']) ? { team: normalizeTeam(value['team']) } : {}),
+    ...(normalizeProgress(value['weeklyParticipation'], 'available')
+      ? { weeklyParticipation: normalizeProgress(value['weeklyParticipation'], 'available') }
+      : {}),
+    ...(normalizeProgress(value['teamProgress'], 'target')
+      ? { teamProgress: normalizeProgress(value['teamProgress'], 'target') }
+      : {}),
+  } as ParentChild;
+}
+
+function normalizeTeam(value: unknown): ParentChild['team'] | undefined {
+  if (!isRecord(value) || !isNonEmptyString(value['id'])) return undefined;
+  return {
+    id: value['id'],
+    name: firstNonEmptyString(value['approvedDisplayName'], value['displayName'], value['name']) ?? 'Growth Team',
+  };
+}
+
+function normalizeProgress(
+  value: unknown,
+  totalKey: 'available' | 'target',
+):
+  | { readonly completed: number; readonly available: number }
+  | { readonly completed: number; readonly target: number }
+  | undefined {
+  if (!isRecord(value) || !isNonNegativeNumber(value['completed']) || !isNonNegativeNumber(value[totalKey]))
+    return undefined;
+  return { completed: value['completed'], [totalKey]: value[totalKey] } as
+    | { readonly completed: number; readonly available: number }
+    | { readonly completed: number; readonly target: number };
+}
+
+function firstNonEmptyString(...values: readonly unknown[]): string | undefined {
+  return values.find(isNonEmptyString)?.trim();
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isNonNegativeNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -38,8 +38,8 @@ import {
 
     <!-- Enroll New Participant Modal -->
     @if (showCreateModal()) {
-      <div class="modal-overlay" (click)="closeCreateModal()">
-        <gf-card class="modal-card" (click)="$event.stopPropagation()">
+      <div class="modal-overlay">
+        <gf-card class="modal-card">
           <h3>Enroll New Participant</h3>
           @if (modalError(); as failure) {
             <gf-alert title="Enrollment failed">
@@ -61,7 +61,9 @@ import {
                 <option value="">No team assigned</option>
                 @for (team of availableTeams(); track team.id) {
                   <option [value]="team.id">
-                    {{ team.displayName || team.approvedDisplayName || team.name }} ({{ team.memberCount || 0 }}/{{ team.capacity || 5 }})
+                    {{ team.displayName || team.approvedDisplayName || team.name }} ({{ team.memberCount || 0 }}/{{
+                      team.capacity || 5
+                    }})
                   </option>
                 }
               </select>
@@ -93,8 +95,8 @@ import {
 
     <!-- Invite Guardian Modal -->
     @if (participantToInviteGuardian(); as participant) {
-      <div class="modal-overlay" (click)="closeInviteGuardian()">
-        <gf-card class="modal-card" (click)="$event.stopPropagation()">
+      <div class="modal-overlay">
+        <gf-card class="modal-card">
           <h3>Invite Guardian for {{ participant.name }}</h3>
           @if (modalError(); as failure) {
             <gf-alert title="Invitation failed">
@@ -114,11 +116,7 @@ import {
             </label>
             <div class="modal-actions">
               <button type="button" (click)="closeInviteGuardian()" [disabled]="isSubmitting()">Cancel</button>
-              <button
-                type="submit"
-                class="btn-primary"
-                [disabled]="isSubmitting() || !guardianInviteEmail.trim()"
-              >
+              <button type="submit" class="btn-primary" [disabled]="isSubmitting() || !guardianInviteEmail.trim()">
                 {{ isSubmitting() ? 'Sending...' : 'Send Invitation' }}
               </button>
             </div>
@@ -129,8 +127,8 @@ import {
 
     <!-- Assign Team Modal -->
     @if (participantToAssign(); as participant) {
-      <div class="modal-overlay" (click)="closeAssignment()">
-        <gf-card class="modal-card" (click)="$event.stopPropagation()">
+      <div class="modal-overlay">
+        <gf-card class="modal-card">
           <h3>Assign {{ participant.name }} to a team</h3>
           @if (modalError(); as failure) {
             <gf-alert title="Team assignment failed">
@@ -149,7 +147,9 @@ import {
                   <option value="">Select a team</option>
                   @for (team of availableTeams(); track team.id) {
                     <option [value]="team.id">
-                      {{ team.displayName || team.approvedDisplayName || team.name }} ({{ team.memberCount || 0 }}/{{ team.capacity || 5 }})
+                      {{ team.displayName || team.approvedDisplayName || team.name }} ({{ team.memberCount || 0 }}/{{
+                        team.capacity || 5
+                      }})
                     </option>
                   }
                 </select>
@@ -168,8 +168,8 @@ import {
 
     <!-- Edit Participant Modal -->
     @if (participantToEdit(); as participant) {
-      <div class="modal-overlay" (click)="closeEdit()">
-        <gf-card class="modal-card" (click)="$event.stopPropagation()">
+      <div class="modal-overlay">
+        <gf-card class="modal-card">
           <h3>Edit participant</h3>
           @if (modalError(); as failure) {
             <gf-alert title="Participant could not be updated">
@@ -233,7 +233,9 @@ import {
           }
         }
         @if (failure.requestId) {
-          <p>Support details: Request ID <code>{{ failure.requestId }}</code></p>
+          <p>
+            Support details: Request ID <code>{{ failure.requestId }}</code>
+          </p>
         }
         <button type="button" (click)="load(query().page)">Try again</button>
       </gf-alert>
@@ -256,8 +258,12 @@ import {
           <tbody>
             @for (participant of page()!.items; track participant.id) {
               <tr>
-                <td><strong>{{ participant.name }}</strong></td>
-                <td><gf-badge>{{ participant.enrollmentStatus }}</gf-badge></td>
+                <td>
+                  <strong>{{ participant.name }}</strong>
+                </td>
+                <td>
+                  <gf-badge>{{ participant.enrollmentStatus }}</gf-badge>
+                </td>
                 <td>{{ participant.linkedGuardian || '—' }}</td>
                 <td>{{ participant.team || '—' }}</td>
                 <td>{{ participant.currentQuarterStatus || '—' }}</td>
@@ -489,8 +495,8 @@ export class AdminParticipantsComponent implements OnInit {
       programId: 'default-program',
     };
 
-    this.http
-      .postData('/admin/participants', payload)
+    this.api
+      .enroll(payload)
       .pipe(finalize(() => this.isSubmitting.set(false)))
       .subscribe({
         next: () => {
@@ -521,8 +527,8 @@ export class AdminParticipantsComponent implements OnInit {
     this.isSubmitting.set(true);
     this.modalError.set(null);
 
-    this.http
-      .postData(`/admin/participants/${encodeURIComponent(participant.id)}/invite-guardian`, { email })
+    this.api
+      .inviteGuardian(participant.id, { email })
       .pipe(finalize(() => this.isSubmitting.set(false)))
       .subscribe({
         next: () => {
