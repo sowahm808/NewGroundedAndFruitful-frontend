@@ -111,12 +111,20 @@ import {
                 name="inviteEmail"
                 [(ngModel)]="guardianInviteEmail"
                 required
+                email
                 placeholder="guardian@example.com"
               />
+              @if (guardianInviteEmail.trim() && !isValidEmail(guardianInviteEmail)) {
+                <span class="field-error" role="alert">Enter a valid email address.</span>
+              }
             </label>
             <div class="modal-actions">
               <button type="button" (click)="closeInviteGuardian()" [disabled]="isSubmitting()">Cancel</button>
-              <button type="submit" class="btn-primary" [disabled]="isSubmitting() || !guardianInviteEmail.trim()">
+              <button
+                type="submit"
+                class="btn-primary"
+                [disabled]="isSubmitting() || !isValidEmail(guardianInviteEmail)"
+              >
                 {{ isSubmitting() ? 'Sending...' : 'Send Invitation' }}
               </button>
             </div>
@@ -521,8 +529,8 @@ export class AdminParticipantsComponent implements OnInit {
 
   sendGuardianInvite(): void {
     const participant = this.participantToInviteGuardian();
-    const email = this.guardianInviteEmail.trim();
-    if (!participant || !email) return;
+    const email = this.guardianInviteEmail.trim().toLowerCase();
+    if (!participant || !this.isValidEmail(email)) return;
 
     this.isSubmitting.set(true);
     this.modalError.set(null);
@@ -532,6 +540,16 @@ export class AdminParticipantsComponent implements OnInit {
       .pipe(finalize(() => this.isSubmitting.set(false)))
       .subscribe({
         next: () => {
+          this.page.update((page) =>
+            page
+              ? {
+                  ...page,
+                  items: page.items.map((item) =>
+                    item.id === participant.id ? { ...item, linkedGuardian: `Invited (${email})` } : item,
+                  ),
+                }
+              : page,
+          );
           this.participantToInviteGuardian.set(null);
           this.load(this.query().page);
         },
@@ -644,6 +662,10 @@ export class AdminParticipantsComponent implements OnInit {
 
   fieldNames(fields: Readonly<Record<string, readonly string[]>>): readonly string[] {
     return Object.keys(fields);
+  }
+
+  isValidEmail(value: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
   }
 
   private asApiError(error: unknown, fallback: string): ApiError {

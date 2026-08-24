@@ -84,6 +84,32 @@ describe('ParentApi', () => {
     expect(displayName).toBe('Participant (abcdef)');
   });
 
+  it('reconciles legacy team identifiers and structured reading progress', () => {
+    let child: unknown;
+    api.children().subscribe((page) => (child = page.items[0]));
+    http.expectOne(`${baseUrl}/parent/children`).flush({
+      data: {
+        items: [
+          {
+            id: 'participant-123',
+            name: 'Ama',
+            status: 'active',
+            activeTeamId: 'team-legacy',
+            readingProgress: { completed: 2, target: 4 },
+          },
+        ],
+        hasMore: false,
+      },
+    });
+
+    expect(child).toEqual(
+      jasmine.objectContaining({
+        team: { id: 'team-legacy', name: 'Growth Team' },
+        readingProgress: '2 of 4',
+      }),
+    );
+  });
+
   it('omits empty child and cursor values from the observations request URL', () => {
     api.observations().subscribe();
     http.expectOne(`${baseUrl}/parent/observations`).flush({ data: { items: [], hasMore: false } });
