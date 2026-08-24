@@ -1,9 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
   GfAlert,
@@ -18,20 +13,9 @@ import { ParentContextStore } from '../parent-context.store';
 @Component({
   selector: 'gf-parent-children',
   standalone: true,
-  imports: [
-    RouterLink,
-    GfAlert,
-    GfBadge,
-    GfCard,
-    GfEmptyState,
-    GfPageHeader,
-    GfProgress,
-  ],
+  imports: [RouterLink, GfAlert, GfBadge, GfCard, GfEmptyState, GfPageHeader, GfProgress],
   template: `
-    <gf-page-header
-      title="Your children"
-      eyebrow="Parent dashboard"
-    >
+    <gf-page-header title="Your children" eyebrow="Parent dashboard">
       <p>Participation and progress shared with your authorized parent account.</p>
     </gf-page-header>
 
@@ -57,25 +41,13 @@ import { ParentContextStore } from '../parent-context.store';
         @case ('dependency_error') {
           <gf-alert title="Unable to load linked children">
             <p>The relationship service could not complete this request.</p>
-            <button
-              type="button"
-              class="gf-button gf-button--secondary"
-              (click)="context.retry()"
-            >
-              Try again
-            </button>
+            <button type="button" class="gf-button gf-button--secondary" (click)="context.retry()">Try again</button>
           </gf-alert>
         }
         @case ('contract_error') {
           <gf-alert title="Data format error">
             <p>The server response could not be reconciled with the application contract.</p>
-            <button
-              type="button"
-              class="gf-button gf-button--secondary"
-              (click)="context.retry()"
-            >
-              Try again
-            </button>
+            <button type="button" class="gf-button gf-button--secondary" (click)="context.retry()">Try again</button>
           </gf-alert>
         }
         @case ('empty') {
@@ -100,7 +72,7 @@ import { ParentContextStore } from '../parent-context.store';
                     </gf-badge>
                   </div>
 
-                  <h2>{{ child.displayName }}</h2>
+                  <h2>{{ child.approvedDisplayName }}</h2>
 
                   <ul class="meta" aria-label="Child progress summary">
                     <li>
@@ -132,9 +104,9 @@ import { ParentContextStore } from '../parent-context.store';
                     <a
                       [routerLink]="['/parent/children', child.id]"
                       class="gf-link"
-                      [attr.aria-label]="'Open ' + child.displayName + '’s details'"
+                      [attr.aria-label]="'Open ' + child.approvedDisplayName + '’s details'"
                     >
-                      Open {{ child.displayName }}’s details &rarr;
+                      Open {{ child.approvedDisplayName }}’s details &rarr;
                     </a>
                   </div>
                 </gf-card>
@@ -154,8 +126,6 @@ export class ParentChildrenComponent {
   readonly children = computed(() => this.context.children());
 
   percentage(value: number, total: number): number {
-    return total > 0
-      ? Math.min(100, Math.max(0, Math.round((value / total) * 100)))
-      : 0;
+    return total > 0 ? Math.min(100, Math.max(0, Math.round((value / total) * 100))) : 0;
   }
 }
