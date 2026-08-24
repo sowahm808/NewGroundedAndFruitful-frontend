@@ -303,9 +303,6 @@ export const routes: Routes = [
           ),
       },
       ...[
-        ['character', 'character', 'admin.character.manage'],
-        ['special-activities', 'special', 'admin.special_activities.manage'],
-        ['observations', 'observations', 'admin.observations.moderate'],
         ['incidents', 'incidents', 'admin.incidents.manage'],
       ].map(([path, resource, capability]) => ({
         path,
