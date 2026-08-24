@@ -81,15 +81,15 @@ import { parentViewError, ViewError } from '../parent-view.utilities';
                   <ul class="meta" aria-label="Child progress summary">
                     <li>
                       <strong>Team:</strong>
-                      {{ child.team?.name || 'Not assigned' }}
+                      {{ child.team?.displayName || 'Not assigned' }}
                     </li>
                     <li>
                       <strong>Quarter:</strong>
-                      {{ child.quarter?.name || 'Not available' }}
+                      {{ child.quarter?.displayName || 'Not available' }}
                     </li>
                     <li>
                       <strong>Reading:</strong>
-                      {{ child.readingProgress || 'Not available' }}
+                      {{ child.readingProgress.completed }} of {{ child.readingProgress.assigned }} assigned
                     </li>
                     <li>
                       <strong>Project:</strong>

@@ -42,7 +42,7 @@ import { ParentContextStore } from '../parent-context.store';
         <select id="scope-child" [formControl]="selection">
           <option value="">Choose a linked child</option>
           @for (child of filteredChildren(); track child.id) {
-            <option [value]="child.id">{{ child.displayName }}</option>
+            <option [value]="child.id">{{ child.approvedDisplayName }}</option>
           }
         </select>
       </label>
@@ -63,7 +63,7 @@ export class ParentChildScopeComponent {
   readonly filteredChildren = computed(() => {
     const query = this.searchValue().trim().toLocaleLowerCase();
     return query
-      ? this.context.children().filter((child) => child.displayName.toLocaleLowerCase().includes(query))
+      ? this.context.children().filter((child) => child.approvedDisplayName.toLocaleLowerCase().includes(query))
       : this.context.children();
   });
   readonly requestId = computed(() => {
