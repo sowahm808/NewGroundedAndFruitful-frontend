@@ -62,7 +62,7 @@ export interface AdminResourceDefinition {
         <button type="button" (click)="load()">Try again</button>
       </gf-alert>
     } @else if (!page()?.items?.length) {
-      <gf-empty-state [title]="emptyTitle()" message="Try another allowlisted status filter." />
+      <gf-empty-state [title]="emptyTitle()" [message]="emptyMessage()" />
     } @else {
       <p class="result-count" aria-live="polite">Showing {{ rangeStart() }}–{{ rangeEnd() }} of {{ page()!.total }}</p>
       <div class="records">
@@ -341,9 +341,20 @@ export class AdminResourceComponent implements OnInit {
   readonly rangeEnd = computed(() =>
     Math.min(this.page()?.total ?? 0, (this.page()?.page ?? 1) * (this.page()?.pageSize ?? 25)),
   );
-  readonly emptyTitle = computed(() =>
-    this.definition().resource === 'participants' ? 'No participants have been enrolled.' : 'No records found',
-  );
+  emptyTitle(): string {
+    if (this.search || this.status) return `No ${this.resourceName()} match the current filters`;
+    if (this.definition().resource === 'participants') return 'No participants have been enrolled.';
+    return `No ${this.resourceName()} yet`;
+  }
+
+  emptyMessage(): string {
+    if (this.search || this.status) return 'Try changing or clearing the search and status filters.';
+    return `${this.definition().title} will appear here when available in your authorized scope.`;
+  }
+
+  private resourceName(): string {
+    return this.definition().title.toLocaleLowerCase();
+  }
 
   ngOnInit(): void {
     // Required signal inputs are guaranteed to be bound before Angular invokes

@@ -122,7 +122,8 @@ type ViewState = 'loading' | 'ready' | 'contract_error' | 'forbidden' | 'not_fou
         @for (activity of visibleActivities(); track activity.id) {
           <details>
             <summary>
-              <strong>{{ activity.title }}</strong> · {{ activity.date }} · {{ activity.questions.length }} questions
+              <strong>{{ activity.title }}</strong> · {{ activity.date || 'Date not detected' }} ·
+              {{ activity.questions.length }} questions
             </summary>
             @for (question of activity.questions; track question.number) {
               <article class="question">
