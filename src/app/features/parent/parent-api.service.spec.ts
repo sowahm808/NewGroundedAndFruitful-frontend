@@ -115,6 +115,31 @@ describe('ParentApi', () => {
     http.expectOne(`${baseUrl}/parent/observations`).flush({ data: { items: [], hasMore: false } });
   });
 
+  it('normalizes observations returned as an array or a nested data collection', () => {
+    const observation = {
+      id: 'observation-1',
+      childId: 'child-1',
+      summary: 'Showed patience',
+      status: 'submitted',
+      submittedAt: '2026-08-24T00:00:00Z',
+    };
+    const results: number[] = [];
+
+    api.observations('child-1').subscribe((page) => results.push(page.items.length));
+    http.expectOne(`${baseUrl}/parent/observations?childId=child-1`).flush({ data: [observation] });
+    api.observations('child-1').subscribe((page) => results.push(page.items.length));
+    http.expectOne(`${baseUrl}/parent/observations?childId=child-1`).flush({ data: { data: [observation] } });
+
+    expect(results).toEqual([1, 1]);
+  });
+
+  it('falls back to an empty observations collection when the response has no list', () => {
+    let itemCount = -1;
+    api.observations('child-1').subscribe((page) => (itemCount = page.items.length));
+    http.expectOne(`${baseUrl}/parent/observations?childId=child-1`).flush({ data: {} });
+    expect(itemCount).toBe(0);
+  });
+
   it('omits an empty cursor from the academic-support request URL and accepts an empty 200 list', () => {
     let itemCount = -1;
     api.supportRequests().subscribe((page) => (itemCount = page.items.length));
@@ -122,6 +147,17 @@ describe('ParentApi', () => {
       .expectOne(`${baseUrl}/parent/academic-support/requests`)
       .flush({ data: { items: [], hasMore: false } }, { headers: { 'Cache-Control': 'no-store' } });
     expect(itemCount).toBe(0);
+  });
+
+  it('uses safe array fallbacks for academic-support configuration and requests', () => {
+    let categories = -1;
+    let requests = -1;
+    api.supportConfiguration().subscribe((config) => (categories = config.categories.length));
+    http.expectOne(`${baseUrl}/parent/academic-support/configuration`).flush({ data: null });
+    api.supportRequests().subscribe((page) => (requests = page.items.length));
+    http.expectOne(`${baseUrl}/parent/academic-support/requests`).flush({ data: {} });
+    expect(categories).toBe(0);
+    expect(requests).toBe(0);
   });
 
   it('loads character qualities and the selected child quarter from the published endpoints', () => {

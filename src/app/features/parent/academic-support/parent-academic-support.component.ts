@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { forkJoin } from 'rxjs';
+import { finalize, forkJoin } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   GfAlert,
@@ -85,16 +85,19 @@ export class ParentAcademicSupportComponent {
   readonly error = signal<ViewError | null>(null);
   constructor() {
     forkJoin({ config: this.api.supportConfiguration(), requests: this.api.supportRequests() })
-      .pipe(takeUntilDestroyed(this.destroy))
+      .pipe(
+        finalize(() => this.loading.set(false)),
+        takeUntilDestroyed(this.destroy),
+      )
       .subscribe({
         next: (v) => {
-          this.categories.set(v.config.categories);
-          this.items.set(v.requests.items);
-          this.loading.set(false);
+          this.categories.set(Array.isArray(v.config.categories) ? v.config.categories : []);
+          this.items.set(Array.isArray(v.requests.items) ? v.requests.items : []);
         },
         error: (e) => {
+          this.categories.set([]);
+          this.items.set([]);
           this.error.set(parentViewError(e, true));
-          this.loading.set(false);
         },
       });
   }

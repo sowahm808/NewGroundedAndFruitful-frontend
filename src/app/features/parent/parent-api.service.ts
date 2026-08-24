@@ -104,7 +104,9 @@ export class ParentApi {
     return this.api.getData<unknown>(`/parent/children/${encodeURIComponent(id)}`).pipe(map(normalizeParentChild));
   }
   characterQualities(): Observable<readonly CharacterQuality[]> {
-    return this.api.getData('/parent/character/qualities');
+    return this.api
+      .getData<unknown>('/parent/character/qualities')
+      .pipe(map((value) => normalizeArray<CharacterQuality>(value)));
   }
   characterSelection(childId: string): Observable<CharacterSelection> {
     return this.api.getData('/parent/character/selection', { params: buildHttpParams({ childId }) });
@@ -124,7 +126,9 @@ export class ParentApi {
     return this.api.postData(`/parent/children/${encodeURIComponent(childId)}/credentials`, body);
   }
   observations(childId = '', cursor = ''): Observable<CursorPage<Observation>> {
-    return this.api.getData('/parent/observations', { params: buildHttpParams({ childId, cursor }) });
+    return this.api
+      .getData<unknown>('/parent/observations', { params: buildHttpParams({ childId, cursor }) })
+      .pipe(map((value) => normalizeOptionalPage<Observation>(value)));
   }
   submitObservation(body: { childId: string; summary: string }): Observable<Observation> {
     return this.api.postData('/parent/observations', body);
@@ -136,10 +140,12 @@ export class ParentApi {
     return this.api.postData(`/parent/family/activities/${encodeURIComponent(id)}/completions`, { childId });
   }
   supportConfiguration(): Observable<SupportConfiguration> {
-    return this.api.getData('/parent/academic-support/configuration');
+    return this.api.getData<unknown>('/parent/academic-support/configuration').pipe(map(normalizeSupportConfiguration));
   }
   supportRequests(cursor = ''): Observable<CursorPage<SupportRequest>> {
-    return this.api.getData('/parent/academic-support/requests', { params: buildHttpParams({ cursor }) });
+    return this.api
+      .getData<unknown>('/parent/academic-support/requests', { params: buildHttpParams({ cursor }) })
+      .pipe(map((value) => normalizeOptionalPage<SupportRequest>(value)));
   }
   createSupport(body: { childId: string; categoryId: string; summary: string }): Observable<SupportRequest> {
     return this.api.postData('/parent/academic-support/requests', body);
@@ -153,6 +159,31 @@ export class ParentApi {
   notifications(search = '', status = '', cursor = ''): Observable<CursorPage<ParentNotification>> {
     return this.api.getData('/parent/notifications', { params: buildHttpParams({ search, status, cursor }) });
   }
+}
+
+/** Tolerates the collection shapes used by deployed and legacy parent endpoints. */
+function normalizeOptionalPage<T>(value: unknown): CursorPage<T> {
+  const items = normalizeArray<T>(value);
+  const record = isRecord(value) ? value : undefined;
+  const nextCursor =
+    typeof record?.['nextCursor'] === 'string' && record['nextCursor'] ? record['nextCursor'] : undefined;
+  const hasMore = typeof record?.['hasMore'] === 'boolean' ? record['hasMore'] : Boolean(nextCursor);
+  return { items, hasMore, ...(nextCursor ? { nextCursor } : {}) };
+}
+
+function normalizeArray<T>(value: unknown): readonly T[] {
+  if (Array.isArray(value)) return value as readonly T[];
+  if (!isRecord(value)) return [];
+  if (Array.isArray(value['items'])) return value['items'] as readonly T[];
+  return normalizeArray<T>(value['data']);
+}
+
+function normalizeSupportConfiguration(value: unknown): SupportConfiguration {
+  if (Array.isArray(value)) return { categories: value as SupportConfiguration['categories'] };
+  if (!isRecord(value)) return { categories: [] };
+  return {
+    categories: normalizeArray<SupportConfiguration['categories'][number]>(value['categories'] ?? value['data']),
+  };
 }
 
 /** Validates the published `{ data: { items, hasMore, nextCursor? } }` contract once. */
