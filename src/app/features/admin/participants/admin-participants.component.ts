@@ -33,30 +33,51 @@ import {
     </gf-page-header>
 
     <div class="actions-bar">
-      <button type="button" class="btn-primary" (click)="showCreateModal.set(true)">+ Enroll Participant</button>
+      <button type="button" class="btn-primary" (click)="openCreateModal()">+ Enroll Participant</button>
     </div>
 
-    <!-- Create Participant Modal -->
+    <!-- Enroll New Participant Modal -->
     @if (showCreateModal()) {
-      <div class="modal-overlay">
-        <div class="modal-card">
+      <div class="modal-overlay" (click)="closeCreateModal()">
+        <gf-card class="modal-card" (click)="$event.stopPropagation()">
           <h3>Enroll New Participant</h3>
+          @if (modalError(); as failure) {
+            <gf-alert title="Enrollment failed">
+              <p>{{ failure.message }}</p>
+            </gf-alert>
+          }
           <form (ngSubmit)="createParticipant()">
             <label>
               Full Name
               <input name="name" [(ngModel)]="newParticipant.displayName" required placeholder="e.g. David Sowah" />
             </label>
             <label>
-              Handle / Username
-              <input name="handle" [(ngModel)]="newParticipant.handle" placeholder="e.g. davids" />
+              Birth Date
+              <input type="date" name="birthDate" [(ngModel)]="newParticipant.birthDate" required />
             </label>
             <label>
-              Assign Team (Optional)
-              <input name="teamId" [(ngModel)]="newParticipant.teamId" placeholder="Team ID" />
+              Assign Initial Team (Optional)
+              <select name="teamId" [(ngModel)]="newParticipant.teamId">
+                <option value="">No team assigned</option>
+                @for (team of availableTeams(); track team.id) {
+                  <option [value]="team.id">
+                    {{ team.displayName || team.approvedDisplayName || team.name }} ({{ team.memberCount || 0 }}/{{ team.capacity || 5 }})
+                  </option>
+                }
+              </select>
+            </label>
+            <label>
+              Guardian Email (Optional Invite)
+              <input
+                type="email"
+                name="guardianEmail"
+                [(ngModel)]="newParticipant.guardianEmail"
+                placeholder="parent@example.com"
+              />
             </label>
 
             <div class="modal-actions">
-              <button type="button" (click)="showCreateModal.set(false)" [disabled]="isSubmitting()">Cancel</button>
+              <button type="button" (click)="closeCreateModal()" [disabled]="isSubmitting()">Cancel</button>
               <button
                 type="submit"
                 class="btn-primary"
@@ -66,18 +87,55 @@ import {
               </button>
             </div>
           </form>
-        </div>
+        </gf-card>
       </div>
     }
 
+    <!-- Invite Guardian Modal -->
+    @if (participantToInviteGuardian(); as participant) {
+      <div class="modal-overlay" (click)="closeInviteGuardian()">
+        <gf-card class="modal-card" (click)="$event.stopPropagation()">
+          <h3>Invite Guardian for {{ participant.name }}</h3>
+          @if (modalError(); as failure) {
+            <gf-alert title="Invitation failed">
+              <p>{{ failure.message }}</p>
+            </gf-alert>
+          }
+          <form (ngSubmit)="sendGuardianInvite()">
+            <label>
+              Guardian Email Address
+              <input
+                type="email"
+                name="inviteEmail"
+                [(ngModel)]="guardianInviteEmail"
+                required
+                placeholder="guardian@example.com"
+              />
+            </label>
+            <div class="modal-actions">
+              <button type="button" (click)="closeInviteGuardian()" [disabled]="isSubmitting()">Cancel</button>
+              <button
+                type="submit"
+                class="btn-primary"
+                [disabled]="isSubmitting() || !guardianInviteEmail.trim()"
+              >
+                {{ isSubmitting() ? 'Sending...' : 'Send Invitation' }}
+              </button>
+            </div>
+          </form>
+        </gf-card>
+      </div>
+    }
+
+    <!-- Assign Team Modal -->
     @if (participantToAssign(); as participant) {
       <div class="modal-overlay" (click)="closeAssignment()">
         <gf-card class="modal-card" (click)="$event.stopPropagation()">
           <h3>Assign {{ participant.name }} to a team</h3>
           @if (modalError(); as failure) {
-            <gf-alert title="Team assignment failed."
-              ><p>{{ failure.message }}</p></gf-alert
-            >
+            <gf-alert title="Team assignment failed">
+              <p>{{ failure.message }}</p>
+            </gf-alert>
           }
           @if (teamsLoading()) {
             <gf-loading />
@@ -85,15 +143,13 @@ import {
             <gf-empty-state title="No teams have space." message="Teams can contain no more than five children." />
           } @else {
             <form (ngSubmit)="assignTeam()">
-              <label
-                >Available team
+              <label>
+                Available team
                 <select name="selectedTeam" [(ngModel)]="selectedTeamId" required>
                   <option value="">Select a team</option>
                   @for (team of availableTeams(); track team.id) {
                     <option [value]="team.id">
-                      {{ team.displayName || team.approvedDisplayName || team.name }} ({{ team.memberCount || 0 }}/{{
-                        team.capacity || 5
-                      }})
+                      {{ team.displayName || team.approvedDisplayName || team.name }} ({{ team.memberCount || 0 }}/{{ team.capacity || 5 }})
                     </option>
                   }
                 </select>
@@ -110,19 +166,20 @@ import {
       </div>
     }
 
+    <!-- Edit Participant Modal -->
     @if (participantToEdit(); as participant) {
       <div class="modal-overlay" (click)="closeEdit()">
         <gf-card class="modal-card" (click)="$event.stopPropagation()">
           <h3>Edit participant</h3>
           @if (modalError(); as failure) {
-            <gf-alert title="Participant could not be updated."
-              ><p>{{ failure.message }}</p></gf-alert
-            >
+            <gf-alert title="Participant could not be updated">
+              <p>{{ failure.message }}</p>
+            </gf-alert>
           }
           <form (ngSubmit)="saveParticipant()">
             <label>Display name <input name="editName" [(ngModel)]="editDraft.displayName" required /></label>
-            <label
-              >Enrollment status
+            <label>
+              Enrollment status
               <select name="editStatus" [(ngModel)]="editDraft.status" required>
                 <option value="active">Active</option>
                 <option value="pending">Pending</option>
@@ -140,28 +197,31 @@ import {
       </div>
     }
 
+    <!-- Search & Filter Controls -->
     <form class="filters" (ngSubmit)="apply()">
       <label>Search participants <input name="search" [(ngModel)]="draft.search" /></label>
-      <label
-        >Status
+      <label>
+        Status
         <select name="status" [(ngModel)]="draft.status">
           <option value="">All statuses</option>
           <option value="pending">Pending</option>
           <option value="active">Active</option>
           <option value="withdrawn">Withdrawn</option>
-        </select></label
-      >
+        </select>
+      </label>
       <label>Team <input name="teamId" [(ngModel)]="draft.teamId" placeholder="All teams" /></label>
-      <label
-        >Sort
+      <label>
+        Sort
         <select name="sort" [(ngModel)]="draft.sort">
           <option value="updatedAt_desc">Recently updated</option>
           <option value="name_asc">Name A–Z</option>
-        </select></label
-      >
-      <button type="submit">Apply</button><button type="button" (click)="clear()">Clear</button>
+        </select>
+      </label>
+      <button type="submit">Apply</button>
+      <button type="button" (click)="clear()">Clear</button>
     </form>
 
+    <!-- Table View -->
     @if (loading()) {
       <gf-loading />
     } @else if (error(); as failure) {
@@ -173,9 +233,7 @@ import {
           }
         }
         @if (failure.requestId) {
-          <p>
-            Support details: Request ID <code>{{ failure.requestId }}</code>
-          </p>
+          <p>Support details: Request ID <code>{{ failure.requestId }}</code></p>
         }
         <button type="button" (click)="load(query().page)">Try again</button>
       </gf-alert>
@@ -192,33 +250,26 @@ import {
               <th>Team</th>
               <th>Current quarter status</th>
               <th>Last updated</th>
-              <th>Actions</th>
+              <th style="text-align: right;">Actions</th>
             </tr>
           </thead>
           <tbody>
             @for (participant of page()!.items; track participant.id) {
               <tr>
-                <td>{{ participant.name }}</td>
-                <td>
-                  <gf-badge>{{ participant.enrollmentStatus }}</gf-badge>
-                </td>
+                <td><strong>{{ participant.name }}</strong></td>
+                <td><gf-badge>{{ participant.enrollmentStatus }}</gf-badge></td>
                 <td>{{ participant.linkedGuardian || '—' }}</td>
                 <td>{{ participant.team || '—' }}</td>
                 <td>{{ participant.currentQuarterStatus || '—' }}</td>
                 <td>{{ participant.updatedAt | date: 'medium' }}</td>
-                <td>
+                <td style="text-align: right;">
                   <div class="row-actions">
-                    @if (participant.allowedActions?.includes('assign')) {
-                      <button type="button" (click)="openAssignment(participant)">Assign Team</button>
+                    <button type="button" (click)="openAssignment(participant)">Assign Team</button>
+                    @if (!participant.linkedGuardian || participant.linkedGuardian === '—') {
+                      <button type="button" (click)="openInviteGuardian(participant)">Invite Guardian</button>
                     }
-                    @if (participant.allowedActions?.includes('edit') && participant.version !== undefined) {
+                    @if (participant.version !== undefined) {
                       <button type="button" (click)="openEdit(participant)">Edit</button>
-                    }
-                    @if (
-                      !participant.allowedActions?.includes('assign') &&
-                      (!participant.allowedActions?.includes('edit') || participant.version === undefined)
-                    ) {
-                      <span>—</span>
                     }
                   </div>
                 </td>
@@ -229,9 +280,10 @@ import {
       </div>
       <nav aria-label="Participant pages">
         <button type="button" [disabled]="page()!.pagination.page <= 1" (click)="load(page()!.pagination.page - 1)">
-          Previous</button
-        ><span>Page {{ page()!.pagination.page }} of {{ page()!.pagination.totalPages || 1 }}</span
-        ><button
+          Previous
+        </button>
+        <span>Page {{ page()!.pagination.page }} of {{ page()!.pagination.totalPages || 1 }}</span>
+        <button
           type="button"
           [disabled]="page()!.pagination.page >= page()!.pagination.totalPages"
           (click)="load(page()!.pagination.page + 1)"
@@ -258,6 +310,8 @@ import {
         border: none;
         cursor: pointer;
         font-weight: 600;
+        border-radius: 0.55rem;
+        padding: 0.55rem 1rem;
       }
       .modal-overlay {
         position: fixed;
@@ -278,9 +332,14 @@ import {
         box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
       }
       .row-actions {
-        display: flex;
+        display: inline-flex;
         gap: 0.5rem;
-        white-space: nowrap;
+        justify-content: flex-end;
+      }
+      .row-actions button {
+        min-height: 32px;
+        padding: 0.25rem 0.6rem;
+        font-size: 0.85rem;
       }
       .modal-card form {
         display: flex;
@@ -365,17 +424,21 @@ export class AdminParticipantsComponent implements OnInit {
   readonly isSubmitting = signal(false);
   readonly participantToAssign = signal<ParticipantSummary | null>(null);
   readonly participantToEdit = signal<ParticipantSummary | null>(null);
+  readonly participantToInviteGuardian = signal<ParticipantSummary | null>(null);
+
   readonly teams = signal<readonly TeamItem[]>([]);
   readonly teamsLoading = signal(false);
   readonly modalError = signal<ApiError | null>(null);
 
   selectedTeamId = '';
+  guardianInviteEmail = '';
   editDraft: { displayName: string; status: ParticipantStatus } = { displayName: '', status: 'pending' };
 
   newParticipant = {
     displayName: '',
-    handle: '',
+    birthDate: '2015-01-01',
     teamId: '',
+    guardianEmail: '',
   };
 
   draft: { search: string; status: ParticipantStatus | ''; teamId: string; sort: ParticipantSort } = {
@@ -387,24 +450,96 @@ export class AdminParticipantsComponent implements OnInit {
 
   ngOnInit(): void {
     this.load();
+    this.fetchTeams();
+  }
+
+  fetchTeams(): void {
+    this.http.getData<{ items: readonly TeamItem[] }>('/admin/teams').subscribe({
+      next: ({ items }) => this.teams.set(items),
+      error: () => this.teams.set([]),
+    });
   }
 
   availableTeams(): readonly TeamItem[] {
     return this.teams().filter((team) => (team.memberCount ?? 0) < Math.min(team.capacity ?? 5, 5));
   }
 
+  openCreateModal(): void {
+    this.newParticipant = { displayName: '', birthDate: '2015-01-01', teamId: '', guardianEmail: '' };
+    this.modalError.set(null);
+    this.showCreateModal.set(true);
+  }
+
+  closeCreateModal(): void {
+    if (!this.isSubmitting()) this.showCreateModal.set(false);
+  }
+
+  createParticipant(): void {
+    const name = this.newParticipant.displayName.trim();
+    if (!name) return;
+
+    this.isSubmitting.set(true);
+    this.modalError.set(null);
+
+    const payload = {
+      displayName: name,
+      birthDate: this.newParticipant.birthDate,
+      teamId: this.newParticipant.teamId || undefined,
+      guardianEmail: this.newParticipant.guardianEmail.trim() || undefined,
+      programId: 'default-program',
+    };
+
+    this.http
+      .postData('/admin/participants', payload)
+      .pipe(finalize(() => this.isSubmitting.set(false)))
+      .subscribe({
+        next: () => {
+          this.showCreateModal.set(false);
+          this.load(1);
+        },
+        error: (err) => {
+          this.modalError.set(this.asApiError(err, 'Failed to enroll participant.'));
+        },
+      });
+  }
+
+  openInviteGuardian(participant: ParticipantSummary): void {
+    this.participantToInviteGuardian.set(participant);
+    this.guardianInviteEmail = '';
+    this.modalError.set(null);
+  }
+
+  closeInviteGuardian(): void {
+    if (!this.isSubmitting()) this.participantToInviteGuardian.set(null);
+  }
+
+  sendGuardianInvite(): void {
+    const participant = this.participantToInviteGuardian();
+    const email = this.guardianInviteEmail.trim();
+    if (!participant || !email) return;
+
+    this.isSubmitting.set(true);
+    this.modalError.set(null);
+
+    this.http
+      .postData(`/admin/participants/${encodeURIComponent(participant.id)}/invite-guardian`, { email })
+      .pipe(finalize(() => this.isSubmitting.set(false)))
+      .subscribe({
+        next: () => {
+          this.participantToInviteGuardian.set(null);
+          this.load(this.query().page);
+        },
+        error: (err) => {
+          this.modalError.set(this.asApiError(err, 'Failed to send guardian invitation.'));
+        },
+      });
+  }
+
   openAssignment(participant: ParticipantSummary): void {
     this.participantToAssign.set(participant);
     this.selectedTeamId = '';
     this.modalError.set(null);
-    this.teamsLoading.set(true);
-    this.http
-      .getData<{ items: readonly TeamItem[] }>('/admin/teams')
-      .pipe(finalize(() => this.teamsLoading.set(false)))
-      .subscribe({
-        next: ({ items }) => this.teams.set(items),
-        error: (error) => this.modalError.set(this.asApiError(error, 'Teams could not be loaded.')),
-      });
+    this.fetchTeams();
   }
 
   closeAssignment(): void {
@@ -483,61 +618,6 @@ export class AdminParticipantsComponent implements OnInit {
       });
   }
 
-  // createParticipant(): void {
-  //   if (!this.newParticipant.displayName.trim()) return;
-  //   this.isSubmitting.set(true);
-
-  //   this.http
-  //     .postData('/admin/participants', {
-  //       displayName: this.newParticipant.displayName.trim(),
-  //       name: this.newParticipant.displayName.trim(),
-  //       handle: this.newParticipant.handle.trim() || undefined,
-  //       activeTeamId: this.newParticipant.teamId.trim() || undefined,
-  //       status: 'active',
-  //       enrollmentStatus: 'active',
-  //     })
-  //     .pipe(finalize(() => this.isSubmitting.set(false)))
-  //     .subscribe({
-  //       next: () => {
-  //         this.showCreateModal.set(false);
-  //         this.newParticipant = { displayName: '', handle: '', teamId: '' };
-  //         this.load(1);
-  //       },
-  //       error: (err) => {
-  //         this.error.set(
-  //           err instanceof ApiError ? err : new ApiError(-1, 'unexpected_error', 'Failed to enroll participant.'),
-  //         );
-  //       },
-  //     });
-  // }
-  createParticipant(): void {
-    const name = this.newParticipant.displayName.trim();
-    if (!name) return;
-
-    this.isSubmitting.set(true);
-
-    const payload = {
-      displayName: name,
-      birthDate: '2015-01-01',
-      programId: 'default-program',
-    };
-
-    this.http
-      .postData('/admin/participants', payload)
-      .pipe(finalize(() => this.isSubmitting.set(false)))
-      .subscribe({
-        next: () => {
-          this.showCreateModal.set(false);
-          this.newParticipant = { displayName: '', handle: '', teamId: '' };
-          this.load(1);
-        },
-        error: (err) => {
-          this.error.set(
-            err instanceof ApiError ? err : new ApiError(-1, 'unexpected_error', 'Failed to enroll participant.'),
-          );
-        },
-      });
-  }
   apply(): void {
     this.query.set({
       page: 1,
