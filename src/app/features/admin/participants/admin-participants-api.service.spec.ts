@@ -57,4 +57,18 @@ describe('AdminParticipantsApiService', () => {
       });
     expect(participantName).toBe('Ama');
   });
+
+  it('accepts published participant summaries that do not include a mutation version', () => {
+    let participantVersion: number | undefined = -1;
+    service.list({}).subscribe((page) => (participantVersion = page.items[0].version));
+    http
+      .expectOne((candidate) => candidate.url.endsWith('/admin/participants'))
+      .flush({
+        data: {
+          items: [{ id: 'p1', displayName: 'Ama', status: 'active', updatedAt: '2026-08-22T00:00:00Z' }],
+          pagination: { page: 1, pageSize: 25, total: 1, totalPages: 1 },
+        },
+      });
+    expect(participantVersion).toBeUndefined();
+  });
 });

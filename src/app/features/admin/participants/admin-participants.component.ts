@@ -211,11 +211,12 @@ import {
                     @if (participant.allowedActions?.includes('assign')) {
                       <button type="button" (click)="openAssignment(participant)">Assign Team</button>
                     }
-                    @if (participant.allowedActions?.includes('edit')) {
+                    @if (participant.allowedActions?.includes('edit') && participant.version !== undefined) {
                       <button type="button" (click)="openEdit(participant)">Edit</button>
                     }
                     @if (
-                      !participant.allowedActions?.includes('assign') && !participant.allowedActions?.includes('edit')
+                      !participant.allowedActions?.includes('assign') &&
+                      (!participant.allowedActions?.includes('edit') || participant.version === undefined)
                     ) {
                       <span>—</span>
                     }
@@ -444,7 +445,7 @@ export class AdminParticipantsComponent implements OnInit {
   saveParticipant(): void {
     const participant = this.participantToEdit();
     const displayName = this.editDraft.displayName.trim();
-    if (!participant || !displayName) return;
+    if (!participant || participant.version === undefined || !displayName) return;
     this.isSubmitting.set(true);
     this.modalError.set(null);
     this.http
