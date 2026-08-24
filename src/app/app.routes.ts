@@ -276,10 +276,18 @@ export const routes: Routes = [
             (m) => m.AdminProjectsComponent,
           ),
       },
+      // Dedicated Surveys Administration Route
+      {
+        path: 'surveys',
+        canActivate: [organizationRoleGuard('admin'), capabilityGuard(['admin.surveys.manage'])],
+        loadComponent: () =>
+          import('./features/admin/surveys/admin-surveys.component').then(
+            (m) => m.AdminSurveysComponent,
+          ),
+      },
       ...[
         ['character', 'character', 'admin.character.manage'],
         ['special-activities', 'special', 'admin.special_activities.manage'],
-        ['surveys', 'surveys', 'admin.surveys.manage'],
         ['points', 'points', 'admin.point_rules.manage'],
         ['observations', 'observations', 'admin.observations.moderate'],
         ['incidents', 'incidents', 'admin.incidents.manage'],
