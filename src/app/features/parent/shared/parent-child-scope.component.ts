@@ -90,12 +90,15 @@ export class ParentChildScopeComponent {
   private choose(id: string): void {
     const safe = this.context.select(id || null) ? id : '';
     if (safe !== id) this.selection.setValue('', { emitEvent: false });
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: { child: safe || null },
-      queryParamsHandling: 'merge',
-      replaceUrl: true,
-    });
+    const requested = this.route.snapshot.queryParamMap.get('child') ?? '';
+    if (requested !== safe) {
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { child: safe || null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+    }
     this.childChange.emit(safe);
   }
 }

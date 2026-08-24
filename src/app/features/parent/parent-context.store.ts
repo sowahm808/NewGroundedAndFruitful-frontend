@@ -51,6 +51,10 @@ export class ParentContextStore {
     const state = this.value();
     if (state.status !== 'ready') return false;
     const safe = childId && state.children.some((child) => child.id === childId) ? childId : null;
+    // Signals notify dependants whenever a new state object is assigned. Avoid replacing an
+    // already-selected state: ParentChildScope's synchronization effect calls this method and
+    // would otherwise trigger itself indefinitely.
+    if (state.selectedChildId === safe) return safe === childId;
     this.value.set({ ...state, selectedChildId: safe });
     return safe === childId;
   }
