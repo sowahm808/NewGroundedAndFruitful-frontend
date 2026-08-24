@@ -285,10 +285,18 @@ export const routes: Routes = [
             (m) => m.AdminSurveysComponent,
           ),
       },
+      // Dedicated Point Rules Administration Route
+      {
+        path: 'points',
+        canActivate: [organizationRoleGuard('admin'), capabilityGuard(['admin.point_rules.manage'])],
+        loadComponent: () =>
+          import('./features/admin/point-rules/admin-point-rules.component').then(
+            (m) => m.AdminPointRulesComponent,
+          ),
+      },
       ...[
         ['character', 'character', 'admin.character.manage'],
         ['special-activities', 'special', 'admin.special_activities.manage'],
-        ['points', 'points', 'admin.point_rules.manage'],
         ['observations', 'observations', 'admin.observations.moderate'],
         ['incidents', 'incidents', 'admin.incidents.manage'],
         ['awards', 'awards', 'admin.awards.manage'],
