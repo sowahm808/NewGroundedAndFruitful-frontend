@@ -27,10 +27,10 @@ import { parentViewError, ViewError } from '../parent-view.utilities';
     @if (child(); as c) {
       <gf-card
         ><gf-badge>{{ c.status }}</gf-badge>
-        <h2>{{ c.displayName }}</h2>
-        <p><strong>Team:</strong> {{ c.team?.name || 'Not assigned' }}</p>
-        <p><strong>Quarter:</strong> {{ c.quarter?.name || 'Not available' }}</p>
-        <p><strong>Reading:</strong> {{ c.readingProgress || 'Not available' }}</p>
+        <h2>{{ c.approvedDisplayName }}</h2>
+        <p><strong>Team:</strong> {{ c.team?.displayName || 'Not assigned' }}</p>
+        <p><strong>Quarter:</strong> {{ c.quarter?.displayName || 'Not available' }}</p>
+        <p><strong>Reading:</strong> {{ c.readingProgress.completed }} of {{ c.readingProgress.assigned }} assigned</p>
         <p><strong>Project:</strong> {{ c.projectStatus || 'Not available' }}</p></gf-card
       >
     }`,
