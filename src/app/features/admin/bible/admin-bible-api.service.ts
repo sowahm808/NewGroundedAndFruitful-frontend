@@ -58,7 +58,7 @@ export interface CreateBibleContentImportInput {
   readonly idempotencyKey: string;
 }
 export type BibleImportStatus =
-  'processing' | 'needs_correction' | 'needs_review' | 'rejected' | 'committed' | 'processing_failed';
+  'draft' | 'processing' | 'needs_correction' | 'needs_review' | 'rejected' | 'committed' | 'processing_failed';
 export type BibleImportAction =
   'review' | 'continue_review' | 'reprocess' | 'commit' | 'reject' | 'cancel' | 'view_committed_content';
 export interface BibleImportDocument {

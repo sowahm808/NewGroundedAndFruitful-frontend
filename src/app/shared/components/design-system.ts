@@ -213,6 +213,7 @@ export class GfEmptyState {
 })
 export class GfAlert {
   readonly title = input('Please note');
+  readonly variant = input<'warning'>('warning');
 }
 @Component({
   selector: 'gf-stat-card',
