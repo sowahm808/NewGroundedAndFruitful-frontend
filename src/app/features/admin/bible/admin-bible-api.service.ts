@@ -88,7 +88,8 @@ export interface BibleImportQuestion {
 export interface BibleImportActivity {
   readonly id: string;
   readonly title: string;
-  readonly date: string;
+  /** Parsers may not detect a date; the review must still expose the activity and its validation issues. */
+  readonly date?: string;
   readonly questions: readonly BibleImportQuestion[];
 }
 export interface BibleImportReview {
@@ -220,10 +221,11 @@ export function normalizeImport(value: unknown): BibleImportReview {
   const validation = record(row['validation'] ?? {}, 'validation');
   const activities = requiredArray(row['activities'], 'activities').map((raw) => {
     const activity = record(raw, 'activity');
+    const date = optionalTextField(activity, 'date');
     return {
       id: textField(activity, 'id'),
       title: textField(activity, 'title'),
-      date: textField(activity, 'date'),
+      ...(date ? { date } : {}),
       questions: requiredArray(activity['questions'], 'activity.questions').map((rawQuestion) => {
         const question = record(rawQuestion, 'question');
         return {
@@ -307,6 +309,10 @@ function requiredArray(value: unknown, field: string): unknown[] {
 function textField(row: Record<string, unknown>, field: string): string {
   if (typeof row[field] !== 'string' || !(row[field] as string).trim()) contract(field);
   return row[field] as string;
+}
+function optionalTextField(row: Record<string, unknown>, field: string): string | undefined {
+  const value = row[field];
+  return typeof value === 'string' && value.trim() ? value : undefined;
 }
 function numberField(row: Record<string, unknown>, field: string): number {
   if (typeof row[field] !== 'number' || !Number.isFinite(row[field])) contract(field);
