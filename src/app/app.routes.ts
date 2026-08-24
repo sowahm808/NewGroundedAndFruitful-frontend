@@ -294,12 +294,19 @@ export const routes: Routes = [
             (m) => m.AdminPointRulesComponent,
           ),
       },
+      {
+        path: 'awards',
+        canActivate: [organizationRoleGuard('admin'), capabilityGuard(['admin.awards.manage'])],
+        loadComponent: () =>
+          import('./features/admin/awards/admin-awards.component').then(
+            (m) => m.AdminAwardsComponent,
+          ),
+      },
       ...[
         ['character', 'character', 'admin.character.manage'],
         ['special-activities', 'special', 'admin.special_activities.manage'],
         ['observations', 'observations', 'admin.observations.moderate'],
         ['incidents', 'incidents', 'admin.incidents.manage'],
-        ['awards', 'awards', 'admin.awards.manage'],
       ].map(([path, resource, capability]) => ({
         path,
         canActivate: [organizationRoleGuard('admin'), capabilityGuard([capability])],
