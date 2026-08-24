@@ -267,9 +267,17 @@ export const routes: Routes = [
             (m) => m.AdminBooksComponent,
           ),
       },
+      // Dedicated Projects Administration Route
+      {
+        path: 'projects',
+        canActivate: [organizationRoleGuard('admin'), capabilityGuard(['admin.projects.manage'])],
+        loadComponent: () =>
+          import('./features/admin/projects/admin-projects.component').then(
+            (m) => m.AdminProjectsComponent,
+          ),
+      },
       ...[
         ['character', 'character', 'admin.character.manage'],
-        ['projects', 'projects', 'admin.projects.manage'],
         ['special-activities', 'special', 'admin.special_activities.manage'],
         ['surveys', 'surveys', 'admin.surveys.manage'],
         ['points', 'points', 'admin.point_rules.manage'],
