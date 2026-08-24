@@ -133,7 +133,7 @@ import { AdminTeamsApiService, TeamItem } from './admin-teams-api.service';
         </div>
       } @else if (teams().length === 0) {
         <gf-empty-state
-          title="No records found"
+          title="No teams yet"
           message="Create your first team using the '+ Add New Team' button above."
         />
       } @else {
