@@ -258,9 +258,17 @@ export const routes: Routes = [
             './features/admin/family-activities/admin-family-activities.component'
           ).then((m) => m.AdminFamilyActivitiesComponent),
       },
+      // Dedicated Books & Reading Assignments Route
+      {
+        path: 'books',
+        canActivate: [organizationRoleGuard('admin'), capabilityGuard(['admin.books.manage'])],
+        loadComponent: () =>
+          import('./features/admin/books/admin-books.component').then(
+            (m) => m.AdminBooksComponent,
+          ),
+      },
       ...[
         ['character', 'character', 'admin.character.manage'],
-        ['books', 'books', 'admin.books.manage'],
         ['projects', 'projects', 'admin.projects.manage'],
         ['special-activities', 'special', 'admin.special_activities.manage'],
         ['surveys', 'surveys', 'admin.surveys.manage'],
