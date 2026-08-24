@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { finalize } from 'rxjs';
 import {
   GfAlert,
   GfButton,
@@ -78,17 +79,21 @@ export class ParentObservationsComponent {
   readonly confirmation = signal(false);
   readonly error = signal<ViewError | null>(null);
   reload(childId = this.childId()) {
+    this.loading.set(true);
+    this.error.set(null);
     this.api
       .observations(childId)
-      .pipe(takeUntilDestroyed(this.destroy))
+      .pipe(
+        finalize(() => this.loading.set(false)),
+        takeUntilDestroyed(this.destroy),
+      )
       .subscribe({
         next: (p) => {
-          this.items.set(p.items);
-          this.loading.set(false);
+          this.items.set(Array.isArray(p.items) ? p.items : []);
         },
         error: (e) => {
+          this.items.set([]);
           this.error.set(parentViewError(e));
-          this.loading.set(false);
         },
       });
   }
@@ -96,6 +101,7 @@ export class ParentObservationsComponent {
     this.childId.set(id);
     this.items.set([]);
     if (id) this.reload(id);
+    else this.loading.set(false);
   }
   submit() {
     if (this.form.invalid || !this.childId() || this.submitting()) return;
