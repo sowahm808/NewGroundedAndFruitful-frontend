@@ -249,9 +249,17 @@ export const routes: Routes = [
             (m) => m.AdminAssignmentsComponent,
           ),
       },
+      // Dedicated Family Activities Route
+      {
+        path: 'family',
+        canActivate: [organizationRoleGuard('admin'), capabilityGuard(['admin.family_activities.manage'])],
+        loadComponent: () =>
+          import(
+            './features/admin/family-activities/admin-family-activities.component'
+          ).then((m) => m.AdminFamilyActivitiesComponent),
+      },
       ...[
         ['character', 'character', 'admin.character.manage'],
-        ['family', 'family', 'admin.family_activities.manage'],
         ['books', 'books', 'admin.books.manage'],
         ['projects', 'projects', 'admin.projects.manage'],
         ['special-activities', 'special', 'admin.special_activities.manage'],
