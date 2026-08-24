@@ -1,7 +1,8 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { AdminBibleApiService } from './admin-bible-api.service';
+import { ApiError } from '../../../core/http/api-error';
+import { AdminBibleApiService, BibleImportReview } from './admin-bible-api.service';
 
 describe('AdminBibleApiService', () => {
   let service: AdminBibleApiService;
@@ -59,7 +60,7 @@ describe('AdminBibleApiService', () => {
   });
 
   it('normalizes nested import documents and commits with version and one idempotency key', () => {
-    let detail: any;
+    let detail: BibleImportReview | undefined;
     service.getImport('import/1').subscribe((value) => (detail = value));
     const request = http.expectOne((candidate) => candidate.url.endsWith('/admin/bible-content/imports/import%2F1'));
     request.flush({
@@ -92,8 +93,8 @@ describe('AdminBibleApiService', () => {
         ],
       },
     });
-    expect(detail.documents.question.filename).toBe('questions.docx');
-    expect(detail.activities[0].questions[0].choices[0].isCorrect).toBeTrue();
+    expect(detail?.documents.question.filename).toBe('questions.docx');
+    expect(detail?.activities[0].questions[0].choices[0].isCorrect).toBeTrue();
 
     service.commitImport('import/1', 4, 'approval-1').subscribe();
     const commit = http.expectOne((candidate) =>
@@ -107,11 +108,44 @@ describe('AdminBibleApiService', () => {
   });
 
   it('fails incomplete detail as a contract error instead of rendering blank metadata', () => {
-    let failure: any;
+    let failure: ApiError | undefined;
     service.getImport('bad').subscribe({ error: (error) => (failure = error) });
     http
       .expectOne((candidate) => candidate.url.endsWith('/admin/bible-content/imports/bad'))
       .flush({ data: { id: 'bad' } });
-    expect(failure.message).toContain('documents');
+    expect(failure?.message).toContain('documents');
+  });
+
+  it('keeps an import reviewable when the parser did not detect an activity date', () => {
+    let detail: BibleImportReview | undefined;
+    service.getImport('missing-date').subscribe((value) => (detail = value));
+    http
+      .expectOne((candidate) => candidate.url.endsWith('/admin/bible-content/imports/missing-date'))
+      .flush({
+        data: {
+          id: 'missing-date',
+          title: 'Quiz requiring review',
+          status: 'needs_correction',
+          quarter: { id: 'q1', name: 'Autumn 2026' },
+          documents: {
+            question: { filename: 'questions.docx', sizeBytes: 1024 },
+            answerKey: { filename: 'answers.docx', sizeBytes: 512 },
+          },
+          counts: { activities: 1, questions: 0, errors: 1, warnings: 0 },
+          uploadedBy: 'Admin User',
+          uploadedAt: '2026-08-20T10:00:00Z',
+          updatedAt: '2026-08-20T10:01:00Z',
+          parserVersion: '2.1.0',
+          version: 1,
+          allowedActions: ['reprocess', 'reject'],
+          validation: {
+            issues: [{ code: 'missing_date', message: 'No activity date was detected.', blocking: true }],
+          },
+          activities: [{ id: 'a1', title: 'Day one', questions: [] }],
+        },
+      });
+
+    expect(detail?.activities[0].date).toBeUndefined();
+    expect(detail?.validation.issues[0].code).toBe('missing_date');
   });
 });
