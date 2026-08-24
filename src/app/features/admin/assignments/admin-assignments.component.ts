@@ -19,6 +19,7 @@ import {
   GfEmptyState,
   GfPageHeader,
 } from '../../../shared/components/design-system';
+import { ActiveOrganizationService } from '../../../core/organizations/active-organization.service';
 
 export interface AssignmentItem {
   id: string;
@@ -183,7 +184,7 @@ export interface AssignmentItem {
                 <button
                   type="submit"
                   style="padding: 0.6rem 1.2rem; cursor: pointer; border-radius: 4px; border: none; background: #1b4d3e; color: #fff; font-weight: 600;"
-                  [disabled]="assignmentForm.invalid || isSubmitting()"
+                  [disabled]="assignmentForm.invalid || isSubmitting() || !organizationId()"
                 >
                   {{ isSubmitting() ? 'Saving...' : 'Create' }}
                 </button>
@@ -253,6 +254,9 @@ export interface AssignmentItem {
 export class AdminAssignmentsComponent implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly fb = inject(FormBuilder);
+  private readonly organizations = inject(ActiveOrganizationService);
+
+  readonly organizationId = this.organizations.organizationId;
 
   readonly assignments = signal<AssignmentItem[]>([]);
   readonly isLoading = signal<boolean>(true);
@@ -329,13 +333,19 @@ export class AdminAssignmentsComponent implements OnInit {
   }
 
   onCreateAssignment(): void {
-    if (this.assignmentForm.invalid) return;
+    const organizationId = this.organizationId();
+    if (this.assignmentForm.invalid || this.isSubmitting()) return;
+    if (!organizationId) {
+      this.errorMessage.set('Select an organization before creating an assignment.');
+      return;
+    }
 
     this.isSubmitting.set(true);
     this.errorMessage.set(null);
 
     const formVal = this.assignmentForm.value;
     const payload = {
+      organizationId,
       name: formVal.title,
       data: {
         title: formVal.title,
