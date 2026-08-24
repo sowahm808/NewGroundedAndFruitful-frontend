@@ -1,8 +1,8 @@
 # Product completion TODO
 
-Last audited: 2026-08-19
+Last audited: 2026-08-24
 
-Audit result: **53 of 103 items are implemented; 50 remain incomplete or blocked.** This audit also incorporates the dedicated parent workflows and authenticated application shell added since the previous checklist review.
+Audit result: **82 of 103 product items are implemented; 21 remain incomplete or externally blocked.** The separate checked audit-history entry below is not included in these totals. This audit incorporates the onboarding, guardian-linking, family-notification, administration, and runtime-alignment work added since the previous checklist review.
 
 This checklist compares the product described in the repository documentation with the checked-in implementation. A checked item means the user-facing behavior is implemented (not merely routed or visually scaffolded). Explicit unavailable-state routes are therefore intentionally unchecked.
 
@@ -55,10 +55,10 @@ This checklist compares the product described in the repository documentation wi
 - [x] Replace the password-reset placeholder with Firebase password-reset submission, confirmation, validation, and success/error states.
 - [x] Implement child family-code/handle/PIN exchange against the rate-limited backend, sign in with the returned Firebase custom token, clear the PIN on every outcome, and show safe error messages.
 - [x] Add child-login busy state, duplicate-submit prevention, rate-limit feedback, and keyboard/screen-reader-friendly field errors.
-- [ ] Implement profile completion and onboarding.
+- [x] Implement profile completion and onboarding.
 - [ ] Implement consent/privacy review and acceptance.
-- [ ] Implement parent-child linking and approval states.
-- [ ] Implement administrator role assignment, membership approval, suspension, and reactivation.
+- [x] Implement parent-child linking and approval states.
+- [x] Implement administrator role assignment, membership approval, suspension, and reactivation.
 
 ## 4. Child journey
 
@@ -86,7 +86,7 @@ This checklist compares the product described in the repository documentation wi
 - [x] Implement weekly family activities across Talk, Pray, Serve, Play, and Gratitude.
 - [x] Implement academic-support requests for reading, comprehension, and mathematics, including assignment/status history.
 - [x] Implement parent reports for permitted participation and growth data.
-- [ ] Implement family notifications and actionable status updates.
+- [x] Implement family notifications and actionable status updates.
 
 ## 6. Mentor workflows
 
@@ -143,10 +143,17 @@ This checklist compares the product described in the repository documentation wi
 - [ ] Add automated tests proving unrelated child/team/resource identifiers are rejected by the backend.
 - [ ] Add automated privacy tests proving team/report payloads and screens exclude private emotions, notes, ratings, grades, and school information.
 - [ ] Add accessibility automation and retain manual assistive-technology checks for release.
-- [ ] Make CI use the same supported Node version as local development and deployment.
+- [x] Make CI use the same supported Node version as local development and deployment.
 - [ ] Run lint, unit tests, production build, emulator-backed end-to-end tests, and staging auth/session smoke tests as required promotion gates.
 
 ## Audit notes
+
+- [x] Re-audited all production routes and checklist claims on 2026-08-24. Confirmed personal and organization onboarding,
+      guardian invitation/link reconciliation, membership and account lifecycle administration, parent notifications, and
+      Node 22.22.3 alignment across `.nvmrc`, `package.json`, Netlify, and CI. The remaining 21 product items stay unchecked:
+      they require a published backend contract or production credential, a cross-application security decision, broad
+      accessibility/resilience remediation, emulator infrastructure, or release-environment verification. They must not be
+      represented as complete by the frontend alone.
 
 - [x] Audited the administration checklist against the frontend on 2026-08-23; added missing searchable generic resources,
       restricted observation/incident routes, mutation idempotency, and a backend implementation hand-off. Unchecked feature
@@ -154,11 +161,11 @@ This checklist compares the product described in the repository documentation wi
       complete by this audit.
 
 - This audit inspected the route table, feature components, authentication/session boundary, HTTP client and interceptor, domain models, design-system primitives, environment and deployment configuration, Firestore rules, unit tests, and Playwright scenarios. The counts above are derived directly from this checklist.
-- The 53 checked items comprise production/application infrastructure (17), authentication/account state (10), the complete child journey (14), parent and family workflows (7), accessibility foundations (2), and test/tooling setup (3). A checked frontend workflow still requires contract and authenticated end-to-end verification before production promotion.
-- Routes exist for all major product areas, but unfinished mentor, observer, and administration routes deliberately render an unavailable-state page and do not constitute completed features.
+- The 82 checked product items cover the implemented application foundation and user workflows plus the production controls that can be verified in this repository. A checked frontend workflow still requires contract and authenticated end-to-end verification before production promotion.
+- Routes exist for all major product areas. Legacy `*-unavailable.component.ts` files remain in the tree but are not routed; active mentor, observer, and administration routes use their contract-backed implementations.
 - Child journey routes use typed backend repositories and explicit loading, empty, error, retry, validation, conflict, and success states; no child or team values are fabricated in the frontend.
 - The repository contains no backend source, OpenAPI contract, response fixtures, emulator seed, or authenticated end-to-end helper, so backend-dependent features cannot be verified as complete from this frontend alone.
 - Password reset and child sign-in have user-facing implementations, but neither has the unit coverage plus authenticated emulator-backed Playwright coverage required by this checklist's completion guidance. This is a test-coverage gap rather than evidence that their checked user-facing behavior is absent.
-- Node is not aligned: local/package/Netlify configuration targets Node 26 while CI targets Node 22. The release prerequisite and CI-alignment items therefore remain unchecked.
+- Node is aligned on 22.22.3 in `.nvmrc`, the package engine, Netlify, and CI. The broader release prerequisite remains unchecked until backend and deployment-image compatibility are verified in their respective environments.
 - The authenticated shell now exposes logout and a role-complete, focus-managed mobile navigation drawer; both application-foundation items are checked.
 - Re-audit this file whenever a workflow lands: verify the real data path, resource authorization, privacy constraints, resilient states, accessibility, and automated coverage before changing `[ ]` to `[x]`.
