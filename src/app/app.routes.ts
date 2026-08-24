@@ -240,8 +240,16 @@ export const routes: Routes = [
         canActivate: [organizationRoleGuard('admin'), capabilityGuard(['admin.teams.manage'])],
         loadComponent: () => import('./features/admin/teams/admin-teams.component').then((m) => m.AdminTeamsComponent),
       },
+      // Dedicated Assignments Route
+      {
+        path: 'assignments',
+        canActivate: [organizationRoleGuard('admin'), capabilityGuard(['admin.assignments.manage'])],
+        loadComponent: () =>
+          import('./features/admin/assignments/admin-assignments.component').then(
+            (m) => m.AdminAssignmentsComponent,
+          ),
+      },
       ...[
-        ['assignments', 'assignments', 'admin.assignments.manage'],
         ['character', 'character', 'admin.character.manage'],
         ['family', 'family', 'admin.family_activities.manage'],
         ['books', 'books', 'admin.books.manage'],
