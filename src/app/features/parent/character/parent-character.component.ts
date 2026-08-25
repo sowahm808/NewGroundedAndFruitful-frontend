@@ -227,7 +227,8 @@ export class ParentCharacterComponent implements OnInit {
   // Resolve quarterId from current selection or the linked child's assigned quarter
   const linkedChild = this.context.children().find((c) => c.id === id);
   const rawQuarterId = selection?.quarterId?.trim() || linkedChild?.quarter?.id || linkedChild?.sourceQuarterId || '';
-
+//fix quarterId to be undefined if it's an empty string
+  const quarterId = rawQuarterId || undefined;
   this.isSubmitting.set(true);
   this.error.set(null);
   this.saveSuccessAlert.set(false);
