@@ -261,25 +261,54 @@ function normalizeList(value: unknown, page: number, pageSize: number): BibleCon
 }
 
 function normalizeContentSet(value: unknown): BibleContentSet {
-  const envelope = record(value, 'content');
-  const row = optionalRecord(envelope['data']) ?? envelope;
-  const quarter = optionalRecord(row['quarter']) ?? {};
+  const row = record(value, 'contentSet');
+  
+  // Extract quarter info whether it is a nested object or flat fields
+  const quarterObj = optionalRecord(row['quarter']);
+  const quarterId =
+    optionalTextField(row, 'quarterId') ??
+    (quarterObj ? optionalTextField(quarterObj, 'id') : undefined) ??
+    '';
+  const quarterName =
+    optionalTextField(row, 'quarterName') ??
+    (quarterObj ? optionalTextField(quarterObj, 'name') : undefined) ??
+    '—';
+
+  // Extract dates from top-level fields, nested quarter, or dateRange object
+  const dateRangeObj = optionalRecord(row['dateRange']);
+  const startDate =
+    optionalTextField(row, 'startDate') ??
+    (quarterObj ? optionalTextField(quarterObj, 'startDate') : undefined) ??
+    (dateRangeObj ? optionalTextField(dateRangeObj, 'startDate') : undefined);
+  const endDate =
+    optionalTextField(row, 'endDate') ??
+    (quarterObj ? optionalTextField(quarterObj, 'endDate') : undefined) ??
+    (dateRangeObj ? optionalTextField(dateRangeObj, 'endDate') : undefined);
+
+  // Extract activity counts from top-level or counts object
+  const countsObj = optionalRecord(row['counts']);
+  const activityCount =
+    typeof row['activityCount'] === 'number'
+      ? row['activityCount']
+      : typeof countsObj?.['activities'] === 'number'
+        ? (countsObj['activities'] as number)
+        : 0;
 
   return {
     id: textField(row, 'id'),
     title: textField(row, 'title'),
-    quarterId: optionalTextField(row, 'quarterId') ?? optionalTextField(quarter, 'id') ?? '',
-    quarterName: optionalTextField(row, 'quarterName') ?? optionalTextField(quarter, 'name') ?? '—',
-    ...(typeof row['startDate'] === 'string' ? { startDate: row['startDate'] } : {}),
-    ...(typeof row['endDate'] === 'string' ? { endDate: row['endDate'] } : {}),
-    ...(typeof row['activityCount'] === 'number' ? { activityCount: row['activityCount'] } : {}),
+    quarterId,
+    quarterName,
+    startDate,
+    endDate,
+    activityCount,
     status: (optionalTextField(row, 'status') ?? 'draft') as BibleContentStatus,
     version: typeof row['version'] === 'number' ? row['version'] : 1,
-    ...(typeof row['updatedAt'] === 'string' ? { updatedAt: row['updatedAt'] } : {}),
+    updatedAt: optionalTextField(row, 'updatedAt'),
     allowedActions: Array.isArray(row['allowedActions'])
       ? (row['allowedActions'] as readonly BibleContentAction[])
-      : [],
-    ...(typeof row['importId'] === 'string' ? { importId: row['importId'] } : {}),
+      : (['view', 'edit', 'publish', 'archive'] as readonly BibleContentAction[]),
+    importId: optionalTextField(row, 'importId'),
   };
 }
 
