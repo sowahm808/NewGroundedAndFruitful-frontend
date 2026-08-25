@@ -31,6 +31,17 @@ export class ParentContextStore {
     const state = this.value();
     return state.status === 'ready' ? state.selectedChildId : null;
   });
+  /** The credential children need in addition to the handle and PIN managed by this feature. */
+  readonly activeFamilyCode = computed(() => {
+    const session = this.auth.user();
+    return (
+      session?.activeWorkspace?.familyCode ||
+      session?.activeWorkspace?.slug ||
+      session?.activeWorkspaceId ||
+      session?.familyCode ||
+      ''
+    );
+  });
 
   constructor() {
     effect(() => {

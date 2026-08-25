@@ -395,6 +395,7 @@ export class AuthService {
       })),
       ...(session.activeOrganizationId ? { activeOrganizationId: session.activeOrganizationId } : {}),
       ...(session.activeWorkspaceId ? { activeWorkspaceId: session.activeWorkspaceId } : {}),
+      ...(session.familyCode ? { familyCode: session.familyCode } : {}),
       ...(session.activeWorkspace
         ? { activeWorkspace: { ...session.activeWorkspace, roles: normalizeRoles(session.activeWorkspace.roles) } }
         : {}),

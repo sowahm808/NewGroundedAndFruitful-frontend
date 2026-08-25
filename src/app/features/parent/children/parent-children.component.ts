@@ -127,16 +127,45 @@ import { parentViewError, ViewError } from '../parent-view.utilities';
       >
     }
     @if (pinChild(); as child) {
-      <div class="modal-overlay" role="presentation" (click)="closePinModal()">
+      <div
+        class="modal-overlay"
+        role="presentation"
+        tabindex="-1"
+        (click)="closePinModal()"
+        (keydown.escape)="closePinModal()"
+      >
         <section
           class="modal-card"
           role="dialog"
           aria-modal="true"
           aria-labelledby="pin-modal-title"
           (click)="$event.stopPropagation()"
+          (keydown)="$event.stopPropagation()"
         >
           <h2 id="pin-modal-title">Manage Login PIN for {{ child.approvedDisplayName }}</h2>
-          <p class="muted">The child will use this handle and PIN at the child login screen.</p>
+          <p class="muted">
+            Give the child all three credentials below. They will enter them on the child login screen.
+          </p>
+          <div class="family-code" aria-labelledby="family-code-label">
+            <div>
+              <strong id="family-code-label">Family code</strong>
+              @if (activeFamilyCode(); as code) {
+                <code>{{ code }}</code>
+              } @else {
+                <span class="form-error"
+                  >Unavailable. Refresh the page or contact support before sharing credentials.</span
+                >
+              }
+            </div>
+            @if (activeFamilyCode(); as code) {
+              <button type="button" class="secondary" (click)="copyCode(code)">Copy family code</button>
+            }
+          </div>
+          <p class="muted">
+            Share this family code together with the child handle and PIN. The family code identifies the active
+            workspace.
+          </p>
+          <p class="copy-status" role="status" aria-live="polite">{{ copyStatus() }}</p>
           @if (modalError(); as failure) {
             <gf-alert [title]="failure.title"
               ><p>{{ failure.message }}</p></gf-alert
@@ -195,10 +224,12 @@ export class ParentChildrenComponent {
   private readonly destroyRef = inject(DestroyRef);
   readonly state = computed(() => this.context.state());
   readonly children = computed(() => this.context.children());
+  readonly activeFamilyCode = computed(() => this.context.activeFamilyCode());
   readonly pinChild = signal<ParentChild | null>(null);
   readonly credentialBusy = signal(false);
   readonly credentialSuccess = signal('');
   readonly modalError = signal<ViewError | null>(null);
+  readonly copyStatus = signal('');
   readonly pinForm = new FormGroup({
     handle: new FormControl('', {
       nonNullable: true,
@@ -220,7 +251,16 @@ export class ParentChildrenComponent {
     this.pinForm.reset({ handle: suggestedHandle, pin: '', confirmPin: '' });
     this.modalError.set(null);
     this.credentialSuccess.set('');
+    this.copyStatus.set('');
     this.pinChild.set(child);
+  }
+
+  copyCode(code: string): void {
+    if (!code) return;
+    void navigator.clipboard.writeText(code).then(
+      () => this.copyStatus.set('Family code copied to clipboard.'),
+      () => this.copyStatus.set('Unable to copy automatically. Select and copy the family code above.'),
+    );
   }
 
   closePinModal(): void {

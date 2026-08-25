@@ -8,7 +8,11 @@ import { ParentApi, CursorPage, ParentChild } from './parent-api.service';
 import { ParentContextStore } from './parent-context.store';
 
 describe('ParentContextStore', () => {
-  const user = signal<{ uid: string } | null>({ uid: 'parent-a' });
+  const user = signal<{
+    uid: string;
+    activeWorkspace?: { id: string; slug?: string };
+    activeWorkspaceId?: string;
+  } | null>({ uid: 'parent-a' });
   const generation = signal(1);
   const workspace = signal<string | null>('workspace-a');
   let children: jasmine.Spy;
@@ -39,6 +43,14 @@ describe('ParentContextStore', () => {
     TestBed.flushEffects();
     expect(children).toHaveBeenCalledTimes(1);
     expect(store.state()).toEqual({ status: 'empty', children: [] });
+  });
+  it('exposes the active workspace family code with contract fallbacks', () => {
+    user.set({ uid: 'parent-a', activeWorkspace: { id: 'workspace-a', slug: 'family-oak' } });
+    create();
+    expect(store.activeFamilyCode()).toBe('family-oak');
+
+    user.set({ uid: 'parent-a', activeWorkspaceId: 'workspace-a' });
+    expect(store.activeFamilyCode()).toBe('workspace-a');
   });
   it('maps forbidden and dependency failures without throwing', () => {
     children.and.returnValue(
