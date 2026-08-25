@@ -219,39 +219,50 @@ export class ParentCharacterComponent implements OnInit {
     );
   }
 
-  saveSelection(): void {
-    const id = this.childId();
-    const selection = this.selection();
-    if (!id || !selection || !this.canSave()) return;
+ saveSelection(): void {
+  const id = this.childId();
+  const selection = this.selection();
+  if (!id || !this.canSave()) return;
 
-    this.isSubmitting.set(true);
-    this.error.set(null);
-    this.saveSuccessAlert.set(false);
+  // Resolve quarterId from current selection or the linked child's assigned quarter
+  const linkedChild = this.context.children().find((c) => c.id === id);
+  const rawQuarterId = selection?.quarterId?.trim() || linkedChild?.quarter?.id || linkedChild?.sourceQuarterId || '';
 
-    this.api
-      .saveCharacterSelection({
-        childId: id,
-        quarterId: selection.quarterId,
-        qualityIds: this.selectedQualityIds(),
-        expectedVersion: this.currentVersion(),
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (saved) => {
-          this.selection.set(saved);
-          this.currentVersion.set(saved.version);
-          const savedIds = saved.qualityIds || [];
-          this.savedQualityIds.set([...savedIds]);
-          this.selectedQualityIds.set([...savedIds]);
-          this.isSubmitting.set(false);
-          this.saveSuccessAlert.set(true);
-        },
-        error: (e) => {
-          this.isSubmitting.set(false);
-          this.fail(e);
-        },
-      });
-  }
+  this.isSubmitting.set(true);
+  this.error.set(null);
+  this.saveSuccessAlert.set(false);
+
+  const payload: {
+    childId: string;
+    quarterId?: string;
+    qualityIds: readonly string[];
+    expectedVersion: number;
+  } = {
+    childId: id,
+    qualityIds: this.selectedQualityIds(),
+    expectedVersion: this.currentVersion(),
+    ...(rawQuarterId ? { quarterId: rawQuarterId } : {}),
+  };
+
+  this.api
+    .saveCharacterSelection(payload as { childId: string; quarterId: string; qualityIds: readonly string[]; expectedVersion: number })
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe({
+      next: (saved) => {
+        this.selection.set(saved);
+        this.currentVersion.set(saved.version);
+        const savedIds = saved.qualityIds || [];
+        this.savedQualityIds.set([...savedIds]);
+        this.selectedQualityIds.set([...savedIds]);
+        this.isSubmitting.set(false);
+        this.saveSuccessAlert.set(true);
+      },
+      error: (e) => {
+        this.isSubmitting.set(false);
+        this.fail(e);
+      },
+    });
+}
 }
 
 function sameIds(left: readonly string[], right: readonly string[]): boolean {
