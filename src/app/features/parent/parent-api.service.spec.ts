@@ -54,7 +54,7 @@ describe('ParentApi', () => {
             approvedDisplayName: '',
             displayName: '  Ama  ',
             status: 'active',
-            team: { id: 'team-1', approvedDisplayName: '', name: 'Seedlings' },
+            team: { id: 'team-1', approvedDisplayName: '', displayName: 'Seedlings' },
             weeklyParticipation: { completed: 3, available: 5 },
             teamProgress: { completed: 4, target: 8 },
           },
@@ -66,8 +66,7 @@ describe('ParentApi', () => {
     expect(child).toEqual(
       jasmine.objectContaining({
         approvedDisplayName: 'Ama',
-        displayName: 'Ama',
-        team: { id: 'team-1', name: 'Seedlings' },
+        team: { id: 'team-1', displayName: 'Seedlings' },
         weeklyParticipation: { completed: 3, available: 5 },
         teamProgress: { completed: 4, target: 8 },
       }),
@@ -95,7 +94,7 @@ describe('ParentApi', () => {
             name: 'Ama',
             status: 'active',
             activeTeamId: 'team-legacy',
-            readingProgress: { completed: 2, target: 4 },
+            readingProgress: { completed: 2, assigned: 4 },
           },
         ],
         hasMore: false,
@@ -104,8 +103,47 @@ describe('ParentApi', () => {
 
     expect(child).toEqual(
       jasmine.objectContaining({
-        team: { id: 'team-legacy', name: 'Growth Team' },
-        readingProgress: '2 of 4',
+        team: { id: 'team-legacy', displayName: 'Growth Team' },
+        readingProgress: { completed: 2, assigned: 4 },
+      }),
+    );
+  });
+
+  it('preserves the published linked-child fields used by the parent dashboard', () => {
+    let child: unknown;
+    api.children().subscribe((page) => (child = page.items[0]));
+    http.expectOne(`${baseUrl}/parent/children`).flush({
+      data: {
+        items: [
+          {
+            id: 'ccxUv59KPoGbZqz0AeI4',
+            approvedDisplayName: 'James Lee',
+            handle: 'jameslee',
+            status: 'active',
+            team: { id: 'team-1', displayName: 'Jesus team' },
+            quarter: null,
+            weeklyParticipation: { completed: 0, available: 0 },
+            teamProgress: null,
+            readingProgress: { completed: 0, assigned: 0 },
+            projectStatus: null,
+            calculatedAt: '2026-08-24T19:57:18.750Z',
+            sourceQuarterId: null,
+            sourceWeekId: null,
+          },
+        ],
+        hasMore: false,
+      },
+    });
+
+    expect(child).toEqual(
+      jasmine.objectContaining({
+        team: { id: 'team-1', displayName: 'Jesus team' },
+        quarter: null,
+        readingProgress: { completed: 0, assigned: 0 },
+        projectStatus: null,
+        calculatedAt: '2026-08-24T19:57:18.750Z',
+        sourceQuarterId: null,
+        sourceWeekId: null,
       }),
     );
   });

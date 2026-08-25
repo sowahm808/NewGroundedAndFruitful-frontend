@@ -5,7 +5,7 @@ import { Observable, Subject, of, throwError } from 'rxjs';
 import { ApiError } from '../../../core/http/api-error';
 import { ActiveOrganizationService } from '../../../core/organizations/active-organization.service';
 import { AdminQuartersApiService, Quarter, QuarterList, QuarterQuery } from '../quarters/admin-quarters-api.service';
-import { AdminBibleApiService } from './admin-bible-api.service';
+import { AdminBibleApiService, BibleImportList, BibleImportReview } from './admin-bible-api.service';
 import { AdminBibleImportComponent } from './admin-bible-import.component';
 
 describe('AdminBibleImportComponent', () => {
@@ -14,6 +14,7 @@ describe('AdminBibleImportComponent', () => {
   let quarterResponses: Observable<QuarterList>[];
   let quarterQueries: QuarterQuery[];
   let createImport: jasmine.Spy;
+  let importResponses: Observable<BibleImportList>[];
   let organizationId: ReturnType<typeof signal<string | null>>;
   let workspaceChanges: Subject<void>;
   let errorHandler: jasmine.SpyObj<ErrorHandler>;
@@ -37,10 +38,18 @@ describe('AdminBibleImportComponent', () => {
     items,
     pagination: { page: current, pageSize: 100, total: items.length, totalPages },
   });
+  const importPage = (items: readonly BibleImportReview[] = []): BibleImportList => ({
+    items,
+    pagination: { page: 1, pageSize: 100, total: items.length, totalPages: 1 },
+    aggregates: {},
+  });
+  const activeImport = (quarter: Quarter, status: 'draft' | 'processing'): BibleImportReview =>
+    ({ id: 'import-active', status, quarter: { id: quarter.id, name: quarter.name } }) as BibleImportReview;
 
   beforeEach(async () => {
     quarterResponses = [of(page())];
     quarterQueries = [];
+    importResponses = [of(importPage())];
     organizationId = signal<string | null>('organization-1');
     workspaceChanges = new Subject<void>();
     errorHandler = jasmine.createSpyObj<ErrorHandler>('ErrorHandler', ['handleError']);
@@ -60,7 +69,15 @@ describe('AdminBibleImportComponent', () => {
             },
           },
         },
-        { provide: AdminBibleApiService, useValue: { createBibleContentImport: createImport } },
+        {
+          provide: AdminBibleApiService,
+          useValue: {
+            createBibleContentImport: createImport,
+            listImports: () => {
+              return importResponses.shift() ?? of(importPage());
+            },
+          },
+        },
         { provide: ActiveOrganizationService, useValue: { organizationId, workspaceChanged$: workspaceChanges } },
         { provide: ErrorHandler, useValue: errorHandler },
       ],
@@ -75,6 +92,40 @@ describe('AdminBibleImportComponent', () => {
     expect(JSON.stringify(quarterQueries)).not.toContain('startsOn');
     const option = fixture.nativeElement.querySelector('option[value="quarter-autumn"]') as HTMLOptionElement;
     expect(option.textContent).toContain('Autumn 2026');
+  });
+
+  it('excludes closed and archived quarters and disables quarters with active imports', () => {
+    const closed = { ...autumn, id: 'quarter-closed', status: 'closed' as const };
+    const archived = { ...autumn, id: 'quarter-archived', status: 'archived' as const };
+    const processing = { ...autumn, id: 'quarter-processing', name: 'Processing quarter' };
+    quarterResponses = [of(page([autumn, closed, archived, processing]))];
+    importResponses = [of(importPage([activeImport(processing, 'processing')]))];
+
+    component.loadQuarters();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('option[value="quarter-closed"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('option[value="quarter-archived"]')).toBeNull();
+    const option = fixture.nativeElement.querySelector('option[value="quarter-processing"]') as HTMLOptionElement;
+    expect(option.disabled).toBeTrue();
+    expect(option.textContent).toContain('Processing quarter (Import already exists)');
+  });
+
+  it('shows the lifecycle conflict warning with a link to existing imports', () => {
+    component.form.setValue({ title: 'Autumn quiz', quarterId: autumn.id });
+    component.selectQuestion({ target: { files: [new File(['q'], 'q.docx')] } } as unknown as Event);
+    component.selectAnswer({ target: { files: [new File(['a'], 'a.docx')] } } as unknown as Event);
+    createImport.and.returnValue(
+      throwError(() => new ApiError(409, 'BIBLE_QUARTER_LIFECYCLE_CONFLICT', 'Quarter cannot accept an import.')),
+    );
+
+    component.submit();
+    fixture.detectChanges();
+
+    const alert = fixture.nativeElement.querySelector('gf-alert') as HTMLElement;
+    expect(alert.textContent).toContain('Quarter Import Conflict');
+    expect(alert.textContent).toContain('already has an import or is not in an editable lifecycle state');
+    expect((alert.querySelector('a') as HTMLAnchorElement).getAttribute('href')).toBe('/admin/bible');
   });
 
   it('loads every tenant-scoped page rather than assuming 100 is exhaustive', () => {

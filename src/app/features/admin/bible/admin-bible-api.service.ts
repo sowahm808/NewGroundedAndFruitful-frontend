@@ -58,7 +58,7 @@ export interface CreateBibleContentImportInput {
   readonly idempotencyKey: string;
 }
 export type BibleImportStatus =
-  'processing' | 'needs_correction' | 'needs_review' | 'rejected' | 'committed' | 'processing_failed';
+  'draft' | 'processing' | 'needs_correction' | 'needs_review' | 'rejected' | 'committed' | 'processing_failed';
 export type BibleImportAction =
   'review' | 'continue_review' | 'reprocess' | 'commit' | 'reject' | 'cancel' | 'view_committed_content';
 export interface BibleImportDocument {
@@ -136,16 +136,18 @@ export class AdminBibleApiService {
   private readonly api = inject(ApiClient);
 
   list(query: BibleContentQuery): Observable<BibleContentList> {
-    return this.api.getData<BibleContentList>('/admin/bible-content', {
-      params: {
-        page: query.page,
-        pageSize: query.pageSize,
-        sort: query.sort,
-        ...(query.quarterId ? { quarterId: query.quarterId } : {}),
-        ...(query.status ? { status: query.status } : {}),
-        ...(query.search ? { search: query.search } : {}),
-      },
-    });
+    return this.api
+      .get<unknown>('/admin/bible-content', {
+        params: {
+          page: query.page,
+          pageSize: query.pageSize,
+          sort: query.sort,
+          ...(query.quarterId ? { quarterId: query.quarterId } : {}),
+          ...(query.status ? { status: query.status } : {}),
+          ...(query.search ? { search: query.search } : {}),
+        },
+      })
+      .pipe(map((value) => normalizeList(value, query.page, query.pageSize)));
   }
 
   createBibleContentImport(input: CreateBibleContentImportInput): Observable<BibleImportCreated> {
@@ -168,8 +170,8 @@ export class AdminBibleApiService {
 
   listImports(page = 1, pageSize = 25) {
     return this.api
-      .getData<unknown>('/admin/bible-content/imports', { params: { page, pageSize, sort: '-updatedAt' } })
-      .pipe(map(normalizeImportList));
+      .get<unknown>('/admin/bible-content/imports', { params: { page, pageSize, sort: '-updatedAt' } })
+      .pipe(map((value) => normalizeImportList(value, page, pageSize)));
   }
 
   commitImport(id: string, expectedVersion: number, idempotencyKey: string) {
@@ -199,17 +201,71 @@ export class AdminBibleApiService {
   getContent(id: string) {
     return this.api.getData<BibleContentSet>(`/admin/bible-content/${encodeURIComponent(id)}`);
   }
+
+  publishContent(id: string, expectedVersion: number) {
+    return this.api.postData<unknown>(
+      `/admin/bible-content/${encodeURIComponent(id)}/publish`,
+      { expectedVersion },
+      adminMutationOptions(expectedVersion),
+    );
+  }
 }
 
-function normalizeImportList(value: unknown): BibleImportList {
-  const row = record(value, 'import list');
-  if (!Array.isArray(row['items'])) contract('imports.items');
-  const pagination = record(row['pagination'], 'imports.pagination') as unknown as BiblePagination;
+function normalizeList(value: unknown, page: number, pageSize: number): BibleContentList {
+  const { items, pagination, aggregates } = collectionParts(value, page, pageSize, 'content');
   return {
-    items: row['items'].map(normalizeImport),
+    items: items as readonly BibleContentSet[],
     pagination,
-    aggregates: (row['aggregates'] ?? {}) as BibleImportList['aggregates'],
+    ...(aggregates ? { aggregates: aggregates as BibleContentList['aggregates'] } : {}),
   };
+}
+
+function normalizeImportList(value: unknown, page: number, pageSize: number): BibleImportList {
+  const { items, pagination, aggregates } = collectionParts(value, page, pageSize, 'imports');
+  return {
+    items: items.map(normalizeImport),
+    pagination,
+    aggregates: (aggregates ?? {}) as BibleImportList['aggregates'],
+  };
+}
+
+function collectionParts(value: unknown, page: number, pageSize: number, field: string) {
+  const envelope = record(value, `${field} response`);
+  const data = envelope['data'];
+  const row = Array.isArray(data) ? undefined : record(data, `${field}.data`);
+  const items = Array.isArray(data) ? data : row?.['items'];
+  if (!Array.isArray(items)) contract(`${field}.items`);
+
+  const nestedPagination = optionalRecord(row?.['pagination']);
+  const topPagination = optionalRecord(envelope['pagination']);
+  const meta = optionalRecord(envelope['meta']);
+  const total = numberValue(nestedPagination?.['total'] ?? meta?.['total'] ?? topPagination?.['total'], items.length);
+  const normalizedPage = numberValue(nestedPagination?.['page'] ?? meta?.['page'] ?? topPagination?.['page'], page);
+  const normalizedPageSize = numberValue(
+    nestedPagination?.['pageSize'] ?? meta?.['pageSize'] ?? topPagination?.['pageSize'],
+    pageSize,
+  );
+  return {
+    items,
+    pagination: {
+      page: normalizedPage,
+      pageSize: normalizedPageSize,
+      total,
+      totalPages: numberValue(
+        nestedPagination?.['totalPages'] ?? meta?.['totalPages'] ?? topPagination?.['totalPages'],
+        total ? Math.ceil(total / normalizedPageSize) : 0,
+      ),
+    } satisfies BiblePagination,
+    aggregates: row?.['aggregates'] ?? envelope['aggregates'],
+  };
+}
+
+function optionalRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+}
+
+function numberValue(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback;
 }
 
 /** The only DTO boundary for import detail. Backend document fields are nested under documents. */

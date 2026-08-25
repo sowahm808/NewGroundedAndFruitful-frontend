@@ -13,15 +13,17 @@ export interface CursorPage<T> {
 export interface ParentChild {
   readonly id: string;
   readonly approvedDisplayName: string;
-  readonly displayName: string;
-  readonly status: string;
-  readonly team?: { readonly id: string; readonly name: string };
-  readonly quarter?: { readonly id: string; readonly name: string };
-  readonly weeklyParticipation?: { readonly completed: number; readonly available: number };
-  readonly teamProgress?: { readonly completed: number; readonly target: number };
-  readonly readingProgress?: string;
-  readonly projectStatus?: string;
   readonly handle?: string;
+  readonly status: string;
+  readonly team: { readonly id: string; readonly displayName: string } | null;
+  readonly quarter: { readonly id: string; readonly displayName: string } | null;
+  readonly weeklyParticipation: { readonly completed: number; readonly available: number };
+  readonly teamProgress: { readonly completed: number; readonly target: number } | null;
+  readonly readingProgress: { readonly completed: number; readonly assigned: number };
+  readonly projectStatus: string | null;
+  readonly calculatedAt: string;
+  readonly sourceQuarterId: string | null;
+  readonly sourceWeekId: string | null;
 }
 export interface ParentDashboard {
   readonly children: readonly ParentChild[];
@@ -209,65 +211,61 @@ function normalizeParentChild(value: unknown): ParentChild {
   const quarter = normalizeNamedReference(value['quarter']);
   const weeklyParticipation = normalizeProgress(value['weeklyParticipation'], 'available');
   const teamProgress = normalizeProgress(value['teamProgress'], 'target');
-  const readingProgress = normalizeReadingProgress(value['readingProgress']);
+  const readingProgress = normalizeProgress(value['readingProgress'], 'assigned');
 
   return {
     ...(value as Partial<ParentChild>),
     id,
     status: value['status'],
     approvedDisplayName,
-    displayName: approvedDisplayName,
-    ...(team ? { team } : {}),
-    ...(quarter ? { quarter } : {}),
-    ...(weeklyParticipation ? { weeklyParticipation } : {}),
-    ...(teamProgress ? { teamProgress } : {}),
-    ...(readingProgress ? { readingProgress } : {}),
+    team: team ?? null,
+    quarter: quarter ?? null,
+    weeklyParticipation: weeklyParticipation ?? { completed: 0, available: 0 },
+    teamProgress: teamProgress ?? null,
+    readingProgress: readingProgress ?? { completed: 0, assigned: 0 },
+    projectStatus: isNonEmptyString(value['projectStatus']) ? value['projectStatus'].trim() : null,
+    calculatedAt: firstNonEmptyString(value['calculatedAt']) ?? '',
+    sourceQuarterId: firstNonEmptyString(value['sourceQuarterId']) ?? null,
+    sourceWeekId: firstNonEmptyString(value['sourceWeekId']) ?? null,
   } as ParentChild;
 }
 
-function normalizeTeam(value: unknown, child: Record<string, unknown>): ParentChild['team'] | undefined {
+function normalizeTeam(value: unknown, child: Record<string, unknown>): NonNullable<ParentChild['team']> | undefined {
   if (!isRecord(value)) {
     const id = firstNonEmptyString(child['teamId'], child['activeTeamId']);
     if (!id) return undefined;
-    return { id, name: firstNonEmptyString(child['teamName']) ?? 'Growth Team' };
+    return { id, displayName: firstNonEmptyString(child['teamName']) ?? 'Growth Team' };
   }
   const id = firstNonEmptyString(value['id'], value['teamId']);
   if (!id) return undefined;
   return {
     id,
-    name: firstNonEmptyString(value['approvedDisplayName'], value['displayName'], value['name']) ?? 'Growth Team',
+    displayName:
+      firstNonEmptyString(value['approvedDisplayName'], value['displayName'], value['name']) ?? 'Growth Team',
   };
 }
 
-function normalizeNamedReference(value: unknown): ParentChild['quarter'] | undefined {
+function normalizeNamedReference(value: unknown): NonNullable<ParentChild['quarter']> | undefined {
   if (!isRecord(value)) return undefined;
   const id = firstNonEmptyString(value['id']);
   const name = firstNonEmptyString(value['approvedDisplayName'], value['displayName'], value['name']);
-  return id && name ? { id, name } : undefined;
-}
-
-function normalizeReadingProgress(value: unknown): string | undefined {
-  if (isNonEmptyString(value)) return value.trim();
-  if (!isRecord(value)) return undefined;
-  const label = firstNonEmptyString(value['label'], value['summary'], value['status']);
-  if (label) return label;
-  const completed = value['completed'];
-  const target = value['target'] ?? value['available'];
-  return isNonNegativeNumber(completed) && isNonNegativeNumber(target) ? `${completed} of ${target}` : undefined;
+  return id && name ? { id, displayName: name } : undefined;
 }
 
 function normalizeProgress(
   value: unknown,
-  totalKey: 'available' | 'target',
+  totalKey: 'available' | 'target' | 'assigned',
 ):
   | { readonly completed: number; readonly available: number }
   | { readonly completed: number; readonly target: number }
+  | { readonly completed: number; readonly assigned: number }
   | undefined {
   if (!isRecord(value) || !isNonNegativeNumber(value['completed']) || !isNonNegativeNumber(value[totalKey]))
     return undefined;
   return { completed: value['completed'], [totalKey]: value[totalKey] } as
     | { readonly completed: number; readonly available: number }
-    | { readonly completed: number; readonly target: number };
+    | { readonly completed: number; readonly target: number }
+    | { readonly completed: number; readonly assigned: number };
 }
 
 function firstNonEmptyString(...values: readonly unknown[]): string | undefined {
