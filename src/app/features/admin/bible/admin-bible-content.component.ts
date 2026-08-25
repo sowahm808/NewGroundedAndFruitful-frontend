@@ -26,12 +26,12 @@ import { AdminBibleApiService, BibleContentSet } from './admin-bible-api.service
 
     @if (content(); as item) {
       @if (publishError(); as failure) {
-        <gf-alert [title]="publishErrorTitle()" variant="error">
-          <p>{{ failure.message }}</p>
-          @if (showQuarterLink()) {
-            <div style="margin-top: 0.75rem;">
-              <a routerLink="/admin/quarters" class="btn-link">Go to Quarters to Activate &rarr;</a>
-            </div>
+        <gf-alert
+          [title]="quarterMustBeActivated(failure) ? 'Quarter Not Active' : 'Content set could not be published'"
+        >
+          <p>{{ publishErrorMessage(failure) }}</p>
+          @if (quarterMustBeActivated(failure)) {
+            <p><a routerLink="/admin/quarters">Go to Quarters to activate it →</a></p>
           }
         </gf-alert>
       }
@@ -167,7 +167,7 @@ export class AdminBibleContentComponent {
     this.error.set(null);
     this.api.getContent(this.id).subscribe({
       next: (value) => {
-        this.content.set(value);
+        this.content.set(value as BibleContentSet);
         this.loading.set(false);
       },
       error: (error: ApiError) => {
@@ -207,11 +207,11 @@ export class AdminBibleContentComponent {
 
   archive() {
     const item = this.content();
-    if (!item || this.busy()) return;
-    if (!confirm(`Are you sure you want to archive "${item.title}"?`)) return;
+    if (!item || item.status === 'archived' || this.busy()) return;
 
     this.busy.set(true);
     this.publishError.set(null);
+    this.publishSuccess.set(false);
 
     this.api.archiveContent(this.id, item.version).subscribe({
       next: () => {
@@ -221,8 +221,19 @@ export class AdminBibleContentComponent {
       error: (error: ApiError) => {
         this.publishError.set(error);
         this.busy.set(false);
-        this.publishErrorTitle.set('Archive Failed');
       },
     });
+  }
+
+  quarterMustBeActivated(error: ApiError) {
+    return (
+      error.status === 409 &&
+      (error.code === 'BIBLE_CONTENT_INVALID_STATE' || error.message.toLowerCase().includes('quarter must be active'))
+    );
+  }
+  publishErrorMessage(error: ApiError) {
+    return this.quarterMustBeActivated(error)
+      ? 'This content set cannot be published because its linked quarter is not active. Activate the quarter first.'
+      : error.message;
   }
 }

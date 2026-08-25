@@ -39,7 +39,7 @@ type LoadResult = { sequence: number; data?: BibleContentList; error?: ApiError 
     </nav>
 
     @if (actionError(); as failure) {
-      <gf-alert [title]="actionErrorTitle()" variant="error">
+      <gf-alert [title]="actionErrorTitle()">
         <p>{{ failure.message }}</p>
         @if (showQuarterLink()) {
           <div style="margin-top: 0.75rem;">
@@ -237,7 +237,7 @@ type LoadResult = { sequence: number; data?: BibleContentList; error?: ApiError 
                     <td>
                       <div class="actions">
                         <a [routerLink]="['/admin/bible/content', item.id]">View</a>
-                        
+
                         @if (canPublish(item)) {
                           <button
                             type="button"
@@ -495,7 +495,7 @@ export class AdminBibleComponent {
   readonly actionErrorTitle = signal<string>('Action failed');
   readonly showQuarterLink = signal(false);
 
-  readonly filtered = computed(() => !!this.query.search || !!this.query.status || !!this.query.quarterId);
+  readonly filtered = computed(() => !this.query.search || !this.query.status || !this.query.quarterId);
 
   readonly rangeStart = computed(() => {
     const p = this.result()?.pagination;
@@ -587,7 +587,7 @@ export class AdminBibleComponent {
     this.loads.next(this.query);
   }
 
-hasAction(allowedActions: readonly string[] | undefined | null, action: string): boolean {
+  hasAction(allowedActions: readonly string[] | undefined | null, action: string): boolean {
     return Array.isArray(allowedActions) && allowedActions.includes(action);
   }
 
@@ -601,48 +601,48 @@ hasAction(allowedActions: readonly string[] | undefined | null, action: string):
     return item.status !== 'archived';
   }
 
-publishDirect(item: BibleContentSet): void {
-  this.actionBusyId.set(item.id);
-  this.actionError.set(null);
-  this.showQuarterLink.set(false);
+  publishDirect(item: BibleContentSet): void {
+    this.actionBusyId.set(item.id);
+    this.actionError.set(null);
+    this.showQuarterLink.set(false);
 
-  this.api.publishContent(item.id, item.version).subscribe({
-    next: () => {
-      this.actionBusyId.set(null);
-      this.load();
-    },
-    error: (err: ApiError) => {
-      this.actionBusyId.set(null);
-      this.actionError.set(err);
-      if (err.status === 409 && err.message?.toLowerCase().includes('quarter must be active')) {
-        this.actionErrorTitle.set('Quarter Not Active');
-        this.showQuarterLink.set(true);
-      } else {
-        this.actionErrorTitle.set('Publish Failed');
-      }
-    },
-  });
-}
+    this.api.publishContent(item.id, item.version).subscribe({
+      next: () => {
+        this.actionBusyId.set(null);
+        this.load();
+      },
+      error: (err: ApiError) => {
+        this.actionBusyId.set(null);
+        this.actionError.set(err);
+        if (err.status === 409 && err.message?.toLowerCase().includes('quarter must be active')) {
+          this.actionErrorTitle.set('Quarter Not Active');
+          this.showQuarterLink.set(true);
+        } else {
+          this.actionErrorTitle.set('Publish Failed');
+        }
+      },
+    });
+  }
 
-archiveDirect(item: BibleContentSet): void {
-  if (!confirm(`Are you sure you want to archive "${item.title}"?`)) return;
+  archiveDirect(item: BibleContentSet): void {
+    if (!confirm(`Are you sure you want to archive "${item.title}"?`)) return;
 
-  this.actionBusyId.set(item.id);
-  this.actionError.set(null);
-  this.showQuarterLink.set(false);
+    this.actionBusyId.set(item.id);
+    this.actionError.set(null);
+    this.showQuarterLink.set(false);
 
-  this.api.archiveContent(item.id, item.version).subscribe({
-    next: () => {
-      this.actionBusyId.set(null);
-      this.load();
-    },
-    error: (err: ApiError) => {
-      this.actionBusyId.set(null);
-      this.actionError.set(err);
-      this.actionErrorTitle.set('Archive Failed');
-    },
-  });
-}
+    this.api.archiveContent(item.id, item.version).subscribe({
+      next: () => {
+        this.actionBusyId.set(null);
+        this.load();
+      },
+      error: (err: ApiError) => {
+        this.actionBusyId.set(null);
+        this.actionError.set(err);
+        this.actionErrorTitle.set('Archive Failed');
+      },
+    });
+  }
 
   statusLabel(status: string) {
     return (

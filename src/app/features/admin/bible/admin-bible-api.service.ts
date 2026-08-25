@@ -19,11 +19,11 @@ export type BibleContentSort = '-updatedAt' | 'title' | 'startDate';
 export interface BibleContentSet {
   readonly id: string;
   readonly title: string;
-  readonly quarterId?: string;
-  readonly quarterName?: string;
+  readonly quarterId: string;
+  readonly quarterName: string;
   readonly startDate?: string;
   readonly endDate?: string;
-  readonly activityCount: number;
+  readonly activityCount?: number;
   readonly status: BibleContentStatus;
   readonly version: number;
   readonly updatedAt?: string;
@@ -251,32 +251,35 @@ export class AdminBibleApiService {
   }
 }
 
-function normalizeContentSet(value: unknown): BibleContentSet {
-  const row = record(value, 'contentSet');
-  return {
-    id: textField(row, 'id'),
-    title: textField(row, 'title'),
-    quarterId: optionalTextField(row, 'quarterId'),
-    quarterName: optionalTextField(row, 'quarterName') ?? '—',
-    startDate: optionalTextField(row, 'startDate'),
-    endDate: optionalTextField(row, 'endDate'),
-    activityCount: typeof row['activityCount'] === 'number' ? row['activityCount'] : 0,
-    status: (optionalTextField(row, 'status') ?? 'draft') as BibleContentStatus,
-    version: typeof row['version'] === 'number' ? row['version'] : 1,
-    updatedAt: optionalTextField(row, 'updatedAt'),
-    allowedActions: Array.isArray(row['allowedActions'])
-      ? (row['allowedActions'] as readonly BibleContentAction[])
-      : (['view', 'edit', 'publish', 'archive'] as readonly BibleContentAction[]),
-    importId: optionalTextField(row, 'importId'),
-  };
-}
-
 function normalizeList(value: unknown, page: number, pageSize: number): BibleContentList {
   const { items, pagination, aggregates } = collectionParts(value, page, pageSize, 'content');
   return {
     items: items.map(normalizeContentSet),
     pagination,
     ...(aggregates ? { aggregates: aggregates as BibleContentList['aggregates'] } : {}),
+  };
+}
+
+function normalizeContentSet(value: unknown): BibleContentSet {
+  const envelope = record(value, 'content');
+  const row = optionalRecord(envelope['data']) ?? envelope;
+  const quarter = optionalRecord(row['quarter']) ?? {};
+
+  return {
+    id: textField(row, 'id'),
+    title: textField(row, 'title'),
+    quarterId: optionalTextField(row, 'quarterId') ?? optionalTextField(quarter, 'id') ?? '',
+    quarterName: optionalTextField(row, 'quarterName') ?? optionalTextField(quarter, 'name') ?? '—',
+    ...(typeof row['startDate'] === 'string' ? { startDate: row['startDate'] } : {}),
+    ...(typeof row['endDate'] === 'string' ? { endDate: row['endDate'] } : {}),
+    ...(typeof row['activityCount'] === 'number' ? { activityCount: row['activityCount'] } : {}),
+    status: (optionalTextField(row, 'status') ?? 'draft') as BibleContentStatus,
+    version: typeof row['version'] === 'number' ? row['version'] : 1,
+    ...(typeof row['updatedAt'] === 'string' ? { updatedAt: row['updatedAt'] } : {}),
+    allowedActions: Array.isArray(row['allowedActions'])
+      ? (row['allowedActions'] as readonly BibleContentAction[])
+      : [],
+    ...(typeof row['importId'] === 'string' ? { importId: row['importId'] } : {}),
   };
 }
 
