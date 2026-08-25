@@ -14,12 +14,12 @@ export interface BibleContentSet {
   readonly title: string;
   readonly quarterId: string;
   readonly quarterName: string;
-  readonly startDate: string;
-  readonly endDate: string;
-  readonly activityCount: number;
+  readonly startDate?: string;
+  readonly endDate?: string;
+  readonly activityCount?: number;
   readonly status: BibleContentStatus;
   readonly version: number;
-  readonly updatedAt: string;
+  readonly updatedAt?: string;
   readonly allowedActions: readonly BibleContentAction[];
   readonly importId?: string;
 }
@@ -205,6 +205,14 @@ export class AdminBibleApiService {
   publishContent(id: string, expectedVersion: number) {
     return this.api.postData<unknown>(
       `/admin/bible-content/${encodeURIComponent(id)}/publish`,
+      { expectedVersion },
+      adminMutationOptions(expectedVersion),
+    );
+  }
+
+  archiveContent(id: string, expectedVersion: number) {
+    return this.api.postData<unknown>(
+      `/admin/bible-content/${encodeURIComponent(id)}/archive`,
       { expectedVersion },
       adminMutationOptions(expectedVersion),
     );

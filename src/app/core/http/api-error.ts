@@ -12,6 +12,7 @@ export type ApiErrorCode =
   | 'dependency_failure'
   | 'network_error'
   | 'unexpected_error'
+  | 'BIBLE_CONTENT_INVALID_STATE'
   | 'BIBLE_QUARTER_LIFECYCLE_CONFLICT';
 
 export class ApiError extends Error {
