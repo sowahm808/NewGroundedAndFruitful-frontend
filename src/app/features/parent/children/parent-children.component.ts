@@ -89,11 +89,15 @@ import { parentViewError, ViewError } from '../parent-view.utilities';
                     </li>
                     <li>
                       <strong>Reading:</strong>
-                      {{ child.readingProgress.completed }} of {{ child.readingProgress.assigned }} assigned
+                      @if (child.readingProgress; as rp) {
+                        {{ rp.completed }} of {{ rp.assigned }} assigned
+                      } @else {
+                        Not available
+                      }
                     </li>
                     <li>
                       <strong>Project:</strong>
-                      {{ child.projectStatus || 'Not available' }}
+                      {{ formatProjectStatus(child.projectStatus) }}
                     </li>
                   </ul>
 
@@ -122,9 +126,9 @@ import { parentViewError, ViewError } from '../parent-view.utilities';
       }
     </div>
     @if (credentialSuccess(); as message) {
-      <gf-alert title="Credentials updated"
-        ><p>{{ message }}</p></gf-alert
-      >
+      <gf-alert title="Credentials updated">
+        <p>{{ message }}</p>
+      </gf-alert>
     }
     @if (pinChild(); as child) {
       <div
@@ -152,9 +156,9 @@ import { parentViewError, ViewError } from '../parent-view.utilities';
               @if (activeFamilyCode(); as code) {
                 <code>{{ code }}</code>
               } @else {
-                <span class="form-error"
-                  >Unavailable. Refresh the page or contact support before sharing credentials.</span
-                >
+                <span class="form-error">
+                  Unavailable. Refresh the page or contact support before sharing credentials.
+                </span>
               }
             </div>
             @if (activeFamilyCode(); as code) {
@@ -162,22 +166,21 @@ import { parentViewError, ViewError } from '../parent-view.utilities';
             }
           </div>
           <p class="muted">
-            Share this family code together with the child handle and PIN. The family code identifies the active
-            workspace.
+            Share this family code together with the child handle and PIN. The family code identifies the active workspace.
           </p>
           <p class="copy-status" role="status" aria-live="polite">{{ copyStatus() }}</p>
           @if (modalError(); as failure) {
-            <gf-alert [title]="failure.title"
-              ><p>{{ failure.message }}</p></gf-alert
-            >
+            <gf-alert [title]="failure.title">
+              <p>{{ failure.message }}</p>
+            </gf-alert>
           }
           <form [formGroup]="pinForm" (ngSubmit)="saveCredentials()">
-            <label for="child-handle"
-              >Child handle
+            <label for="child-handle">
+              Child handle
               <input id="child-handle" formControlName="handle" autocomplete="username" inputmode="text" />
             </label>
-            <label for="child-pin"
-              >PIN
+            <label for="child-pin">
+              PIN
               <input
                 id="child-pin"
                 type="password"
@@ -187,8 +190,8 @@ import { parentViewError, ViewError } from '../parent-view.utilities';
                 autocomplete="new-password"
               />
             </label>
-            <label for="child-pin-confirm"
-              >Confirm PIN
+            <label for="child-pin-confirm">
+              Confirm PIN
               <input
                 id="child-pin-confirm"
                 type="password"
@@ -244,6 +247,15 @@ export class ParentChildrenComponent {
 
   percentage(value: number, total: number): number {
     return total > 0 ? Math.min(100, Math.max(0, Math.round((value / total) * 100))) : 0;
+  }
+
+  formatProjectStatus(status: unknown): string {
+    if (!status) return 'Not available';
+    if (typeof status === 'object') {
+      const s = status as { displayName?: string; status?: string };
+      return s.displayName || s.status || 'Not available';
+    }
+    return typeof status === 'string' ? status : 'Not available';
   }
 
   openPinModal(child: ParentChild): void {
