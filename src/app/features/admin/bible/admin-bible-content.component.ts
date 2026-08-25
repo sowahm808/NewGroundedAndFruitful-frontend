@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { Observable } from 'rxjs';
 import { ApiError } from '../../../core/http/api-error';
 import { GfAlert, GfBadge, GfPageHeader } from '../../../shared/components/design-system';
 import { AdminBibleApiService, BibleContentSet } from './admin-bible-api.service';
@@ -82,6 +84,7 @@ import { AdminBibleApiService, BibleContentSet } from './admin-bible-api.service
 })
 export class AdminBibleContentComponent {
   private readonly api = inject(AdminBibleApiService);
+  private readonly http = inject(HttpClient);
   private readonly id = inject(ActivatedRoute).snapshot.paramMap.get('contentSetId') ?? '';
   readonly content = signal<BibleContentSet | null>(null);
   readonly error = signal<ApiError | null>(null);
@@ -103,4 +106,11 @@ export class AdminBibleContentComponent {
       },
     });
   }
+  archiveBibleContent(contentSetId: string, payload: { expectedVersion: number }): Observable<unknown> {
+  return this.http.post(`/api/v1/admin/bible-content/${contentSetId}/archive`, payload);
+}
+
+publishBibleContent(contentSetId: string, payload: { expectedVersion: number }): Observable<unknown> {
+  return this.http.post(`/api/v1/admin/bible-content/${contentSetId}/publish`, payload);
+}
 }

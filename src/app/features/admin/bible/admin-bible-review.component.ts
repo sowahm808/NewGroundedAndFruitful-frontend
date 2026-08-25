@@ -158,6 +158,7 @@ type ViewState = 'loading' | 'ready' | 'contract_error' | 'forbidden' | 'not_fou
       </section>
       <section class="decision">
         <h2>Review decision</h2>
+        <br/>
         @if (item.allowedActions.includes('commit')) {
           <button class="primary" type="button" (click)="confirming.set(true)" [disabled]="submitting()">
             Approve and create draft
