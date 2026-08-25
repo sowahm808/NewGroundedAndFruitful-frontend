@@ -23,9 +23,14 @@ import { AdminBibleApiService, BibleContentSet } from './admin-bible-api.service
     }
     @if (content(); as item) {
       @if (publishError(); as failure) {
-        <gf-alert title="Content set could not be published"
-          ><p>{{ failure.message }}</p></gf-alert
+        <gf-alert
+          [title]="quarterMustBeActivated(failure) ? 'Quarter Not Active' : 'Content set could not be published'"
         >
+          <p>{{ publishErrorMessage(failure) }}</p>
+          @if (quarterMustBeActivated(failure)) {
+            <p><a routerLink="/admin/quarters">Go to Quarters to activate it →</a></p>
+          }
+        </gf-alert>
       }
       @if (publishSuccess()) {
         <gf-alert title="Content set published"
@@ -144,5 +149,16 @@ export class AdminBibleContentComponent {
         this.publishing.set(false);
       },
     });
+  }
+  quarterMustBeActivated(error: ApiError) {
+    return (
+      error.status === 409 &&
+      (error.code === 'BIBLE_CONTENT_INVALID_STATE' || error.message.toLowerCase().includes('quarter must be active'))
+    );
+  }
+  publishErrorMessage(error: ApiError) {
+    return this.quarterMustBeActivated(error)
+      ? 'This content set cannot be published because its linked quarter is not active. Activate the quarter first.'
+      : error.message;
   }
 }

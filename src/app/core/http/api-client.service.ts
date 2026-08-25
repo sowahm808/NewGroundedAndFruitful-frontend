@@ -157,8 +157,10 @@ function backendCodeToApiCode(backendCode: string | undefined, fallback: ApiErro
     'dependency_failure',
     'network_error',
     'unexpected_error',
+    'BIBLE_CONTENT_INVALID_STATE',
+    'BIBLE_QUARTER_LIFECYCLE_CONFLICT',
   ];
-  const normalized = backendCode?.toLowerCase();
+  const normalized = backendCode?.startsWith('BIBLE_') ? backendCode : backendCode?.toLowerCase();
   return known.includes(normalized as ApiErrorCode) ? (normalized as ApiErrorCode) : fallback;
 }
 

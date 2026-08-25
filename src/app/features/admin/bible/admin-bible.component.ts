@@ -9,6 +9,7 @@ import {
   AdminBibleApiService,
   BibleContentList,
   BibleContentQuery,
+  BibleContentSet,
   BibleContentSort,
   BibleContentStatus,
   BibleImportList,
@@ -103,6 +104,9 @@ type LoadResult = { sequence: number; data?: BibleContentList; error?: ApiError 
         }
       </gf-alert>
     } @else if (result(); as list) {
+      @if (actionError(); as failure) {
+        <gf-alert [title]="actionErrorTitle()"><p>{{ failure }}</p>@if(showQuarterLink()){<p><a routerLink="/admin/quarters">Go to Quarters to activate it →</a></p>}</gf-alert>
+      }
       @if (refreshing()) {
         <p class="refresh" role="status">Refreshing Bible content…</p>
       }
@@ -139,13 +143,13 @@ type LoadResult = { sequence: number; data?: BibleContentList; error?: ApiError 
                     <strong>{{ item.title }}</strong>
                   </td>
                   <td>{{ item.quarterName }}</td>
-                  <td>{{ dateOnly(item.startDate) }} – {{ dateOnly(item.endDate) }}</td>
-                  <td>{{ item.activityCount }}</td>
+                  <td>@if(item.startDate && item.endDate){ {{ item.startDate | date:'mediumDate':'UTC' }} – {{ item.endDate | date:'mediumDate':'UTC' }} }@else{ — }</td>
+                  <td>{{ item.activityCount ?? 0 }}</td>
                   <td>
                     <gf-badge>{{ statusLabel(item.status) }}</gf-badge>
                   </td>
                   <td>{{ item.version }}</td>
-                  <td>{{ item.updatedAt | date: 'medium' }}</td>
+                  <td>{{ item.updatedAt ? (item.updatedAt | date: 'medium') : '—' }}</td>
                   <td>
                     <div class="actions">
                       @for (action of item.allowedActions; track action) {
@@ -157,6 +161,8 @@ type LoadResult = { sequence: number; data?: BibleContentList; error?: ApiError 
                         @if (action === 'continue_review' && item.importId) {
                           <a [routerLink]="['/admin/bible/imports', item.importId]">Continue review</a>
                         }
+                        @if(action === 'publish'){<button type="button" [disabled]="busyId() === item.id" (click)="publish(item)">Publish</button>}
+                        @if(action === 'archive'){<button type="button" [disabled]="busyId() === item.id" (click)="archive(item)">Archive / Delete</button>}
                       }
                     </div>
                   </td>
@@ -176,11 +182,11 @@ type LoadResult = { sequence: number; data?: BibleContentList; error?: ApiError 
                 </div>
                 <div>
                   <dt>Date range</dt>
-                  <dd>{{ dateOnly(item.startDate) }} – {{ dateOnly(item.endDate) }}</dd>
+                  <dd>@if(item.startDate && item.endDate){ {{ item.startDate | date:'mediumDate':'UTC' }} – {{ item.endDate | date:'mediumDate':'UTC' }} }@else{ — }</dd>
                 </div>
                 <div>
                   <dt>Activities</dt>
-                  <dd>{{ item.activityCount }}</dd>
+                  <dd>{{ item.activityCount ?? 0 }}</dd>
                 </div>
                 <div>
                   <dt>Status</dt>
@@ -192,12 +198,13 @@ type LoadResult = { sequence: number; data?: BibleContentList; error?: ApiError 
                 </div>
                 <div>
                   <dt>Last updated</dt>
-                  <dd>{{ item.updatedAt | date: 'medium' }}</dd>
+                  <dd>{{ item.updatedAt ? (item.updatedAt | date: 'medium') : '—' }}</dd>
                 </div>
               </dl>
               @if (item.allowedActions.includes('view')) {
                 <a [routerLink]="['/admin/bible/content', item.id]">View</a>
               }
+              <div class="actions">@if(item.allowedActions.includes('publish')){<button type="button" [disabled]="busyId() === item.id" (click)="publish(item)">Publish</button>}@if(item.allowedActions.includes('archive')){<button type="button" [disabled]="busyId() === item.id" (click)="archive(item)">Archive / Delete</button>}</div>
             </article>
           }
         </div>
@@ -433,6 +440,10 @@ export class AdminBibleComponent {
   readonly error = signal<ApiError | null>(null);
   readonly initialLoading = signal(true);
   readonly refreshing = signal(false);
+  readonly busyId = signal<string | null>(null);
+  readonly actionError = signal<string | null>(null);
+  readonly actionErrorTitle = signal('Action failed');
+  readonly showQuarterLink = signal(false);
   readonly filtered = computed(() => !!this.query.search || !!this.query.status || !!this.query.quarterId);
   readonly rangeStart = computed(() => {
     const p = this.result()?.pagination;
@@ -509,6 +520,45 @@ export class AdminBibleComponent {
     this.query = { ...this.query, page };
     this.load();
   }
+  publish(item: BibleContentSet) {
+    if (this.busyId()) return;
+    this.beginAction(item.id);
+    this.api.publishContent(item.id, item.version).subscribe({
+      next: () => this.finishAction(),
+      error: (error: ApiError) => {
+        this.busyId.set(null);
+        if (error.status === 409 && (error.code === 'BIBLE_CONTENT_INVALID_STATE' || error.message.toLowerCase().includes('quarter must be active'))) {
+          this.actionErrorTitle.set('Quarter Not Active');
+          this.actionError.set('This content set cannot be published because its linked quarter is not active. Activate the quarter first.');
+          this.showQuarterLink.set(true);
+        } else {
+          this.actionErrorTitle.set('Publish Failed');
+          this.actionError.set(error.message || 'Unable to publish Bible content set.');
+        }
+      },
+    });
+  }
+  archive(item: BibleContentSet) {
+    if (this.busyId() || !confirm(`Are you sure you want to archive “${item.title}”?`)) return;
+    this.beginAction(item.id);
+    this.api.archiveContent(item.id, item.version).subscribe({
+      next: () => this.finishAction(),
+      error: (error: ApiError) => {
+        this.busyId.set(null);
+        this.actionErrorTitle.set('Archive Failed');
+        this.actionError.set(error.message || 'Failed to archive content set.');
+      },
+    });
+  }
+  private beginAction(id: string) {
+    this.busyId.set(id);
+    this.actionError.set(null);
+    this.showQuarterLink.set(false);
+  }
+  private finishAction() {
+    this.busyId.set(null);
+    this.load();
+  }
   private load() {
     this.loads.next(this.query);
   }
@@ -546,13 +596,5 @@ export class AdminBibleComponent {
       : error.status === 403
         ? ''
         : 'Try again. If the problem continues, contact an administrator.';
-  }
-  dateOnly(value: string) {
-    const [y, m, d] = value.split('-').map(Number);
-    return y && m && d
-      ? new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }).format(
-          new Date(Date.UTC(y, m - 1, d)),
-        )
-      : value;
   }
 }
