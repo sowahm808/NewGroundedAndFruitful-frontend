@@ -9,7 +9,15 @@ import { GfAlert, GfBadge, GfEmptyState, GfLoading, GfPageHeader } from '../../.
 import { AdminReportsApiService, CreateReportRequest, ReportJob } from './admin-reports-api.service';
 
 type ViewState =
-  'loading' | 'ready' | 'empty' | 'validation_error' | 'forbidden' | 'conflict' | 'dependency_error' | 'contract_error';
+  | 'loading'
+  | 'ready'
+  | 'empty'
+  | 'validation_error'
+  | 'forbidden'
+  | 'conflict'
+  | 'dependency_error'
+  | 'contract_error';
+
 const TERMINAL = new Set(['completed', 'failed', 'expired', 'cancelled']);
 
 @Component({
@@ -37,8 +45,8 @@ const TERMINAL = new Set(['completed', 'failed', 'expired', 'cancelled']);
         </label>
         <label>Quarter ID <input name="quarterId" [(ngModel)]="draft.quarterId" /></label>
         <div class="form-actions">
-          <button type="button" (click)="creating.set(false)">Cancel</button
-          ><button [disabled]="submitting()">{{ submitting() ? 'Creating…' : 'Create report' }}</button>
+          <button type="button" (click)="creating.set(false)">Cancel</button>
+          <button [disabled]="submitting()">{{ submitting() ? 'Creating…' : 'Create report' }}</button>
         </div>
         @if (formError()) {
           <p class="field-error" role="alert">{{ formError() }}</p>
@@ -54,8 +62,8 @@ const TERMINAL = new Set(['completed', 'failed', 'expired', 'cancelled']);
           @for (status of statuses; track status) {
             <option [value]="status">{{ status }}</option>
           }
-        </select></label
-      >
+        </select>
+      </label>
       <button>Apply</button>
     </form>
 
@@ -115,8 +123,8 @@ const TERMINAL = new Set(['completed', 'failed', 'expired', 'cancelled']);
         </div>
       }
       @default {
-        <gf-alert [title]="errorTitle()"
-          ><p>{{ error()?.message }}</p>
+        <gf-alert [title]="errorTitle()">
+          <p>{{ error()?.message }}</p>
           @if (error()?.fieldErrors; as fields) {
             @for (field of fieldEntries(fields); track field[0]) {
               <p>
@@ -129,8 +137,8 @@ const TERMINAL = new Set(['completed', 'failed', 'expired', 'cancelled']);
               Request ID: <code>{{ error()?.requestId }}</code>
             </p>
           }
-          <button type="button" (click)="load()">Try again</button></gf-alert
-        >
+          <button type="button" (click)="load()">Try again</button>
+        </gf-alert>
       }
     }
   `,
@@ -234,6 +242,7 @@ export class AdminReportsComponent implements OnInit {
   private readonly api = inject(AdminReportsApiService);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+
   readonly state = signal<ViewState>('loading');
   readonly jobs = signal<readonly ReportJob[]>([]);
   readonly visibleJobs = signal<readonly ReportJob[]>([]);
@@ -254,13 +263,17 @@ export class AdminReportsComponent implements OnInit {
     { value: 'family_activity_participation', label: 'Family activity participation' },
     { value: 'project_participation', label: 'Project participation' },
   ] as const;
+
   draft = { reportType: '', quarterId: '' };
   draftStatus = '';
   private status = '';
+
   canCreate = () => this.auth.capabilities().includes('admin.reports.create');
+
   ngOnInit() {
     this.load();
   }
+
   load() {
     this.state.set('loading');
     this.error.set(null);
@@ -275,15 +288,18 @@ export class AdminReportsComponent implements OnInit {
         error: (e) => this.fail(e),
       });
   }
+
   applyFilter() {
     this.status = this.statuses.includes(this.draftStatus as never) ? this.draftStatus : '';
     this.filter();
   }
+
   private filter() {
     const items = this.status ? this.jobs().filter((j) => j.status === this.status) : this.jobs();
     this.visibleJobs.set(items);
     this.state.set(items.length ? 'ready' : 'empty');
   }
+
   createReport() {
     this.formError.set('');
     if (!this.publishedTypes.some((t) => t.value === this.draft.reportType)) {
@@ -312,6 +328,7 @@ export class AdminReportsComponent implements OnInit {
         error: (e) => this.fail(e),
       });
   }
+
   private poll(job: ReportJob) {
     if (TERMINAL.has(job.status)) return;
     interval(2000)
@@ -329,6 +346,7 @@ export class AdminReportsComponent implements OnInit {
         error: (e) => this.fail(e),
       });
   }
+
   runAction(job: ReportJob, action: string) {
     if (action === 'view') return;
     if (action === 'download') {
@@ -365,6 +383,7 @@ export class AdminReportsComponent implements OnInit {
         });
     }
   }
+
   private fail(value: unknown) {
     const e =
       value instanceof ApiError ? value : new ApiError(-1, 'unexpected_error', 'The request could not be completed.');
@@ -381,6 +400,7 @@ export class AdminReportsComponent implements OnInit {
               : 'contract_error',
     );
   }
+
   errorTitle() {
     return this.state() === 'forbidden'
       ? 'Reports access forbidden'
@@ -392,12 +412,15 @@ export class AdminReportsComponent implements OnInit {
             ? 'Reports dependency unavailable'
             : 'Reports contract error';
   }
+
   humanize(v: string) {
     return v.replaceAll('_', ' ').replace(/^./, (c) => c.toUpperCase());
   }
+
   period(j: ReportJob) {
     return j.periodStart && j.periodEnd ? `${j.periodStart} – ${j.periodEnd}` : 'Organization scope';
   }
+
   fieldEntries(v: Readonly<Record<string, readonly string[]>>) {
     return Object.entries(v);
   }
