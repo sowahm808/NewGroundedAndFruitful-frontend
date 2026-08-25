@@ -3,7 +3,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute } from '@angular/router';
 import { distinctUntilChanged, finalize, forkJoin, map, Subscription } from 'rxjs';
 import { GfAlert, GfCard, GfLoading, GfPageHeader } from '../../../shared/components/design-system';
-import { CharacterQuality, CharacterSelection, ParentApi } from '../parent-api.service';
+import {
+  CharacterQuality,
+  CharacterSelection,
+  ParentCharacterApi,
+} from '../../../parent/services/parent-character-api.service';
 import { parentViewError, ViewError } from '../parent-view.utilities';
 import { ParentChildScopeComponent } from '../shared/parent-child-scope.component';
 @Component({
@@ -16,38 +20,57 @@ import { ParentChildScopeComponent } from '../shared/parent-child-scope.componen
       <p class="muted">Choose a linked child to manage their character qualities.</p>
     }
     @if (loading()) {
-      <gf-loading />
+      <gf-loading label="Loading character qualities" />
     }
     @if (error(); as e) {
       <gf-alert [title]="e.title"
-        ><p>{{ e.message }}</p></gf-alert
-      >
+        ><p>{{ e.message }}</p>
+        @if (e.retryable) {
+          <button type="button" class="secondary" (click)="loadSelection(childId())">Try again</button>
+        }
+      </gf-alert>
     }
     @if (selection(); as current) {
-      <h2>Quarter: {{ current.quarterName || current.quarterId }} | Week {{ current.currentWeekNumber || '—' }}</h2>
+      <div class="cycle-heading">
+        <div>
+          <p class="muted">Current cycle</p>
+          <h2>{{ current.quarterName || 'Character qualities' }}</h2>
+        </div>
+        <p aria-live="polite">
+          <strong>{{ selectedQualityIds().length }} of {{ selectionLimit }} selected</strong>
+        </p>
+      </div>
+      <p class="muted">Choose {{ selectionLimit }} qualities to focus on with your child this cycle.</p>
       <div class="cards" aria-label="Character quality selection">
         @for (q of qualities(); track q.id) {
-          <gf-card
+          <gf-card [class.selected-quality]="selectedQualityIds().includes(q.id)"
             ><label class="quality-option"
               ><input
                 type="checkbox"
                 [checked]="selectedQualityIds().includes(q.id)"
                 [disabled]="
                   !editable() ||
-                  (!selectedQualityIds().includes(q.id) && selectedQualityIds().length >= selectionLimit())
+                  isSubmitting() ||
+                  (!selectedQualityIds().includes(q.id) && selectedQualityIds().length >= selectionLimit)
                 "
                 (change)="toggle(q.id)"
               />
-              {{ q.name }}</label
+              <span>{{ q.name }}</span></label
             >
+            @if (q.category) {
+              <p class="quality-category">{{ q.category }}</p>
+            }
             <p>{{ q.description }}</p></gf-card
+          >
+        } @empty {
+          <gf-alert title="No qualities available"
+            ><p>There are no character qualities configured for this cycle.</p></gf-alert
           >
         }
       </div>
-      <p><strong>Selected:</strong> {{ selectedQualityIds().length }} / {{ selectionLimit() }}</p>
       @if (editable()) {
         <button type="button" (click)="saveSelection()" [disabled]="!canSave()">
-          {{ isSubmitting() ? 'Saving…' : 'Save Character Selection' }}
+          {{ isSubmitting() ? 'Saving…' : 'Save selection' }}
         </button>
       } @else {
         <gf-alert title="Selection window closed"><p>This quarter's character selection is read-only.</p></gf-alert>
@@ -60,7 +83,7 @@ import { ParentChildScopeComponent } from '../shared/parent-child-scope.componen
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ParentCharacterComponent implements OnInit {
-  private readonly api = inject(ParentApi);
+  private readonly api = inject(ParentCharacterApi);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   readonly childId = signal('');
@@ -72,14 +95,14 @@ export class ParentCharacterComponent implements OnInit {
   readonly currentVersion = signal(0);
   readonly isSubmitting = signal(false);
   readonly saveSuccessAlert = signal(false);
-  readonly selectionLimit = signal(3);
+  readonly selectionLimit = 3;
   readonly editable = signal(false);
   private readonly savedQualityIds = signal<readonly string[]>([]);
   private loadRequest?: Subscription;
   readonly canSave = () =>
     !this.isSubmitting() &&
     this.editable() &&
-    this.selectedQualityIds().length === this.selectionLimit() &&
+    this.selectedQualityIds().length === this.selectionLimit &&
     !sameIds(this.selectedQualityIds(), this.savedQualityIds());
   ngOnInit(): void {
     this.route.queryParamMap
@@ -95,7 +118,7 @@ export class ParentCharacterComponent implements OnInit {
       });
   }
 
-  private loadSelection(id: string): void {
+  loadSelection(id: string): void {
     this.loadRequest?.unsubscribe();
     this.loadRequest = undefined;
     this.error.set(null);
@@ -108,8 +131,8 @@ export class ParentCharacterComponent implements OnInit {
     }
     this.loading.set(true);
     this.loadRequest = forkJoin({
-      qualities: this.api.characterQualities(),
-      selection: this.api.characterSelection(id),
+      qualities: this.api.getQualities(),
+      selection: this.api.getSelection(id),
     })
       .pipe(
         finalize(() => this.loading.set(false)),
@@ -119,11 +142,10 @@ export class ParentCharacterComponent implements OnInit {
         next: ({ qualities, selection }) => {
           this.qualities.set(qualities);
           this.selection.set(selection);
-          this.selectedQualityIds.set([...selection.qualityIds]);
-          this.savedQualityIds.set([...selection.qualityIds]);
+          this.selectedQualityIds.set([...selection.selectedQualities]);
+          this.savedQualityIds.set([...selection.selectedQualities]);
           this.currentVersion.set(selection.version);
-          this.selectionLimit.set(selection.selectionLimit ?? 3);
-          this.editable.set(selection.editable !== false);
+          this.editable.set(true);
         },
         error: (e) => this.fail(e),
       });
@@ -138,7 +160,7 @@ export class ParentCharacterComponent implements OnInit {
     this.selectedQualityIds.update((values) =>
       values.includes(id)
         ? values.filter((value) => value !== id)
-        : values.length < this.selectionLimit()
+        : values.length < this.selectionLimit
           ? [...values, id]
           : values,
     );
@@ -150,10 +172,9 @@ export class ParentCharacterComponent implements OnInit {
     this.isSubmitting.set(true);
     this.error.set(null);
     this.api
-      .saveCharacterSelection({
+      .saveSelection({
         childId: id,
-        quarterId: selection.quarterId,
-        qualityIds: this.selectedQualityIds(),
+        qualityIds: [...this.selectedQualityIds()],
         expectedVersion: this.currentVersion(),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -161,8 +182,8 @@ export class ParentCharacterComponent implements OnInit {
         next: (saved) => {
           this.selection.set(saved);
           this.currentVersion.set(saved.version);
-          this.savedQualityIds.set([...saved.qualityIds]);
-          this.selectedQualityIds.set([...saved.qualityIds]);
+          this.savedQualityIds.set([...saved.selectedQualities]);
+          this.selectedQualityIds.set([...saved.selectedQualities]);
           this.isSubmitting.set(false);
           this.saveSuccessAlert.set(true);
         },
