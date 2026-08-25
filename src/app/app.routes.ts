@@ -230,7 +230,7 @@ export const routes: Routes = [
       },
       {
         path: 'memberships',
-        canActivate: [roleGuard(['admin'])],
+        canActivate: [organizationRoleGuard('admin'), capabilityGuard(['admin.memberships.manage'])],
         loadComponent: () =>
           import('./features/admin/memberships/admin-memberships.component').then((m) => m.AdminMembershipsComponent),
       },
