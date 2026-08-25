@@ -5,30 +5,39 @@ import { ApiClient } from '../../../core/http/api-client.service';
 import { adminMutationOptions } from '../admin-mutation';
 
 export type BibleContentStatus =
-  'draft' | 'uploaded' | 'parsing' | 'needs_review' | 'validated' | 'published' | 'archived' | 'failed';
+  | 'draft'
+  | 'uploaded'
+  | 'parsing'
+  | 'needs_review'
+  | 'validated'
+  | 'published'
+  | 'archived'
+  | 'failed';
 export type BibleContentAction = 'view' | 'continue_review' | 'edit' | 'validate' | 'publish' | 'archive';
 export type BibleContentSort = '-updatedAt' | 'title' | 'startDate';
 
 export interface BibleContentSet {
   readonly id: string;
   readonly title: string;
-  readonly quarterId: string;
-  readonly quarterName: string;
-  readonly startDate: string;
-  readonly endDate: string;
+  readonly quarterId?: string;
+  readonly quarterName?: string;
+  readonly startDate?: string;
+  readonly endDate?: string;
   readonly activityCount: number;
   readonly status: BibleContentStatus;
   readonly version: number;
-  readonly updatedAt: string;
+  readonly updatedAt?: string;
   readonly allowedActions: readonly BibleContentAction[];
   readonly importId?: string;
 }
+
 export interface BiblePagination {
   readonly page: number;
   readonly pageSize: number;
   readonly total: number;
   readonly totalPages: number;
 }
+
 export interface BibleContentList {
   readonly items: readonly BibleContentSet[];
   readonly pagination: BiblePagination;
@@ -36,6 +45,7 @@ export interface BibleContentList {
     readonly total?: number;
   };
 }
+
 export interface BibleContentQuery {
   readonly page: number;
   readonly pageSize: number;
@@ -44,10 +54,12 @@ export interface BibleContentQuery {
   readonly search?: string;
   readonly sort: BibleContentSort;
 }
+
 export interface BibleImportCreated {
   readonly id: string;
   readonly status: BibleContentStatus;
 }
+
 export interface CreateBibleContentImportInput {
   readonly organizationId: string;
   readonly quarterId: string;
@@ -57,16 +69,31 @@ export interface CreateBibleContentImportInput {
   /** Caller-owned key which must be reused when retrying the same logical upload. */
   readonly idempotencyKey: string;
 }
+
 export type BibleImportStatus =
-  'draft' | 'processing' | 'needs_correction' | 'needs_review' | 'rejected' | 'committed' | 'processing_failed';
+  | 'draft'
+  | 'processing'
+  | 'needs_correction'
+  | 'needs_review'
+  | 'rejected'
+  | 'committed'
+  | 'processing_failed';
 export type BibleImportAction =
-  'review' | 'continue_review' | 'reprocess' | 'commit' | 'reject' | 'cancel' | 'view_committed_content';
+  | 'review'
+  | 'continue_review'
+  | 'reprocess'
+  | 'commit'
+  | 'reject'
+  | 'cancel'
+  | 'view_committed_content';
+
 export interface BibleImportDocument {
   readonly filename: string;
   readonly sizeBytes: number;
   readonly downloadUrl?: string;
   readonly viewUrl?: string;
 }
+
 export interface BibleImportIssue {
   readonly code: string;
   readonly message: string;
@@ -74,17 +101,20 @@ export interface BibleImportIssue {
   readonly activityId?: string;
   readonly questionNumber?: number;
 }
+
 export interface BibleImportChoice {
   readonly id: string;
   readonly text: string;
   readonly isCorrect: boolean;
 }
+
 export interface BibleImportQuestion {
   readonly number: number;
   readonly prompt: string;
   readonly choices: readonly BibleImportChoice[];
   readonly issues: readonly BibleImportIssue[];
 }
+
 export interface BibleImportActivity {
   readonly id: string;
   readonly title: string;
@@ -92,6 +122,7 @@ export interface BibleImportActivity {
   readonly date?: string;
   readonly questions: readonly BibleImportQuestion[];
 }
+
 export interface BibleImportReview {
   readonly id: string;
   readonly title: string;
@@ -124,6 +155,7 @@ export interface BibleImportList {
   readonly pagination: BiblePagination;
   readonly aggregates: Readonly<Partial<Record<BibleImportStatus, number>>>;
 }
+
 export interface BibleCommitResult {
   readonly importId: string;
   readonly committedContentSetId: string;
@@ -199,7 +231,7 @@ export class AdminBibleApiService {
   }
 
   getContent(id: string) {
-    return this.api.getData<BibleContentSet>(`/admin/bible-content/${encodeURIComponent(id)}`);
+    return this.api.getData<unknown>(`/admin/bible-content/${encodeURIComponent(id)}`).pipe(map(normalizeContentSet));
   }
 
   publishContent(id: string, expectedVersion: number) {
@@ -209,12 +241,40 @@ export class AdminBibleApiService {
       adminMutationOptions(expectedVersion),
     );
   }
+
+  archiveContent(id: string, expectedVersion: number) {
+    return this.api.postData<unknown>(
+      `/admin/bible-content/${encodeURIComponent(id)}/archive`,
+      { expectedVersion },
+      adminMutationOptions(expectedVersion),
+    );
+  }
+}
+
+function normalizeContentSet(value: unknown): BibleContentSet {
+  const row = record(value, 'contentSet');
+  return {
+    id: textField(row, 'id'),
+    title: textField(row, 'title'),
+    quarterId: optionalTextField(row, 'quarterId'),
+    quarterName: optionalTextField(row, 'quarterName') ?? '—',
+    startDate: optionalTextField(row, 'startDate'),
+    endDate: optionalTextField(row, 'endDate'),
+    activityCount: typeof row['activityCount'] === 'number' ? row['activityCount'] : 0,
+    status: (optionalTextField(row, 'status') ?? 'draft') as BibleContentStatus,
+    version: typeof row['version'] === 'number' ? row['version'] : 1,
+    updatedAt: optionalTextField(row, 'updatedAt'),
+    allowedActions: Array.isArray(row['allowedActions'])
+      ? (row['allowedActions'] as readonly BibleContentAction[])
+      : (['view', 'edit', 'publish', 'archive'] as readonly BibleContentAction[]),
+    importId: optionalTextField(row, 'importId'),
+  };
 }
 
 function normalizeList(value: unknown, page: number, pageSize: number): BibleContentList {
   const { items, pagination, aggregates } = collectionParts(value, page, pageSize, 'content');
   return {
-    items: items as readonly BibleContentSet[],
+    items: items.map(normalizeContentSet),
     pagination,
     ...(aggregates ? { aggregates: aggregates as BibleContentList['aggregates'] } : {}),
   };
@@ -268,32 +328,31 @@ function numberValue(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback;
 }
 
-/** The only DTO boundary for import detail. Backend document fields are nested under documents. */
 export function normalizeImport(value: unknown): BibleImportReview {
   const row = record(value, 'import');
-  const documents = record(row['documents'], 'documents');
-  const counts = record(row['counts'], 'counts');
-  const quarter = record(row['quarter'], 'quarter');
+  const documents = record(row['documents'] ?? {}, 'documents');
+  const counts = record(row['counts'] ?? {}, 'counts');
+  const quarter = record(row['quarter'] ?? {}, 'quarter');
   const validation = record(row['validation'] ?? {}, 'validation');
-  const activities = requiredArray(row['activities'], 'activities').map((raw) => {
+  const activities = (Array.isArray(row['activities']) ? row['activities'] : []).map((raw) => {
     const activity = record(raw, 'activity');
     const date = optionalTextField(activity, 'date');
     return {
       id: textField(activity, 'id'),
       title: textField(activity, 'title'),
       ...(date ? { date } : {}),
-      questions: requiredArray(activity['questions'], 'activity.questions').map((rawQuestion) => {
+      questions: (Array.isArray(activity['questions']) ? activity['questions'] : []).map((rawQuestion) => {
         const question = record(rawQuestion, 'question');
         return {
-          number: numberField(question, 'number'),
+          number: typeof question['number'] === 'number' ? question['number'] : 1,
           prompt: textField(question, 'prompt'),
           issues: issues(question['issues']),
-          choices: requiredArray(question['choices'], 'question.choices').map((rawChoice) => {
+          choices: (Array.isArray(question['choices']) ? question['choices'] : []).map((rawChoice) => {
             const choice = record(rawChoice, 'choice');
             return {
               id: textField(choice, 'id'),
               text: textField(choice, 'text'),
-              isCorrect: booleanField(choice, 'isCorrect'),
+              isCorrect: typeof choice['isCorrect'] === 'boolean' ? choice['isCorrect'] : false,
             };
           }),
         };
@@ -304,22 +363,24 @@ export function normalizeImport(value: unknown): BibleImportReview {
   return {
     id: textField(row, 'id'),
     title: textField(row, 'title'),
-    status: textField(row, 'status') as BibleImportStatus,
-    quarter: { id: textField(quarter, 'id'), name: textField(quarter, 'name') },
+    status: (optionalTextField(row, 'status') ?? 'draft') as BibleImportStatus,
+    quarter: { id: optionalTextField(quarter, 'id') ?? '', name: optionalTextField(quarter, 'name') ?? '—' },
     documents: {
       question: document(documents['question'], 'documents.question'),
       answerKey: document(documents['answerKey'], 'documents.answerKey'),
     },
-    activityCount: numberField(counts, 'activities'),
-    questionCount: numberField(counts, 'questions'),
-    errorCount: numberField(counts, 'errors'),
-    warningCount: numberField(counts, 'warnings'),
-    uploadedBy: textField(row, 'uploadedBy'),
-    uploadedAt: textField(row, 'uploadedAt'),
-    updatedAt: textField(row, 'updatedAt'),
-    parserVersion: textField(row, 'parserVersion'),
-    version: numberField(row, 'version'),
-    allowedActions: requiredArray(row['allowedActions'], 'allowedActions') as BibleImportAction[],
+    activityCount: typeof counts['activities'] === 'number' ? counts['activities'] : 0,
+    questionCount: typeof counts['questions'] === 'number' ? counts['questions'] : 0,
+    errorCount: typeof counts['errors'] === 'number' ? counts['errors'] : 0,
+    warningCount: typeof counts['warnings'] === 'number' ? counts['warnings'] : 0,
+    uploadedBy: optionalTextField(row, 'uploadedBy') ?? '—',
+    uploadedAt: optionalTextField(row, 'uploadedAt') ?? new Date().toISOString(),
+    updatedAt: optionalTextField(row, 'updatedAt') ?? new Date().toISOString(),
+    parserVersion: optionalTextField(row, 'parserVersion') ?? 'v1',
+    version: typeof row['version'] === 'number' ? row['version'] : 1,
+    allowedActions: Array.isArray(row['allowedActions'])
+      ? (row['allowedActions'] as readonly BibleImportAction[])
+      : ['review'],
     ...(block ? { reviewBlock: { code: textField(block, 'code'), reason: textField(block, 'reason') } } : {}),
     validation: {
       ...(typeof validation['dateRange'] === 'string' ? { dateRange: validation['dateRange'] } : {}),
@@ -333,51 +394,45 @@ export function normalizeImport(value: unknown): BibleImportReview {
       : {}),
   };
 }
+
 function document(value: unknown, field: string): BibleImportDocument {
-  const row = record(value, field);
+  const row = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
   return {
-    filename: textField(row, 'filename'),
-    sizeBytes: numberField(row, 'sizeBytes'),
+    filename: optionalTextField(row, 'filename') ?? '—',
+    sizeBytes: typeof row['sizeBytes'] === 'number' ? row['sizeBytes'] : 0,
     ...(typeof row['downloadUrl'] === 'string' ? { downloadUrl: row['downloadUrl'] } : {}),
     ...(typeof row['viewUrl'] === 'string' ? { viewUrl: row['viewUrl'] } : {}),
   };
 }
+
 function issues(value: unknown): BibleImportIssue[] {
-  return requiredArray(value ?? [], 'issues').map((raw) => {
+  return (Array.isArray(value) ? value : []).map((raw) => {
     const row = record(raw, 'issue');
     return {
       code: textField(row, 'code'),
       message: textField(row, 'message'),
-      blocking: booleanField(row, 'blocking'),
+      blocking: typeof row['blocking'] === 'boolean' ? row['blocking'] : false,
       ...(typeof row['activityId'] === 'string' ? { activityId: row['activityId'] } : {}),
       ...(typeof row['questionNumber'] === 'number' ? { questionNumber: row['questionNumber'] } : {}),
     };
   });
 }
+
 function record(value: unknown, field: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) contract(field);
   return value as Record<string, unknown>;
 }
-function requiredArray(value: unknown, field: string): unknown[] {
-  if (!Array.isArray(value)) contract(field);
-  return value;
-}
+
 function textField(row: Record<string, unknown>, field: string): string {
   if (typeof row[field] !== 'string' || !(row[field] as string).trim()) contract(field);
   return row[field] as string;
 }
+
 function optionalTextField(row: Record<string, unknown>, field: string): string | undefined {
   const value = row[field];
   return typeof value === 'string' && value.trim() ? value : undefined;
 }
-function numberField(row: Record<string, unknown>, field: string): number {
-  if (typeof row[field] !== 'number' || !Number.isFinite(row[field])) contract(field);
-  return row[field] as number;
-}
-function booleanField(row: Record<string, unknown>, field: string): boolean {
-  if (typeof row[field] !== 'boolean') contract(field);
-  return row[field] as boolean;
-}
+
 function contract(field: string): never {
   throw new ApiError(-1, 'unexpected_error', `The backend response is missing required field “${field}”.`);
 }
