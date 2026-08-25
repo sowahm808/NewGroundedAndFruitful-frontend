@@ -73,6 +73,8 @@ export interface SessionUser {
   readonly activeWorkspaceId?: string;
   /** The backend-selected workspace. It is context only; effective roles remain authoritative. */
   readonly activeWorkspace?: SessionWorkspace;
+  /** Code children enter with their handle and PIN. */
+  readonly familyCode?: string;
   readonly workspaces?: readonly SessionWorkspace[];
   /** The backend-calculated authority. It is never derived from memberships in the browser. */
   readonly effectiveRoles?: readonly UserRole[];
@@ -94,6 +96,9 @@ export interface SessionWorkspace {
   readonly name?: string;
   readonly status?: MembershipState;
   readonly roles?: readonly UserRole[];
+  /** Human-readable workspace code used for child sign-in. */
+  readonly slug?: string;
+  readonly familyCode?: string;
 }
 export interface ClaimSynchronization {
   readonly status: 'synchronized' | 'refresh_required' | 'failed';
