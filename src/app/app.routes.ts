@@ -211,7 +211,7 @@ export const routes: Routes = [
     children: [
       {
         path: 'users',
-        canActivate: [roleGuard(['super_admin'])],
+        canActivate: [roleGuard(['admin','super_admin'])],
         loadComponent: () => import('./features/admin/admin-users.component').then((m) => m.AdminUsersComponent),
       },
       {
